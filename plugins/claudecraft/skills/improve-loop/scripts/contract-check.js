@@ -104,6 +104,11 @@ const improveRequired = [
   ['MAX_CYCLES', /MAX_CYCLES|IMPROVE_LOOP_MAX_CYCLES/i],
   ['--once mode', /--once/i],
   ['campaign report', /Improve · campaign report|Campaign report/i],
+  ['campaign goal at kickoff', /Campaign goal|#### Campaign goal/i],
+  ['cycle discovery card', /cycle discovery|Improve · cycle K\/MAX|Discovered this cycle/i],
+  ['cycles at a glance', /Cycles at a glance/i],
+  ['campaign summary section', /#### Summary|Outcome in plain language/i],
+  ['illustrative status bar', /Illustrative bar|illustrative/i],
   ['do not stop for user', /DO NOT stop for the user|do not stop for the user/i],
   ['outer goal protocol', /Outer goal protocol/i],
   ['migrate-or-discard', /migrate-or-discard|discard-legacy|discard-cold-start/i],
@@ -127,8 +132,9 @@ const improveRequired = [
   ['worktrees path', /\.worktrees\//],
   ['status reporting section', /Status reporting \(user-facing/i],
   ['kickoff card', /Improve · kickoff/],
-  ['closing card', /Improve · cycle result/],
+  ['closing card', /Improve · cycle result|cycle discovery/i],
   ['phase banner', /▸ improve · Phase/],
+  ['cycle K/MAX progress', /cycle K\/MAX|K\/MAX/],
   ['L1 continues next L2', /L1 continues next L2|continues next L2 cycle/i],
 ];
 

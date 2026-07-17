@@ -11,16 +11,24 @@ Improve-loop campaign for target: <TARGET>
 Repo: <TARGET_REPO_ABS>
 Test command: <CMD>
 Mode: autonomous (default) | once
+Cycle budget: MAX_CYCLES (default 8; env IMPROVE_LOOP_MAX_CYCLES)
+
+Campaign goal: improve <TARGET> until residual discipline is met (P0/P1 backlog from
+git history; complete only after two consecutive cycles with zero open material P0/P1
+and a green suite), or until stopped / blocked / max-cycles.
 
 The agent runs the improve-loop skill. Default: L1 loops L2 cycles in-session until
 Status is terminal (complete OR stopped(...)) AND the iteration commit has landed
-(merge-back best-effort), or until MAX_CYCLES / blocked. Default complete requires
-P0/P1 planning from git history and **two consecutive** cycles with no open material
-P0/P1 (plus green suite). Stale pointer is discarded; each invoke cold-starts unless
---resume.
+(merge-back best-effort), or until MAX_CYCLES / blocked. Stale pointer is discarded;
+each invoke cold-starts unless --resume.
+
+User-facing status (required): kickoff states this goal + cycle budget; each cycle
+emits a discovery card (what was tried, outcome, key discoveries, backlog delta,
+cycle K/MAX); L1 exit emits Campaign report (goal restated, cycles-at-a-glance table,
+plain-language summary + learnings).
 
 Done when Phase 5 / L1 reports terminal+landed (Campaign report). On active mid-campaign:
-progress only — do not complete the host goal.
+progress + discovery cards only — do not complete the host goal.
 ```
 
 ## Placeholder rules

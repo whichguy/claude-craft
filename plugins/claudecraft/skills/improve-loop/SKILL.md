@@ -108,9 +108,9 @@ After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
      - If `once` mode → **exit loop** after this cycle (even if Status still `active`).
      - If Status still `active` and mode is **autonomous** → **immediately run another L2
        cycle** — **DO NOT stop for the user**, do not ask “continue?”, do not end the turn.
-7. **When the loop exits:** emit the **Campaign report** once (see Status reporting). Optional
-   `update_goal(completed: true)` only if terminal+landed and a goal is Active (ignore tool
-   errors if goal was never Active).
+7. **When the loop exits:** emit the **Campaign report** once (goal restated, cycles-at-a-glance,
+   summary — see Status reporting). Optional `update_goal(completed: true)` only if
+   terminal+landed and a goal is Active (ignore tool errors if goal was never Active).
 8. **Always teardown isolation for this invoke:**
    - Terminal+landed → `merge-back.js` (FF + worktree/branch/pointer remove).
    - Blocked / capped / fail → `campaign-teardown.js --repo "$TARGET_REPO"` best-effort
@@ -250,37 +250,41 @@ subshells for WORKSPACE. **Subshells cannot heal an already-dead sticky CWD.**
 
 ## Status reporting (user-facing — mandatory)
 
-Operators must always know **where** the campaign lives, **which phase** is running, and
-**what to do next** — including after short-circuits. Do **not** bury status in tool noise
-or end with only a commit hash. Emit the blocks below as plain markdown the user can scan
-in chat (emoji optional; keep labels stable so grepping logs works).
+Operators must always see **what goal this campaign set**, **how many cycles are budgeted
+and used**, **what each cycle discovered**, and a **final summary** — not only tool noise or
+a commit hash. Emit the blocks below as plain markdown the user can scan in chat (emoji
+optional; keep labels stable so grepping logs works).
+
+**Illustrative bar (non-negotiable):** every autonomous campaign must make the *story*
+visible while it runs — goal at kickoff, discoveries per cycle, summary at exit. Thin
+progress lines alone are not enough.
 
 ### Live phase banner (every phase entry)
 
 When entering a phase (or a Phase 0 short-circuit branch), print **one** short line first:
 
 ```text
-▸ improve · Phase <0–5 | short-circuit name> · <one-line action>
+▸ improve · Phase <0–5 | short-circuit name> · cycle K/MAX · <one-line action>
 ```
 
-Examples:
+Include `cycle K/MAX` once L1 has a cycle count (omit on pure Phase-0 setup before the
+first L2 cycle starts). Examples:
 
 ```text
 ▸ improve · Phase 0 · cold-start worktree improve/backchain-skill-…-a1b2c3
-▸ improve · Phase 0 · resume WORKSPACE (pointer active)
-▸ improve · Phase 0 · migrate-or-discard (legacy launch ledger)
+▸ improve · Phase 0 · discard-stale → cold-start
 ▸ improve · Phase 0 · short-circuit: ledger-flush (not landed, clean tree)
-▸ improve · Phase 1 · execute: <first 80 chars of backlog item>
-▸ improve · Phase 1 · test: `make test-fast`
-▸ improve · Phase 3 · advisors: Round 1 (codex + grok) | native-only
-▸ improve · Phase 4 · commit improve-loop: iteration 3 — …
-▸ improve · Phase 5 · merge-back ff-only → main
+▸ improve · Phase 1 · cycle 2/8 · execute: <first 80 chars of backlog item>
+▸ improve · Phase 1 · cycle 2/8 · test: `make test-fast`
+▸ improve · Phase 3 · cycle 2/8 · advisors: Round 1 (codex + grok) | native-only
+▸ improve · Phase 4 · cycle 2/8 · commit improve-loop: iteration 3 — …
+▸ improve · Phase 5 · cycle 3/8 · merge-back ff-only → main
 ```
 
 On any hard stop / veto, print immediately:
 
 ```text
-▸ improve · STOP · <reason code> — <one human sentence>
+▸ improve · STOP · cycle K/MAX · <reason code> — <one human sentence>
 ```
 
 Reason codes (use these strings when they apply): `shell unavailable`,
@@ -290,33 +294,46 @@ Reason codes (use these strings when they apply): `shell unavailable`,
 
 ### Kickoff card (once Phase 0 has resolved WORKSPACE — or on early STOP)
 
+Emit **once** after Phase 0 has enough context. Lead with the **campaign goal** so the
+operator knows what success looks like before any cycle runs.
+
 ```markdown
 ### 🔄 Improve · kickoff
+
+#### Campaign goal
 | | |
 |---|---|
-| **Target** | <plain-language target> |
+| **Goal** | <1–3 sentences: what this campaign will improve and why it was opened> |
+| **Target** | <plain-language target from the user invoke> |
+| **Done when** | Status `complete` after **2 consecutive** cycles with zero open P0/P1 + green suite · or `stopped` / blocked / max-cycles |
+| **Driver** | autonomous (loop until done) \| once (single cycle) |
+| **Cycle budget** | max **MAX_CYCLES** L2 cycles this invoke (env `IMPROVE_LOOP_MAX_CYCLES`, default 8) |
+| **Material rule** | open work must be P0/P1; residual-only passes count toward the ×2 complete streak |
+
+#### Setup
+| | |
+|---|---|
 | **Repo** | `<TARGET_REPO>` |
-| **Mode** | cold-start \| resume \| migrate \| discard → cold-start \| merge-back-only \| short-circuit |
+| **Mode** | cold-start \| discard-stale → cold-start \| resume \| migrate \| merge-back-only \| short-circuit \| stop |
 | **Launch** | `<LAUNCH>` · branch `<launch_branch\|detached>` |
 | **Workspace** | `<WORKSPACE>` |
 | **Campaign branch** | `improve/<slug>` |
 | **Pointer** | `<POINTER>` · state `active\|reintegrate_blocked` |
 | **Test command** | `<cmd>` |
-| **Iteration N** | <n or — if not yet allocated> |
-| **Backlog open** | <count> · next: <short item or _(empty)_> |
-| **Driver** | autonomous \| once |
-| **Max cycles** | <MAX_CYCLES> |
+| **Seed backlog** | open P0/P1 count · next: <short item or _(empty)_> |
 | **Session cwd (home)** | `<ORIGINAL_CWD>` |
-| **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE, not Grok session if different) |
-| **Outer goal** | yes \| no (optional) |
+| **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE; not Grok session if different) |
+| **Outer host goal** | yes \| no (optional observability only) |
 ```
 
 If Phase 0 stops before WORKSPACE exists, still emit this card with Mode = stop and fill
-only the fields you know; put the STOP reason in a final **Blocker** row.
+only the fields you know; put the STOP reason in a final **Blocker** row under Setup.
 
-### Mid-cycle beats (concise)
+### Mid-cycle beats (concise, during the cycle)
 
-- **Phase 1 select:** one line: item + why (or `empty-backlog · no Phase 1 execute`).
+While a cycle is in flight (not a substitute for the discovery card below):
+
+- **Phase 1 select:** one line: item + why (or `empty-backlog · residual-only / no Phase 1 execute`).
 - **After test:** `Test · PASS|FAIL` + ≤2-line summary (or first error signature).
 - **Phase 3:** `Advisors · usable K/M` + `Round 2 · yes|skipped (<why>)` + one-line
   replan direction (or `Backlog unchanged`).
@@ -324,74 +341,126 @@ only the fields you know; put the STOP reason in a final **Blocker** row.
 
 Do not paste full suite logs into chat; keep tails for the ledger only.
 
-### Closing card (Phase 5 — `--once` mode, or mid-run optional)
+### Cycle discovery card (mandatory after every L2 cycle)
 
-In **`--once`** mode, end the invoke with this card (including stops/vetoes). In
-**autonomous** mode, prefer one-line mid-cycle progress only; the full end artifact is the
-**Campaign report** (below). You may still emit a brief cycle line after each L2 cycle.
+Emit **after each L2 cycle finishes** (Phases 0–5 for that iteration), in **both**
+autonomous and `--once` modes — including short-circuits, residual-only, stops, and
+vetoes. This is the live “what did we learn this iteration?” surface. Keep it scannable:
+prefer bullets over essays; 3–7 discovery bullets max.
 
 ```markdown
-### ✅ Improve · cycle result
+### 🔍 Improve · cycle K/MAX · iteration N
+
 | | |
 |---|---|
+| **Campaign goal (reminder)** | <same one-line goal as kickoff, or tightened if refined> |
 | **Result** | active · continue \| complete · done \| stopped (<reason>) \| blocked (<reason>) |
-| **Iteration** | N=<n> · Outcome `confirmed\|disproven\|partial\|blocked` · Test `PASS\|FAIL\|n/a` |
-| **Thesis** | <one line> |
-| **What landed** | <paths or _no code_> |
+| **Thesis tried** | <one line from Phase 1 / lightweight Phase 2> |
+| **Outcome** | `confirmed\|disproven\|partial\|blocked` · Test `PASS\|FAIL\|n/a` |
+| **What landed** | <paths or _no code_ / ledger-only> |
 | **Commit** | `yes` `<short-sha>` · `improve-loop: iteration N — …` **or** `no — <reason>` |
-| **Status (ledger)** | `active\|complete\|stopped (…)` |
-| **Stop counters** | no-progress=<i> · same-error=<j> · non-material=<m> · sig=`<none\|…>` |
-| **Backlog** | open P0/P1 <k> · checked this cycle <list or —> |
+| **Open P0/P1** | <k after replan> · non-material streak `<m>` |
+| **Stop counters** | no-progress=<i> · same-error=<j> · sig=`<none\|…>` |
 | **Advisors** | <who responded / native-only / skipped> |
-| **Merge-back** | n/a (still active) \| ok → main \| blocked · run: `git -C <LAUNCH> merge --ff-only <branch>` |
-| **Workspace** | `<WORKSPACE>` (kept) \| removed after merge-back |
-| **Pointer** | `active` \| `reintegrate_blocked` \| deleted |
-| **Next** | autonomous+active: L1 continues next L2 cycle now · once+active: re-invoke `/improve` or drop `--once` · terminal: done · blocked (shell unavailable): quit Grok, `cd` to a real repo path, restart, `/bin/pwd` probe, re-invoke · other blocked: <operator action> |
+
+**Discovered this cycle**
+- <key finding, confirmation, disproof, risk, or replan insight #1>
+- <…>
+- <…>
+
+**Backlog delta**
+- Checked off: <items or —>
+- Newly opened / rewritten P0/P1: <items or —>
+- Still open (next up): <short list or _(empty — residual streak m)_>
+
+**Next**
+- autonomous + active → L1 starts cycle **K+1/MAX** now (do not wait for user)
+- once + active → re-invoke `/improve` or drop `--once`
+- terminal → campaign report next
+- blocked → <concrete operator action>
 ```
 
-### Campaign report (mandatory when L1 driver exits)
-
-Emit **once** when the L1 campaign driver exits (autonomous or once-after-terminal, or any
-block/cap). Do not omit.
-
-```markdown
-### 📋 Improve · campaign report
-| | |
-|---|---|
-| **Target** | <plain-language target> |
-| **Repo** | `<TARGET_REPO>` |
-| **Result** | complete \| stopped (<reason>) \| blocked (<reason>) \| capped (max-cycles) \| once-active |
-| **Cycles run** | <K> (iterations <first N>–<last N> or short-circuits) |
-| **Commits** | `<sha>` · <subject> (one line each, or _none_) |
-| **What landed** | <union of paths or ledger-only / no code> |
-| **Final Status** | `complete\|stopped (…)\|active\|—` |
-| **Merge-back** | ok → <branch> \| blocked · `<cmd>` \| n/a |
-| **Workspace** | removed \| kept at `<path>` |
-| **Pointer** | cleared \| active \| reintegrate_blocked |
-| **Stop counters (last)** | no-progress=<i> · same-error=<j> · non-material=<m> |
-| **Open P0/P1** | <k> |
-| **Backlog at end** | open <k> · … |
-| **Test command** | `<cmd>` · last `PASS\|FAIL\|n/a` |
-| **CWD homecoming** | restored `<ORIGINAL_CWD>` \| left on `<TARGET_REPO>` (home missing) \| n/a |
-| **Next** | done \| <operator action> |
-```
-
-**Learnings** (3–8 bullets): distill from this run’s iteration commit bodies / Log Notes;
-call out any `disproven` theses.
-
-Tone: confident, scannable, no filler. Prefer tables over walls of prose. When Result is
-`blocked` or `stopped`, **Next** must be a concrete operator action (not “try again” alone).
-
-### Progress line (autonomous, each L2 cycle)
-
-After each successful active cycle under autonomous mode, emit one line (and best-effort
-`update_goal(message: …)` if a goal is Active):
+Also emit a **one-line progress line** (and best-effort `update_goal(message: …)` if a host
+goal is Active) so logs stay greppable:
 
 ```text
-improve iter N active · open P0/P1 <k> · non-material=<m> · commit <short-sha|none> · cycle K/MAX · continuing
+improve cycle K/MAX · iter N · <active|complete|stopped|blocked> · open P0/P1 <k> · non-material=<m> · commit <short-sha|none> · <continuing|done>
 ```
 
 Only L1/Phase 5 may call `update_goal(completed: true, …)` (terminal + landed, goal Active).
+
+### Closing card (`--once` mode — alias of cycle discovery)
+
+In **`--once`** mode the cycle discovery card **is** the end-of-invoke cycle artifact
+(title may use `### ✅ Improve · cycle result` as an alias, but must still include
+**Campaign goal (reminder)**, **Discovered this cycle**, **Backlog delta**, and cycle
+`K/MAX` when known). In **autonomous** mode, do **not** skip discovery cards — emit one
+per cycle; the full end artifact is still the **Campaign report**.
+
+### Campaign report (mandatory when L1 driver exits)
+
+Emit **once** when the L1 campaign driver exits (autonomous complete/stop/block/cap, or
+`--once` after the single cycle). Do not omit. Restate the goal, show cycle count, walk
+the discovery arc, then summarize.
+
+```markdown
+### 📋 Improve · campaign report
+
+#### Goal (what this campaign set out to do)
+| | |
+|---|---|
+| **Goal** | <same campaign goal as kickoff — what we intended to improve> |
+| **Target** | <plain-language target> |
+| **Repo** | `<TARGET_REPO>` |
+| **Driver / budget** | autonomous \| once · **K** of **MAX** cycles used |
+| **Result** | complete \| stopped (<reason>) \| blocked (<reason>) \| capped (max-cycles) \| once-active |
+| **Final Status** | `complete\|stopped (…)\|active\|—` |
+
+#### Cycles at a glance
+| Cycle | Iter N | Thesis (short) | Outcome | Test | Commit | Open P0/P1 after | Key discovery (one line) |
+|---|---|---|---|---|---|---|---|
+| 1/MAX | N | … | confirmed\|… | PASS\|… | `sha`\|— | k | … |
+| 2/MAX | … | … | … | … | … | … | … |
+| … | … | … | … | … | … | … | … |
+
+(One row per L2 cycle actually run this invoke, including residual-only and short-circuits.
+If a cycle had no commit, put `—` in Commit.)
+
+#### What landed
+| | |
+|---|---|
+| **Commits** | `<sha>` · <subject> (one line each, or _none_) |
+| **Paths** | <union of paths or ledger-only / no code> |
+| **Merge-back** | ok → <branch> \| blocked · `<cmd>` \| n/a |
+| **Workspace** | removed \| kept at `<path>` |
+| **Pointer** | cleared \| active \| reintegrate_blocked |
+
+#### Summary
+**Outcome in plain language:** <2–5 sentences: did we hit the goal? what changed for the
+target? what remains? why did we stop (complete vs residual×2 vs cap vs block)?>
+
+**Learnings** (3–8 bullets from this run’s commit bodies / Log Notes; **always call out
+any `disproven` theses**):
+- …
+- …
+
+**Residual / still open**
+- Open P0/P1 at end: <k> · <list or _(none)_>
+- Non-material streak (last): <m>
+- Stop counters (last): no-progress=<i> · same-error=<j>
+
+**Ops**
+| | |
+|---|---|
+| **Test command** | `<cmd>` · last `PASS\|FAIL\|n/a` |
+| **CWD homecoming** | restored `<ORIGINAL_CWD>` \| left on `<TARGET_REPO>` (home missing) \| n/a |
+| **Next** | done \| <concrete operator action> |
+```
+
+Tone: confident, scannable, no filler. Prefer tables + short bullets over walls of prose.
+When Result is `blocked` or `stopped`, **Next** must be a concrete operator action (not
+“try again” alone). The **Summary** section is required even on short blocked campaigns
+(explain what the goal was and why no cycles or partial cycles ran).
 
 ## Invocation
 
@@ -1369,20 +1438,22 @@ below). No second clear commit.
 
 Apply the **Outer goal protocol** (optional host signal). Land first; merge-back second and
 best-effort; never merge mid-campaign. Phase banners + kickoff card earlier are required when
-Phase 0 ran. **Reporting:**
+Phase 0 ran. **Reporting (illustrative — see Status reporting):**
 
-- **Autonomous mode:** progress line after active cycles; full **Campaign report** when L1
-  exits (not a full Closing card every cycle).
-- **`--once` mode:** **Closing card** at end of the single cycle (and Campaign report if
-  that cycle already terminated the campaign).
+- **Every L2 cycle (both modes):** emit a **Cycle discovery card** (goal reminder, thesis,
+  outcome, **Discovered this cycle**, backlog delta) plus the greppable progress line.
+- **Autonomous mode:** after active cycles, L1 continues; full **Campaign report** (goal +
+  cycles-at-a-glance + summary) when L1 exits.
+- **`--once` mode:** discovery/closing card at end of the single cycle; still emit
+  **Campaign report** when L1 exits (even if Result is once-active).
 
 | Condition | Action |
 |---|---|
 | Terminal + landed | Merge-back; best-effort `update_goal(completed)` if goal Active; L1 exits → Campaign report |
 | Terminal + not landed | Do **not** complete host goal; L1 exits → report blocked/stopped |
-| Active after cycle, **autonomous** | Progress line; **L1 continues next L2 cycle now** (do not stop for user) |
-| Active after cycle, **`--once`** | Closing card; L1 exits (Result once-active) |
-| Dirty/veto before Phase 5 | Report only (never invent terminal Status over dirty code); L1 exits if blocked |
+| Active after cycle, **autonomous** | Cycle discovery card + progress line; **L1 continues next L2 cycle now** (do not stop for user) |
+| Active after cycle, **`--once`** | Cycle discovery / closing card; L1 exits → Campaign report (Result once-active) |
+| Dirty/veto before Phase 5 | Discovery card (blocked) + report; never invent terminal Status over dirty code; L1 exits if blocked |
 
 `stopped (...)` and `complete` are both **finished campaigns** once landed.
 
