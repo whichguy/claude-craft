@@ -127,3 +127,11 @@ Default continuous when target clear; until = no P0/P1 ×2 green on disk (header
 ## Custom until S8 evaluation
 
 Custom until must be judged by improve S8 against disk; Phase 3 only auto-completes default P0/P1×2 form.
+
+
+## Clean after custom-until S8 (goal 2124cb734ba1)
+
+| Iter | Verdict | Finding |
+|---|---|---|
+| material | custom until ignored by S8 | caps S8 must evaluate custom until against disk |
+| clean | first after fix | contract-iter2 FAIL=0; mocha 15 |
