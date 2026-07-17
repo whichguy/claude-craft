@@ -1,11 +1,11 @@
 ---
 name: improve-loop
 description: >-
-  Run a worktree-isolated improvement campaign under /goal until terminal: each invocation
-  is one gated cycle (execute, test, learn, multi-model replan, commit). Entry ensures GOAL_MODE
-  so the host re-drives until Status is complete/stopped and landed. Invoke for "/improve
-  <target>", "/claudecraft:improve-loop <target>", "/improve-loop <target>", "improve this
-  project iteratively", or "run a tested improvement cycle".
+  Run a worktree-isolated improvement campaign until terminal, then emit one end report:
+  default is autonomous multi-cycle in a single invoke (execute, test, learn, multi-model
+  replan, commit, loop). Use --once for a single gated cycle. Invoke for "/improve <target>",
+  "/improve --once <target>", "/claudecraft:improve-loop <target>", "/improve-loop <target>",
+  "improve this project iteratively", or "run a tested improvement cycle".
 ---
 
 # Improve loop
@@ -14,26 +14,30 @@ description: >-
 
 | Layer | Owns | Does not own |
 |---|---|---|
-| **L0 `/goal` (host)** | Multi-turn re-drive until done; max-turns/budget; pause/Esc | Worktree layout, backlog, advisors, commits |
-| **L1 Entry (`/improve`)** | Resolve target; **ensure GOAL_MODE**; one cycle per turn | Self-repeat loop; inventing a second cycle in-turn |
-| **L2 Cycle kernel (Phases 0–5)** | One gated cycle: execute → test → learn → replan → commit → signal | Host multi-turn iteration |
+| **L0 `/goal` (host, optional)** | Session visibility; max-turns/budget if operator opens goal | Multi-cycle engine (not required for autonomy) |
+| **L1 Entry (`/improve`)** | Resolve target; **campaign driver** (default: loop L2 until terminal/cap/block); end report | Phase internals of a single cycle |
+| **L2 Cycle kernel (Phases 0–5)** | One gated cycle: execute → test → learn → replan → commit → signal | Multi-cycle iteration (L1 owns the loop) |
 | **L3 Scripts** (`scripts/`) | Shell probe, worktree enter, pointer RMW, ledger-status, merge-back | Advisor judgment, thesis prose |
 
 ```text
-/improve <target>
-  → L1 ensure /goal (canonical objective from references/goal-objective.template.md)
-  → L3 shell-probe + worktree-enter  → WORKSPACE
-  → L2 one cycle (Phases 0–5)
-  → active: update_goal(progress) + end turn  → L0 re-drives next turn
-  → terminal+landed: merge-back + update_goal(completed)
+/improve <target>                    # default: autonomous campaign
+  → L1 resolve TARGET/REPO/CMD + mode (autonomous | once)
+  → loop (autonomous) or once:
+      L3 shell-probe + worktree-enter  → WORKSPACE
+      L2 one cycle (Phases 0–5)
+      active + autonomous + under caps → continue loop (do NOT stop for user)
+      terminal+landed → merge-back → exit loop
+      blocked / max-cycles → exit loop
+  → L1 Campaign report (once)
 ```
 
-**One cycle per invocation** — this skill does **not** self-repeat inside a single turn.
-Multi-cycle **is** the product: L1 **ensures** `/goal` so the host keeps invoking until the
-campaign goal is met (terminal Status **and** iteration commit landed). Outer hard caps are
-host **max-turns / max-budget** (or Esc). Log `N` is independent of goal turns.
+**Default: one campaign per invocation** — L1 loops L2 until Status is terminal **and** the
+iteration commit landed, or until a hard stop / cap. **`--once`:** exactly one L2 cycle
+(debug / step-through). L2 itself never self-loops inside Phases 0–5 — **one L2 cycle per
+loop iteration**. Cap: `MAX_CYCLES` default **8** (env `IMPROVE_LOOP_MAX_CYCLES`).
 
-**Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver.
+**Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver. **Do not** stop
+after the first `active` cycle waiting for the user when mode is autonomous.
 
 **Workspace rule (non-negotiable):** From cold-start until terminal **merge-back**, **all**
 improve work (ledger, code, tests, commits) happens in **exactly one** campaign worktree on
@@ -48,7 +52,7 @@ checkout for cold-start and end-of-campaign FF) — the campaign does **not** �
 **Package paths** (resolve relative to this skill directory):
 
 ```text
-SKILL_DIR/references/goal-objective.template.md   # canonical /goal body
+SKILL_DIR/references/goal-objective.template.md   # optional host /goal body
 SKILL_DIR/scripts/shell-probe.sh
 SKILL_DIR/scripts/worktree-enter.js
 SKILL_DIR/scripts/pointer.js
@@ -57,28 +61,41 @@ SKILL_DIR/scripts/merge-back.js
 SKILL_DIR/scripts/contract-check.js
 ```
 
-**Outer goal protocol (single rule):** Only **Phase 5** signals the outer goal. Phases 0–4
-never call `update_goal`, never claim the objective is met, and never emit promise tags.
-Complete the goal **only** when Status is terminal **and** the iteration commit has landed
-(merge-back best-effort, reported, not required). On any stop/veto before that: report only.
+**Outer goal protocol (optional host signal):** Only **Phase 5** / L1 may call `update_goal`
+(progress each cycle, `completed` only on terminal+landed when a goal is Active). Phases 0–4
+never claim the objective is met. Host `/goal` is **optional observability** — multi-cycle
+does **not** depend on host re-drive. On stop/veto: report; do not false-complete.
 
-### L1 — Ensure GOAL_MODE (before Phase 0 work)
+### L1 — Campaign driver (before Phase 0 work)
 
 After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
 
-1. If already under a compatible improve-loop `/goal` (objective matches target+repo, or
-   pointer already active for this campaign) → set `GOAL_MODE=yes` and continue.
-2. Else if the host can open goal mode (`/goal` or equivalent + `update_goal` tool): fill
-   `references/goal-objective.template.md` with `TARGET`, `TARGET_REPO_ABS`, `CMD`, open that
-   as the session goal, set `GOAL_MODE=yes`, then run **exactly one** L2 cycle this turn.
-3. Else if `update_goal` exists but slash `/goal` cannot be opened mid-skill: treat session as
-   `GOAL_MODE=yes` for progress/complete signaling and still run one cycle — do **not** claim
-   a standalone one-shot is a finished multi-cycle campaign.
-4. Else (no goal tooling): run **one seed cycle** if useful, print the exact filled objective
-   from the template as operator action, and set Closing **Next** to that `/goal …` line.
-   Multi-cycle without goal is **not** complete product behavior.
+1. **Mode:** `autonomous` (default) unless the invocation has `--once` / `once` / “single cycle”
+   / “one cycle only” → then `once`.
+2. **Caps:** `MAX_CYCLES` = env `IMPROVE_LOOP_MAX_CYCLES` if a positive integer, else **8**.
+   Also honor ledger stop counters (no-progress ×3, same-error ×3 → Status stopped inside L2).
+3. **Optional host goal:** if a compatible improve `/goal` is already Active, or `update_goal`
+   works, best-effort progress/complete signaling. **Do not wait** for host re-drive. Do not
+   require opening `/goal` to multi-cycle.
+4. **Driver loop:**
+   - `cycle_count = 0`
+   - **loop:**
+     - If `cycle_count >= MAX_CYCLES` → exit with Result `capped (max-cycles)`; do not start
+       another L2 cycle.
+     - Run **exactly one L2 cycle** (Phases 0–5). Increment `cycle_count` when a full or
+       short-circuit cycle was attempted (including ledger-flush / merge-back-only).
+     - If blocked (shell unavailable, launch/worktree dirty, secret veto, commit failed with
+       unclean stop, ambiguous repo, …) → **exit loop** (no thrash).
+     - If terminal Status **and** iteration landed → Phase 5 merge-back already ran (or run
+       it) → **exit loop**.
+     - If `once` mode → **exit loop** after this cycle (even if Status still `active`).
+     - If Status still `active` and mode is **autonomous** → **immediately run another L2
+       cycle** — **DO NOT stop for the user**, do not ask “continue?”, do not end the turn.
+5. **When the loop exits:** emit the **Campaign report** once (see Status reporting). Optional
+   `update_goal(completed: true)` only if terminal+landed and a goal is Active (ignore tool
+   errors if goal was never Active).
 
-Never invent an in-turn multi-cycle self-loop. Never emit ralph promise tags.
+Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
 
 ## Shell CWD discipline (mandatory)
 
@@ -160,7 +177,9 @@ Reason codes (use these strings when they apply): `shell unavailable`,
 | **Test command** | `<cmd>` |
 | **Iteration N** | <n or — if not yet allocated> |
 | **Backlog open** | <count> · next: <short item or _(empty)_> |
-| **Outer goal** | yes \| no |
+| **Driver** | autonomous \| once |
+| **Max cycles** | <MAX_CYCLES> |
+| **Outer goal** | yes \| no (optional) |
 ```
 
 If Phase 0 stops before WORKSPACE exists, still emit this card with Mode = stop and fill
@@ -176,10 +195,11 @@ only the fields you know; put the STOP reason in a final **Blocker** row.
 
 Do not paste full suite logs into chat; keep tails for the ledger only.
 
-### Closing card (Phase 5 — always, including stops/vetoes)
+### Closing card (Phase 5 — `--once` mode, or mid-run optional)
 
-End **every** invocation with this card (adapt rows that do not apply; never omit the
-section):
+In **`--once`** mode, end the invoke with this card (including stops/vetoes). In
+**autonomous** mode, prefer one-line mid-cycle progress only; the full end artifact is the
+**Campaign report** (below). You may still emit a brief cycle line after each L2 cycle.
 
 ```markdown
 ### ✅ Improve · cycle result
@@ -197,37 +217,68 @@ section):
 | **Merge-back** | n/a (still active) \| ok → main \| blocked · run: `git -C <LAUNCH> merge --ff-only <branch>` |
 | **Workspace** | `<WORKSPACE>` (kept) \| removed after merge-back |
 | **Pointer** | `active` \| `reintegrate_blocked` \| deleted |
-| **Next** | GOAL_MODE+active: goal continues next turn · no GOAL_MODE: paste `/goal` template · terminal: done · blocked (shell unavailable): quit Grok, `cd` to a real repo path, restart, `/bin/pwd` probe, re-invoke · other blocked: <operator action> |
+| **Next** | autonomous+active: L1 continues next L2 cycle now · once+active: re-invoke `/improve` or drop `--once` · terminal: done · blocked (shell unavailable): quit Grok, `cd` to a real repo path, restart, `/bin/pwd` probe, re-invoke · other blocked: <operator action> |
 ```
+
+### Campaign report (mandatory when L1 driver exits)
+
+Emit **once** when the L1 campaign driver exits (autonomous or once-after-terminal, or any
+block/cap). Do not omit.
+
+```markdown
+### 📋 Improve · campaign report
+| | |
+|---|---|
+| **Target** | <plain-language target> |
+| **Repo** | `<TARGET_REPO>` |
+| **Result** | complete \| stopped (<reason>) \| blocked (<reason>) \| capped (max-cycles) \| once-active |
+| **Cycles run** | <K> (iterations <first N>–<last N> or short-circuits) |
+| **Commits** | `<sha>` · <subject> (one line each, or _none_) |
+| **What landed** | <union of paths or ledger-only / no code> |
+| **Final Status** | `complete\|stopped (…)\|active\|—` |
+| **Merge-back** | ok → <branch> \| blocked · `<cmd>` \| n/a |
+| **Workspace** | removed \| kept at `<path>` |
+| **Pointer** | cleared \| active \| reintegrate_blocked |
+| **Stop counters (last)** | no-progress=<i> · same-error=<j> |
+| **Backlog at end** | open <k> · … |
+| **Test command** | `<cmd>` · last `PASS\|FAIL\|n/a` |
+| **Next** | done \| <operator action> |
+```
+
+**Learnings** (3–8 bullets): distill from this run’s iteration commit bodies / Log Notes;
+call out any `disproven` theses.
 
 Tone: confident, scannable, no filler. Prefer tables over walls of prose. When Result is
 `blocked` or `stopped`, **Next** must be a concrete operator action (not “try again” alone).
 
-### Multi-cycle (`/goal`) progress line
+### Progress line (autonomous, each L2 cycle)
 
-When GOAL_MODE and Status remains `active` after a successful cycle, also emit one line
-suitable for `update_goal(message: …)`:
+After each successful active cycle under autonomous mode, emit one line (and best-effort
+`update_goal(message: …)` if a goal is Active):
 
 ```text
-improve iter N active · open backlog <k> · commit <short-sha|none> · workspace <slug>
+improve iter N active · open backlog <k> · commit <short-sha|none> · cycle K/MAX · continuing
 ```
 
-Only Phase 5 may call `update_goal(completed: true, …)` (terminal + landed).
+Only L1/Phase 5 may call `update_goal(completed: true, …)` (terminal + landed, goal Active).
 
 ## Invocation
 
 ```
 /improve <target, described in plain language>
+/improve --once <target>
 ```
 
-Also: `/improve-loop`, `/claudecraft:improve-loop` (plugin namespace). Example:
-`/improve "error handling in scripts/ingest.py, tests via pytest"`.
+Also: `/improve-loop`, `/claudecraft:improve-loop` (plugin namespace). Examples:
+`/improve "error handling in scripts/ingest.py, tests via pytest"` (autonomous campaign);
+`/improve --once "…"` (single L2 cycle).
 
-No skill flags. Test command: reuse from invocation, goal objective, pointer, or existing
-ledger. If still missing — **interactive:** ask once; **cannot ask** (headless / unattended):
-`Status: stopped (no test command)`, write a Log entry (Thesis `no test command supplied…`,
-Outcome `blocked`, `Committed: pending`), Phase 4 land (ledger-only), Phase 5. Prefer seeding
-the command in the goal objective or a first interactive `/improve`.
+**Flags:** `--once` / word `once` in the same turn → single cycle. Cap override: env
+`IMPROVE_LOOP_MAX_CYCLES` (positive int; default 8). Test command: reuse from invocation,
+goal objective, pointer, or existing ledger. If still missing — **interactive:** ask once;
+**cannot ask** (headless / unattended): `Status: stopped (no test command)`, write a Log
+entry (Thesis `no test command supplied…`, Outcome `blocked`, `Committed: pending`), Phase 4
+land (ledger-only), Phase 5. Prefer seeding the command in the goal objective or invocation.
 
 **Target repository (do not assume session cwd is the campaign repo).** Resolve the **target
 repo root** before Phase 0 step 1a when any of these apply:
@@ -251,9 +302,10 @@ deterministic local gate.
 `clear ledger`, `clear IMPROVE_LOOP` force **discard** of a launch-root leftover ledger
 instead of migrate (see Phase 0 step 1a.3). Default for Status `active` is **migrate**.
 
-**Sibling skill.** `grok-review-converge` is the same outer-driver family (one round per
-invocation; multi-round under `/goal`). Ralph remains optional legacy only on converge when
-promise-tag Stop-hooks are required — never improve-loop’s primary path.
+**Sibling skill.** `grok-review-converge` is related (one round per invoke by default;
+multi-round may still prefer `/goal`). Improve-loop’s **primary multi-cycle is L1
+autonomous campaign driver**, not host re-drive. Ralph remains optional legacy only on
+converge when promise-tag Stop-hooks are required — never improve-loop’s primary path.
 
 ## Preconditions
 
@@ -1163,25 +1215,24 @@ below). No second clear commit.
 
 ### Phase 5 — Outer signal + **merge-back (end of campaign only)**
 
-Apply the **Outer goal protocol**. Land first; merge-back second and best-effort; never merge
-mid-campaign. **Always** end the user-visible turn with the **Closing card** from
-[Status reporting](#status-reporting-user-facing--mandatory) (even on veto/STOP). Phase
-banners + kickoff card earlier in the turn are required when Phase 0 ran at all.
+Apply the **Outer goal protocol** (optional host signal). Land first; merge-back second and
+best-effort; never merge mid-campaign. Phase banners + kickoff card earlier are required when
+Phase 0 ran. **Reporting:**
 
-**GOAL_MODE:** true when L1 ensured a goal (or a compatible goal was already active).
-If the `update_goal` tool exists, use it for complete/progress. Else: state objective met in
-prose and stop further improve cycles. If L1 could not ensure goal tooling, still use the
-Closing card and put the filled `/goal` template in **Next** (never false-complete).
+- **Autonomous mode:** progress line after active cycles; full **Campaign report** when L1
+  exits (not a full Closing card every cycle).
+- **`--once` mode:** **Closing card** at end of the single cycle (and Campaign report if
+  that cycle already terminated the campaign).
 
 | Condition | Action |
 |---|---|
-| Terminal + landed | Closing card + merge-back; if GOAL_MODE → **complete** (include Status + `merge-back: ok\|blocked`) |
-| Terminal + not landed | Closing card (Result blocked/stopped, Commit no); **do not** complete |
-| Active after cycle | Closing card + multi-cycle progress line if GOAL_MODE; **do not** complete |
-| Dirty/veto before Phase 5 | Closing card only (never invent terminal Status over dirty code) |
+| Terminal + landed | Merge-back; best-effort `update_goal(completed)` if goal Active; L1 exits → Campaign report |
+| Terminal + not landed | Do **not** complete host goal; L1 exits → report blocked/stopped |
+| Active after cycle, **autonomous** | Progress line; **L1 continues next L2 cycle now** (do not stop for user) |
+| Active after cycle, **`--once`** | Closing card; L1 exits (Result once-active) |
+| Dirty/veto before Phase 5 | Report only (never invent terminal Status over dirty code); L1 exits if blocked |
 
-`stopped (...)` and `complete` are both **finished campaigns** once landed — complete the
-goal with the reason so multi-cycle does not re-open forever.
+`stopped (...)` and `complete` are both **finished campaigns** once landed.
 
 **Same-turn landed** (resume file may already be gone after terminal archive) iff:
 
@@ -1199,41 +1250,35 @@ goal with the reason so multi-cycle does not re-open forever.
 
   Parse JSON: `merge_back` is `ok` | `blocked` | `skipped_detached` | `teardown_partial`;
   `suggested_cwd` is the durable path (LAUNCH) to set as host sticky CWD. On blocked/skipped,
-  leave WORKSPACE; print the FF command from notes/error. Still complete goal if GOAL_MODE
-  (land is durable). Prefer the script over freehand FF so teardown order (FF → remove
-  worktree → delete branch → delete pointer) stays correct. **Always** set outer sticky CWD
-  to `suggested_cwd` / LAUNCH after teardown (see **Shell CWD discipline**).
+  leave WORKSPACE; print the FF command from notes/error. Land is durable even if merge-back
+  fails. Prefer the script over freehand FF so teardown order (FF → remove worktree → delete
+  branch → delete pointer) stays correct. **Always** set outer sticky CWD to `suggested_cwd` /
+  LAUNCH after teardown (see **Shell CWD discipline**).
 
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
-  Phases 1–4; run `merge-back.js` on the same pointer. Success clears pointer (post-goal
-  cleanup if goal already completed on land).
+  Phases 1–4; run `merge-back.js` on the same pointer. Success clears pointer.
 
-- **Active + GOAL_MODE:** end turn; pointer stays `active`; emit progress line;
-  Closing **Next** = goal continues next turn (host re-drives). **One cycle per assistant
-  turn.** Do **not** primary-suggest manual re-invoke.
-- **Active + no GOAL_MODE:** end turn; Closing **Next** = exact filled objective from
-  `references/goal-objective.template.md` so the operator can start `/goal`.
+- **Active + autonomous:** do **not** end the user turn waiting for re-invoke; L1 driver
+  starts the next L2 cycle immediately (under `MAX_CYCLES`).
+- **Active + `--once`:** end after Closing card; operator may re-invoke without `--once` to
+  continue the same campaign (pointer resume).
 
-## Multi-cycle: entry ensures `/goal`
+## Multi-cycle: L1 campaign driver (not host re-drive)
 
-One `/improve` = **one L2 cycle**. Multi-cycle = **L0 `/goal`** re-driving that cycle until
-terminal. L1 **ensures** goal mode on entry (see Campaign architecture) — the operator should
-not need a separate “remember to compose with /goal” step for the happy path.
-
-Canonical objective: fill `references/goal-objective.template.md` (single source — do not
-invent a second multi-cycle wrapper).
+Default `/improve` = **autonomous L1 loop** of L2 cycles until terminal+landed, blocked, or
+`MAX_CYCLES`. Host `/goal` is optional (template at `references/goal-objective.template.md`
+for operators who want session-level visibility/caps). Primary multi-cycle does **not**
+depend on “goal continues next turn.”
 
 **Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver (promise tags,
 `.claude/ralph-loop.local.md` are deprecated for this skill). Sibling `grok-review-converge`
 may still document ralph as optional legacy.
 
-**Unattended hard caps (host, not this skill):**
-- Claude: `claude -p "/goal …" --max-turns N --max-budget-usd $` (keep `N` modest — advisors cost).
-- Grok: `/goal` + session **max-turns / max-budget** (or Esc). Signal completion only via
-  Phase 5 (`update_goal` when present; else prose “objective met”). Never emit ralph promise
-  tags from this skill.
+**Hard caps:**
+- Skill: `IMPROVE_LOOP_MAX_CYCLES` (default 8) + ledger stop counters.
+- Host (optional outer wall): max-turns / max-budget / Esc when unattended.
 
-Merge-back left blocked → next `/improve` or goal turn runs merge-back-only.
+Merge-back left blocked → next `/improve` (or resume autonomous) runs merge-back-only.
 
 **Verify package contracts:**
 

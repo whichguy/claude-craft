@@ -89,8 +89,13 @@ ok(
 // --- improve-loop required prose contracts ---
 const improveRequired = [
   ['campaign architecture', /Campaign architecture \(logical separation\)/i],
-  ['ensure GOAL_MODE', /Ensure GOAL_MODE|ensure GOAL_MODE|L1 — Ensure GOAL_MODE/i],
-  ['one cycle per invocation', /One cycle per invocation|one L2 cycle/i],
+  ['L1 campaign driver', /L1 — Campaign driver|campaign driver/i],
+  ['autonomous default', /Default: one campaign per invocation|autonomous campaign/i],
+  ['one L2 cycle per loop iteration', /one L2 cycle per loop iteration|exactly one L2 cycle/i],
+  ['MAX_CYCLES', /MAX_CYCLES|IMPROVE_LOOP_MAX_CYCLES/i],
+  ['--once mode', /--once/i],
+  ['campaign report', /Improve · campaign report|Campaign report/i],
+  ['do not stop for user', /DO NOT stop for the user|do not stop for the user/i],
   ['outer goal protocol', /Outer goal protocol/i],
   ['migrate-or-discard', /migrate-or-discard|discard-legacy|discard-cold-start/i],
   ['shell probe script', /shell-probe\.sh|Shell must spawn/i],
@@ -111,8 +116,7 @@ const improveRequired = [
   ['kickoff card', /Improve · kickoff/],
   ['closing card', /Improve · cycle result/],
   ['phase banner', /▸ improve · Phase/],
-  ['goal continues next turn', /goal continues next turn/i],
-  ['entry ensures goal', /entry ensures|Ensure GOAL_MODE|ensures.*\/goal/i],
+  ['L1 continues next L2', /L1 continues next L2|continues next L2 cycle/i],
 ];
 
 for (const [name, re] of improveRequired) {
@@ -137,18 +141,26 @@ ok(
   'user improve-loop still advertises ralph as unattended primary in description head'
 );
 
-// Must not claim "compose with /goal" is the only multi-cycle story without ensure
+// Primary multi-cycle must be L1 autonomous driver, not host-only re-drive
 ok(
-  /Ensure GOAL_MODE|entry ensures/i.test(user),
-  'user skill must require entry ensures GOAL_MODE (not hope operator composes)'
+  /L1 — Campaign driver|campaign driver/i.test(user) &&
+    /DO NOT stop for the user|do not stop for the user/i.test(user),
+  'user skill must require L1 campaign driver that continues without waiting for user'
+);
+ok(
+  !/One cycle per invocation\*\* — this skill does \*\*not\*\* self-repeat/i.test(user),
+  'user skill must not claim single-cycle-only product (autonomous default required)'
 );
 
-// Template has placeholders
+// Template has placeholders + optional host framing
 const tmpl = read(path.join(skillDir, 'references/goal-objective.template.md'));
 ok(/<TARGET>/.test(tmpl), 'goal template missing <TARGET>');
 ok(/<TARGET_REPO_ABS>/.test(tmpl), 'goal template missing <TARGET_REPO_ABS>');
 ok(/<CMD>/.test(tmpl), 'goal template missing <CMD>');
-ok(/exactly one cycle/i.test(tmpl), 'goal template missing one-cycle turn rule');
+ok(
+  /optional|L1 campaign driver|Primary multi-cycle/i.test(tmpl),
+  'goal template must state host /goal is optional / L1 primary multi-cycle'
+);
 
 // --- grok-review-converge dual-driver ---
 if (converge) {

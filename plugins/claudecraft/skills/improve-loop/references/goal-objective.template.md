@@ -1,23 +1,26 @@
-# Improve-loop campaign objective (canonical `/goal` body)
+# Improve-loop optional host `/goal` body
 
-Fill placeholders, then pass the result as the `/goal` objective. Single source of truth —
-do not invent a second multi-cycle wrapper text in skill prose.
+**Primary multi-cycle is the skill’s L1 campaign driver** (default `/improve` loops L2 until
+terminal/cap/block and emits a Campaign report). Host `/goal` is **optional** — for session
+visibility, pause/Esc, or outer max-turns/budget. Do not treat host re-drive as required.
+
+Fill placeholders only if you open a host goal alongside `/improve`:
 
 ```
 Improve-loop campaign for target: <TARGET>
 Repo: <TARGET_REPO_ABS>
 Test command: <CMD>
+Mode: autonomous (default) | once
 
-Each turn:
-  1. Invoke the improve-loop skill for exactly one cycle (or Phase-0 short-circuit /
-     ledger-flush / merge-back-only / migrate-or-discard).
-  2. Resume the same campaign worktree via
-     $(git -C <TARGET_REPO_ABS> rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json
-     — never create a second improve worktree while pointer is active.
+The agent runs the improve-loop skill. Default: L1 loops L2 cycles in-session until
+Status is terminal (complete OR stopped(...)) AND the iteration commit has landed
+(merge-back best-effort), or until MAX_CYCLES / blocked. Resume the same campaign
+worktree via:
+  $(git -C <TARGET_REPO_ABS> rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json
+Never create a second improve worktree while pointer is active.
 
-Done when Phase 5 reports: Status terminal (complete OR stopped(...))
-AND the iteration commit has landed. Merge-back is best-effort; land is required.
-On active after a successful cycle: update_goal progress only — do not complete.
+Done when Phase 5 / L1 reports terminal+landed (Campaign report). On active mid-campaign:
+progress only — do not complete the host goal.
 ```
 
 ## Placeholder rules
