@@ -24,8 +24,8 @@ Use this explicit matrix:
 
 | Test STATUS | Outcome | `consecutive-no-progress` | `consecutive-same-error` | `consecutive-non-material-cycles` |
 |---|---|---|---|---|
+| PASS | confirmed / partial, non-ledger land **and Notes explicitly P2/YAGNI-only** (more specific) | reset → 0 | reset → 0 | **+1** (non-material) |
 | PASS | confirmed / partial, **non-ledger `CHANGED_PATHS` non-empty** (default = material) | reset → 0 | reset → 0, signature → none | **reset → 0** |
-| PASS | confirmed / partial, non-ledger land **and Notes explicitly P2/YAGNI-only** | reset → 0 | reset → 0 | **+1** (non-material) |
 | PASS | **`CHANGED_PATHS` empty** (no code landed; reconciled to `partial`; ledger-only OK) | **+1** | reset → 0 | **+1** (non-material) |
 | PASS | disproven (tests still green but thesis wrong) | +1 | reset → 0 | **+1** |
 | FAIL | any, signature **equals** prior entry's signature | +1 | +1 (keep signature) | hold |
@@ -54,7 +54,8 @@ Use this explicit matrix:
    empty-`CHANGED_PATHS` row: `consecutive-no-progress` **+1** (a green no-op is not progress
    and must **not** reset the stall counter), `consecutive-same-error` reset → 0 / signature
    none; non-material streak **+1**.
-3. Then the normal PASS/FAIL rows above (including material vs P2-only land).
+3. Then the normal PASS/FAIL rows above — for non-empty lands evaluate **P2/YAGNI Notes row
+   before** the default material row (table order is load-bearing).
 4. Separately, the empty-backlog lightweight path (Phase 0 step 5) holds *both* stall counters
    and the signature; for non-material streak treat like non-material **+1** only if STATUS
    PASS after any completion-suite (else hold).

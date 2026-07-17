@@ -361,6 +361,12 @@ describe('claudecraft improve skill structure', function () {
     );
     expect(p2).to.match(/consecutive-non-material-cycles|non-material/);
     expect(p2).to.match(/default = material|default when code lands/i);
+    // P2/YAGNI row must appear before default material non-empty row (table order)
+    const p2idx = p2.indexOf('P2/YAGNI-only');
+    const matIdx = p2.indexOf('default = material');
+    expect(p2idx).to.be.greaterThan(-1);
+    expect(matIdx).to.be.greaterThan(-1);
+    expect(p2idx).to.be.lessThan(matIdx);
     const p3 = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/phase-3-replan.md'),
       'utf8'
