@@ -36,6 +36,11 @@ iteration commit landed, or until a hard stop / cap. **`--once`:** exactly one L
 (debug / step-through). L2 itself never self-loops inside Phases 0–5 — **one L2 cycle per
 loop iteration**. Cap: `MAX_CYCLES` default **8** (env `IMPROVE_LOOP_MAX_CYCLES`).
 
+**Default complete rule (P0/P1 residual discipline):** Plan from git digest; classify open
+work as **P0/P1**; complete **only** after **two consecutive** cycles with **zero open
+P0/P1** (plus green suite). Empty backlog after one cycle is **not** enough to complete.
+See [P0/P1 residual discipline](#p0p1-residual-discipline-default).
+
 **Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver. **Do not** stop
 after the first `active` cycle waiting for the user when mode is autonomous.
 
@@ -114,6 +119,87 @@ After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
    `TARGET_REPO`/`LAUNCH`. Never leave sticky under deleted `.worktrees/*`.
 
 Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
+
+## P0/P1 residual discipline (default)
+
+Applies to **every** `/improve` target (code, skill, docs). Goal: plan improvements from
+evidence, do material work, and only sign off after a second independent residual pass.
+
+### Classification
+
+Every **open** backlog item must be tagged:
+
+```text
+- [ ] P0: <item> — <why this is material>
+- [ ] P1: <item> — <why this is material>
+```
+
+Checked items may keep their tag: `- [x] P1: … — done <date> …`.  
+Non-action observations (prompt-depth, out-of-scope) go in **Log Notes**, not as open P0/P1.
+
+**Material** = unchecked lines matching `P0:` or `P1:` after the checkbox.  
+Replan candidates with open items lacking P0/P1 tags are **invalid** — rewrite or drop with a
+Notes line `replan item missing P0/P1 tag — rewritten/dropped`.
+
+### Planning (every Phase 3)
+
+1. Use the **git prior-learnings digest** (Phase 0 step 7).
+2. Advisors / native-replanner produce a **Backlog body only**; every open item is P0 or P1.
+3. Prefer concrete P0/P1 from target inspection + digest over vague residual-only seeds when
+   material gaps are visible.
+4. Disproven-thesis guard unchanged (still applies to open P0/P1 items).
+
+### Residual streak
+
+Track in ephemeral ledger / commit body:
+
+```text
+consecutive-non-material-cycles: <n>
+```
+
+Update **after Phase 3 replan** (before Phase 4), independent of the Phase 2 no-progress matrix:
+
+| After replan | `consecutive-non-material-cycles` |
+|---|---|
+| Open P0/P1 count = 0 | **+1** |
+| Open P0/P1 count ≥ 1 | **reset → 0** |
+
+A cycle that lands the last P1 and then replans empty still **+1**s the streak (that cycle
+counts as non-material for residual purposes). Status stays **`active`** until streak ≥ 2.
+
+Recover streak from the latest improve commit body when ephemeral state is missing.
+
+### When Status becomes `complete`
+
+Set `complete` **only if all** of:
+
+1. Open P0/P1 count = 0 after replan.
+2. `consecutive-non-material-cycles >= 2`.
+3. Green suite gate (Phase 3 cases a/b/c below).
+
+If open P0/P1 = 0 and streak is **1**: leave Status **`active`**. Next cycle is
+**residual-only** (skip Phase 1 execute / investigation Thesis
+`residual survey (non-material streak 1→2)`); Phase 3 re-surveys; if still zero open P0/P1 →
+streak 2 → complete. Do **not** invent fake P0/P1 to force work.
+
+If open P0/P1 = 0 and streak ≥ 2 but suite fails confirmation: do **not** complete (existing
+completion-gate rules).
+
+### Seed (cold-start)
+
+Seed **1–3 P0/P1-tagged** items from digest + target. Prefer concrete material items. If
+none are obvious, seed at least:
+
+```text
+- [ ] P1: Residual survey — classify any remaining material P0/P1 for <target>
+```
+
+Never enter Phase 1 with an empty open P0/P1 list on a fresh cold-start.
+
+### Caps
+
+`MAX_CYCLES` / no-progress ×3 / same-error ×3 still bind. Hitting max-cycles with streak &lt; 2
+→ `stopped (max-cycles)`, not `complete`.
 
 ## Shell CWD discipline (mandatory)
 
@@ -254,8 +340,8 @@ In **`--once`** mode, end the invoke with this card (including stops/vetoes). In
 | **What landed** | <paths or _no code_> |
 | **Commit** | `yes` `<short-sha>` · `improve-loop: iteration N — …` **or** `no — <reason>` |
 | **Status (ledger)** | `active\|complete\|stopped (…)` |
-| **Stop counters** | no-progress=<i> · same-error=<j> · sig=`<none\|…>` |
-| **Backlog** | open <k> · checked this cycle <list or —> |
+| **Stop counters** | no-progress=<i> · same-error=<j> · non-material=<m> · sig=`<none\|…>` |
+| **Backlog** | open P0/P1 <k> · checked this cycle <list or —> |
 | **Advisors** | <who responded / native-only / skipped> |
 | **Merge-back** | n/a (still active) \| ok → main \| blocked · run: `git -C <LAUNCH> merge --ff-only <branch>` |
 | **Workspace** | `<WORKSPACE>` (kept) \| removed after merge-back |
@@ -282,7 +368,8 @@ block/cap). Do not omit.
 | **Merge-back** | ok → <branch> \| blocked · `<cmd>` \| n/a |
 | **Workspace** | removed \| kept at `<path>` |
 | **Pointer** | cleared \| active \| reintegrate_blocked |
-| **Stop counters (last)** | no-progress=<i> · same-error=<j> |
+| **Stop counters (last)** | no-progress=<i> · same-error=<j> · non-material=<m> |
+| **Open P0/P1** | <k> |
 | **Backlog at end** | open <k> · … |
 | **Test command** | `<cmd>` · last `PASS\|FAIL\|n/a` |
 | **CWD homecoming** | restored `<ORIGINAL_CWD>` \| left on `<TARGET_REPO>` (home missing) \| n/a |
@@ -301,7 +388,7 @@ After each successful active cycle under autonomous mode, emit one line (and bes
 `update_goal(message: …)` if a goal is Active):
 
 ```text
-improve iter N active · open backlog <k> · commit <short-sha|none> · cycle K/MAX · continuing
+improve iter N active · open P0/P1 <k> · non-material=<m> · commit <short-sha|none> · cycle K/MAX · continuing
 ```
 
 Only L1/Phase 5 may call `update_goal(completed: true, …)` (terminal + landed, goal Active).
@@ -414,9 +501,10 @@ Fail fast in Phase 0. Do not half-run a cycle.
 ## Durable state: git commits (self-contained cycles)
 
 **Git is the only durable ledger.** Each cycle’s Phase 4 commit body carries Thesis, Outcome,
-test evidence, advisor consolidation, Notes, stop-condition state, and **`Next backlog:`**
-checklist lines (or `Next backlog: (empty) → complete`). The next cycle rebuilds continuity
-from:
+test evidence, advisor consolidation, Notes, stop-condition state (including
+**consecutive-non-material-cycles**), and **`Next backlog:`** P0/P1 checklist lines (or
+`Next backlog: (empty) — consecutive-non-material-cycles: N`). The next cycle rebuilds
+continuity from:
 
 ```bash
 git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%n%b%n---"
@@ -450,12 +538,14 @@ complete commit on `main` tip must **not** prevent a new campaign from seeding (
 - **worktree_path:** <WORKSPACE>
 
 ## Backlog
-- [x] <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)
-- [ ] <item> — <why it matters>
+- [x] P1: <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)
+- [ ] P0: <item> — <why material>
+- [ ] P1: <item> — <why material>
 
 ## Stop-condition tracking
 - consecutive-no-progress: 0
 - consecutive-same-error: 0 (signature: none)
+- consecutive-non-material-cycles: 0
 
 ## Log
 (append-only — newest entry at the bottom; earlier entries are never edited.
@@ -575,9 +665,10 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    `improve-loop: … complete` archive. **Do not** refuse reseed because of historical
    terminal archives — those are prior campaigns' learnings, not this run's resume file.
    Optionally write ephemeral `$WORKSPACE/IMPROVE_LOOP.md` for advisors; or keep backlog
-   in-memory and encode `Next backlog:` in the cycle commit body. Never enter Phase 1 with
-   an empty backlog (seed 1–3 items). Set `N = 1` for the first cycle of this invoke.
-   Skip 3a–4; go to step 5.
+   in-memory and encode `Next backlog:` in the cycle commit body. Seed **1–3 P0/P1-tagged**
+   items (see [P0/P1 residual discipline](#p0p1-residual-discipline-default)); never enter
+   Phase 1 with zero open P0/P1 on cold-start. Init `consecutive-non-material-cycles: 0`
+   (or recover from latest commit body if present). Set `N = 1`. Skip 3a–4; go to step 5.
 
    If mode is **`--resume`** and ledger is absent after terminal land on **this** worktree:
    merge-back-only / stop (true same-campaign recovery).
@@ -648,19 +739,17 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    - **Landed + Status `active`:** continue to step 5; allocate next `N` then. (Zero-Log
      already went to step 5 from step 3.)
 
-5. If the Backlog has no unchecked items while Status is `active`, skip **Phase 1 execute
-   only**. Do not skip the rest of Phase 0: steps 6–7 still run because Phase 3 needs git
-   history regardless of execution, and Phase 4 bookkeeping must still occur. Allocate this
-   cycle's `N` if the zero-Log path did not already set it. After step 7 use lightweight
-   Phase 2, then Phase 3, Phase 4, and Phase 5. Do not invent an ad-hoc code task to fill
-   the cycle; replanning can reopen work or declare completion.
+5. If the Backlog has no unchecked **P0/P1** items while Status is `active`, skip **Phase 1
+   execute only** (residual-only cycle — common when non-material streak is 1). Do not skip
+   the rest of Phase 0: steps 6–7 still run; Phase 3 must re-survey. Allocate this cycle's
+   `N` if needed. After step 7 use lightweight Phase 2, then Phase 3, Phase 4, and Phase 5.
+   Do **not** invent fake P0/P1 to force execute work.
 
-   For the **lightweight Phase 2** empty-backlog/no-execute path, append an entry with
-   `Committed: pending`, Thesis such as `empty-backlog replan (no Phase 1 execute)`, Test
-   result `PASS` (the suite was intentionally not re-run because no change set exists),
-   Outcome `partial`, and Error signature `none`. Hold both stop-condition counters and
-   the stored error signature *exactly* as they were. Do not apply the normal PASS/partial
-   matrix row; resetting `consecutive-no-progress` for this no-op would hide a real stall.
+   For the **lightweight Phase 2** residual/empty-execute path, append an entry with
+   `Committed: pending`, Thesis such as `residual survey (non-material streak k→k+1)` or
+   `empty-backlog replan (no Phase 1 execute)`, Test result `PASS` (suite not re-run for
+   execute; Phase 3 may run confirmation), Outcome `partial`, Error signature `none`. Hold
+   no-progress / same-error counters *exactly* as they were (do not apply PASS/partial reset).
    Set the header counter to `N`, then run Phase 3 normally.
 
 6. For turns that will run Phases 1–3, apply the dirty-tree guard (shared **code-dirty**
@@ -957,8 +1046,9 @@ Prefer a structured response with recommended next Backlog bullets, but accept f
 Tell every advisor explicitly: any already-`[x]`-checked Backlog item, including the one
 just completed this cycle, must be preserved verbatim in a proposed Backlog — never
 deleted or unchecked; only unchecked (`- [ ]`) items may be added, reprioritized, or
-dropped. Record per advisor its returned text (or failure) **and its Agent id/name** — that
-id is how Round 2 resumes that exact advisor.
+dropped. **Every open item must be tagged `P0:` or `P1:`** (see residual discipline). Record
+per advisor its returned text (or failure) **and its Agent id/name** — that id is how Round 2
+resumes that exact advisor.
 
 #### Consolidation 1 — native
 
@@ -1007,8 +1097,8 @@ than merely backlog priority.
 
 The final product—Consolidation 2, Consolidation 1 on early exit, or native-replanner
 fallback—must be a **Backlog body only**: markdown checklist lines (`- [ ]` or `- [x]`)
-with short rationale phrases on the same lines. It must not be a free-form essay or a
-whole-file rewrite.
+with short rationale phrases on the same lines, and **every open item tagged `P0:` or
+`P1:`**. It must not be a free-form essay or a whole-file rewrite.
 
 Apply it surgically and natively: replace only the `## Backlog` body through the next
 `## ` heading in `IMPROVE_LOOP.md`. Never ask an advisor or fallback replanner to rewrite
@@ -1064,53 +1154,37 @@ ledger-only turn, Phase 4's code-dirty veto will correctly refuse to commit; on 
 turn, leave unexpected paths unstaged so the next invocation's Phase 0 dirty-tree guard
 stops. Never fold advisor-side dirt into the cycle commit.
 
-Immediately after surgical apply or deliberate non-apply, and without a subagent, use the
-counters Phase 2 already wrote to update Status *in this exact order*:
+Immediately after surgical apply or deliberate non-apply, and without a subagent, update
+**residual streak** then Status *in this exact order*:
 
+0. **Open P0/P1 count** after replan = number of unchecked lines containing `P0:` or `P1:`.
+   - If count = 0 → `consecutive-non-material-cycles` **+1**.
+   - If count ≥ 1 → `consecutive-non-material-cycles` **reset → 0**.
 1. `consecutive-same-error >= 3` → `stopped (same-error ×3)`
 2. `consecutive-no-progress >= 3` → `stopped (no-progress ×3)`
-3. Backlog has zero unchecked items after replan → `complete`, **but gate it on a green
-   suite** — a "tested improvement" loop must never sign off, or record a green result,
-   without a green suite. Three sub-cases, by what happened *this* cycle:
-   - **(a) A normal PASS cycle that just checked off its last item** (the suite already ran
-     and PASSED this cycle, with non-empty `CHANGED_PATHS`): that green run is the
-     confirmation → set `complete`.
-   - **(b) The empty-backlog / no-execute lightweight path** (suite not run this cycle): run
-     the recorded test command once now as the confirmation — snapshot `pre_suite` immediately
-     before it and **extend `TEST_ARTIFACT_PATHS`** immediately after (Phase 1's shared capture
-     rule), *before* the Phase 4 veto, so the confirmation suite's own litter is not mistaken
-     for abandoned dirt (this path has no clean-tree precondition, so a live `pre_suite`
-     snapshot — not a hard-coded empty set — is what keeps any pre-existing dirt subject to the
-     veto). PASS → `complete`. FAIL → do
-     **not** complete: leave Status `active`; append one unchecked item (`- [ ] fix
-     regression surfaced by completion check: <short error>`); **correct this cycle's
-     not-yet-committed lightweight entry in place** (the Phase-3 completion-gate exception):
-     rewrite `Test result` → `FAIL`, `Outcome` → `blocked`, `Error signature` → the real
-     signature (Phase 2 derivation). The lightweight Phase 2 *held* the counters, so **apply
-     the completion-gate counter rule now, once, here in Phase 3** (do not re-enter Phase 2's
-     matrix): `consecutive-no-progress` **+1**; set `consecutive-same-error` by **FAIL-row
-     semantics** — if the new signature **equals** the prior entry's signature → +1, else →
-     reset to 1 with the new signature. Do **not** use the blocked-row "hold signature
-     `none`" here: holding `none` would never let repeated completion-gate failures trip a
-     same-error stop.
-   - **(c) A FAIL cycle whose revert succeeded and whose replan emptied the Backlog** (STATUS
-     was FAIL this cycle, the tree is **not** code-dirty under the shared definition in
-     Phase 0, and zero unchecked items remain after replan): run the recorded test command
-     once now on the reverted baseline as the confirmation (same shared capture rule — snapshot
-     `pre_suite` before, extend `TEST_ARTIFACT_PATHS` after). PASS → `complete`, and do **not**
-     reset the counters — this cycle's FAIL already `+1`'d `consecutive-no-progress`, which is
-     the honest record that no fix landed. FAIL → leave Status `active`, append the same
-     failure Backlog item, add a Notes line with the confirmation tail, and do **not** apply
-     case (b)'s counter package — this entry was already FAIL-scored in Phase 2, so re-scoring
-     would double-count. **Precondition:** if the revert failed, Outcome is `blocked`, or the
-     tree is code-dirty, do **not** complete here — leave it to Phase 4's code-dirty veto and
-     Phase 0's next-invocation guard.
-4. Otherwise leave Status `active`.
+3. Open P0/P1 = 0 **and** `consecutive-non-material-cycles >= 2` → candidate `complete`,
+   **but gate on a green suite** — never sign off without a green suite. Sub-cases:
+   - **(a) Normal PASS cycle with non-empty `CHANGED_PATHS` this cycle:** suite already green
+     → set `complete`.
+   - **(b) Residual-only / empty-execute lightweight path** (suite not run for execute): run
+     the recorded test command once now as confirmation — snapshot `pre_suite` before,
+     **extend `TEST_ARTIFACT_PATHS`** after (Phase 1 shared capture), *before* Phase 4 veto.
+     PASS → `complete`. FAIL → do **not** complete: leave Status `active`; append
+     `- [ ] P1: fix regression surfaced by completion check: <short error>`; **correct** this
+     cycle's not-yet-committed lightweight entry in place: `Test result` → `FAIL`,
+     `Outcome` → `blocked`, `Error signature` → real signature; apply completion-gate counter
+     rule once here: `consecutive-no-progress` **+1**; `consecutive-same-error` by FAIL-row
+     semantics; **reset `consecutive-non-material-cycles` → 0** (open P0/P1 reopened).
+   - **(c) FAIL cycle, successful revert, open P0/P1 = 0, streak ≥ 2, tree not code-dirty:**
+     run confirmation suite on reverted baseline (shared capture). PASS → `complete` without
+     resetting no-progress. FAIL → leave `active`, append P1 regression item, do not
+     double-count FAIL matrix; reset non-material streak → 0.
+4. Open P0/P1 = 0 **and** `consecutive-non-material-cycles == 1` → leave Status **`active`**
+   (need one more residual cycle). Do **not** complete.
+5. Otherwise leave Status `active`.
 
-Advisors never edit counters, so a panel that wants to continue cannot override a counter
-stop. The order matters: every FAIL increments no-progress, so three identical FAILs reach
-both thresholds together; checking same-error first preserves the more specific reason.
-Update Status before Phase 4 so the terminal note is in the same commit as the cycle.
+Advisors never edit counters. Order matters: same-error before no-progress; residual streak
+before complete. Update Status before Phase 4 so the terminal note is in the same commit.
 
 ### Phase 4 — Commit (native)
 
@@ -1213,18 +1287,21 @@ below). No second clear commit.
     advisor consolidation.
   - **Notes for next cycle** — the Log `Notes for next cycle` field, verbatim or closely
     paraphrased.
-  - **Next backlog** — required for self-contained cycles. Emit a block the next cycle (or
-    next `/improve` digest) can parse:
+  - **Next backlog** — required. Emit a block the next cycle / digest can parse; open items
+    **must** be `P0:` / `P1:`:
 
     ```
     Next backlog:
-    - [ ] <item> — <rationale>
-    - [x] <done item> — done
+    - [ ] P1: <item> — <rationale>
+    - [x] P0: <done item> — done
     ```
 
-    Or `Next backlog: (empty) → complete` when Status is terminal / no open work.
-  - **Stop-condition state** — `consecutive-no-progress` / `consecutive-same-error` values
-    after this cycle, and any terminal `Status` set this cycle.
+    Or when open P0/P1 = 0:
+    `Next backlog: (empty) — consecutive-non-material-cycles: <n>`
+    (Status `complete` only if n ≥ 2 and suite green; else still active).
+  - **Stop-condition state** — `consecutive-no-progress` / `consecutive-same-error` /
+    `consecutive-non-material-cycles` after this cycle, and any terminal `Status` set this
+    cycle.
   - **Full ledger archive (terminal commits only)** — when Status is `complete` or
     `stopped (...)`, append the verbatim `LEDGER_SNAPSHOT` under fixed delimiters
     (required; this is the durable campaign archive once the file is removed):

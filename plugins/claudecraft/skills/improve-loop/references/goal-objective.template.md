@@ -14,10 +14,10 @@ Mode: autonomous (default) | once
 
 The agent runs the improve-loop skill. Default: L1 loops L2 cycles in-session until
 Status is terminal (complete OR stopped(...)) AND the iteration commit has landed
-(merge-back best-effort), or until MAX_CYCLES / blocked. Resume the same campaign
-worktree via:
-  $(git -C <TARGET_REPO_ABS> rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json
-Never create a second improve worktree while pointer is active.
+(merge-back best-effort), or until MAX_CYCLES / blocked. Default complete requires
+P0/P1 planning from git history and **two consecutive** cycles with no open material
+P0/P1 (plus green suite). Stale pointer is discarded; each invoke cold-starts unless
+--resume.
 
 Done when Phase 5 / L1 reports terminal+landed (Campaign report). On active mid-campaign:
 progress only — do not complete the host goal.
