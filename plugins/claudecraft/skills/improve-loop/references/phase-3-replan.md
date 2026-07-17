@@ -181,8 +181,9 @@ counters Phase 2 already wrote to update Status *in this exact order*:
    non-material cycle was PASS) → set Status `complete` (until satisfied). Do **not** invent
    until in chat; only honor disk. If `until` is `none`/absent (typical **once** mode), skip
    this rule. User-specified **custom** until strings are **not** auto-evaluated here —
-   the improve driver S8 (caps.md) must judge them against disk after each cycle;
-   improve-loop only auto-completes on this default until form.
+   the outer host (improve S8 per caps.md, **or** host goal per `contracts/goal.md`)
+   must judge them against disk after each cycle; improve-loop only auto-completes on
+   this default until form.
 4. Backlog has zero unchecked **P0/P1** items after replan (P2-only optional bullets may remain
    unchecked without blocking) → `complete`, **but gate it on a green
    suite** — a "tested improvement" loop must never sign off, or record a green result,

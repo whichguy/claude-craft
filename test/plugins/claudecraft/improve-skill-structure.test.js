@@ -385,11 +385,25 @@ describe('claudecraft improve skill structure', function () {
       'utf8'
     );
     expect(outer).to.match(/State handoff|write mode\/until\/max_cycles/i);
+    // Host goal (preferred continuous path) must evaluate custom until — not S8-only
+    expect(outer).to.match(/Host-goal|host goal|Outer host/i);
+    expect(outer).to.match(/Custom non-empty|custom until|Custom until/i);
+    const goal = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/goal.md'),
+      'utf8'
+    );
+    expect(goal).to.match(/Custom until/);
+    expect(goal).to.match(/evaluate the until text against disk|against disk/i);
+    expect(goal).to.match(/host goal turn|Outer host|goal facility|improve S8/i);
+    // S9 stop-reason catalog includes custom until short form
     const life = fs.readFileSync(
       path.join(CC, 'skills/improve/references/lifecycle.md'),
       'utf8'
     );
+    expect(life).to.match(/until: <short>/);
     expect(life).to.match(/until: no-P0\/P1|no-P0\/P1×2/);
+    const improveSkill = fs.readFileSync(path.join(CC, 'skills/improve/SKILL.md'), 'utf8');
+    expect(improveSkill).to.match(/until: <short>/);
   });
 
   it('dirty launch bootstraps worktree carry+drain instead of hard-stop only', function () {

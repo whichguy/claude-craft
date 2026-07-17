@@ -23,11 +23,12 @@ Read **disk** (`IMPROVE_LOOP.md` Status + Stop-condition + Driver), not chat.
 4. **Until satisfied** (header/Driver `until` non-empty and not `none`):  
    - **Default P0/P1×2 form** (substring match per phase-3): if
      `consecutive-non-material-cycles >= 2` **and** last suite green → success stop.  
-   - **Custom until** (any other non-empty string): after each cycle, the improve driver
-     **must evaluate the until text against disk facts** (Status, backlog, counters, test
-     PASS, Landed paths). If clearly met → set Status `complete` (or stop reason
-     `until: <short>`) and break. Do not ignore custom until or re-ask the user for a
-     stop condition that is already on disk.  
+   - **Custom until** (any other non-empty string): after each cycle, the **outer host**
+     (native improve S8 **or** host **goal** turn — same rule; see
+     `improve-loop/references/contracts/goal.md` stop predicate #2) **must evaluate the until text**
+     against disk facts (Status, backlog, counters, test PASS, Landed paths). If clearly
+     met → set Status `complete` (or stop reason `until: <short>`) and break. Do not ignore
+     custom until or re-ask the user for a stop condition that is already on disk.  
    - On success stop: ensure Status `complete` if still active, then break.  
 5. Status `complete` (backlog empty + green, or until) → break.  
 6. Else continue S8 (another improve-loop cycle).

@@ -100,9 +100,10 @@ pulses are user-visible markdown. Do not require a Stop-hook re-invoke plugin.
 
 ### S9–S10 — Stop + ledger
 
-Record stop reason: `complete` | `until: no-P0/P1×2` | stall | max_cycles | max_elapsed |
-budget | blocked. If until satisfied but Status still active, set Status `complete` and
-ledger-flush if needed. Prefer a ledger-only improve-loop flush when tree allows.
+Record stop reason: `complete` | `until: no-P0/P1×2` | `until: <short>` (custom until met) |
+stall | max_cycles | max_elapsed | budget | blocked. If until satisfied but Status still
+active, set Status `complete` and ledger-flush if needed. Prefer a ledger-only improve-loop
+flush when tree allows.
 
 ### S11 — Reintegrate (always if worktree was created)
 

@@ -20,17 +20,33 @@ Never run continuous improve-loop under an **unlimited** outer quota: dirty-tree
 
 **Default continuous until** (when unset on disk):  
 `no material P0/P1 for 2 consecutive cycles (green tests)` — tracked via ledger
-`consecutive-non-material-cycles` (improve-loop Phase 2) and broken by improve S8 / Phase 3
-when streak ≥ 2. Persist **Until** + **Max cycles** on the ledger so rehydrate does not re-prompt.
+`consecutive-non-material-cycles` (improve-loop Phase 2); default form auto-completes in
+Phase 3 when streak ≥ 2. Persist **Until** + **Max cycles** on the ledger so rehydrate
+does not re-prompt.
 
-**State handoff:** improve S0 parse → write mode/until/max_cycles to header+Driver → each S8
-cycle is one improve-loop invoke that reads **only disk** → S8 re-reads Status/streak → S11–S13.
+**Until evaluation (both continuous hosts):** After each improve-loop cycle, the **outer
+host** (preferred: host **goal**; else improve S8) must apply `goal.md` stop predicate #2
+and/or `improve/references/caps.md` step 4 — same rules:
+
+| Until on disk | Who evaluates | When met |
+|---|---|---|
+| Default P0/P1×2 form | Phase 3 auto **and** outer host re-check | streak ≥ 2 + green |
+| Custom non-empty string | **Outer host only** (goal turn or S8) — not Phase 3 | until text vs disk facts |
+
+Host-goal campaigns **must not** skip custom-until evaluation; ignoring it until max_cycles
+is the same defect class as S8-only evaluation (see quality-review learnings).
+
+**State handoff:** improve S0 parse (or goal seed) → write mode/until/max_cycles to
+header+Driver → each outer turn runs one improve-loop (disk only) → outer host re-reads
+Status/streak/until → on stop, S11–S13 if worktree (improve driver) or equivalent teardown.
 
 ## Claude Craft notes (adapter)
 
 - Plugin invokes: `/claudecraft:improve-loop` (one cycle), `/claudecraft:improve` (continuous).  
 - Clear target without “until …” → continuous + default until above (parse.md).  
-- Multi-cycle without the driver: bind a **host goal** to the **same** until string on disk; each goal turn rehydrates from disk and runs one improve-loop cycle.
+- Multi-cycle without the driver: bind a **host goal** to the **same** until string on disk;
+  each goal turn rehydrates from disk, runs one improve-loop cycle, then evaluates until
+  (default streak or custom text) per `goal.md`.
 
 ## Grok / Codex notes (adapter)
 

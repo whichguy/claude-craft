@@ -128,6 +128,23 @@ Default continuous when target clear; until = no P0/P1 ×2 green on disk (header
 
 Custom until must be judged by improve S8 against disk; Phase 3 only auto-completes default P0/P1×2 form.
 
+## Host-goal custom until + S9 catalog (goal 2124cb734ba1)
+
+**Thesis:** Preferred continuous host is host **goal**, not only improve S8. Custom until
+eval and S9 stop-reason catalog must work on that path.
+
+**Findings (skeptic):**
+1. After S8-only custom-until fix, host-goal campaigns could still ignore custom until
+   until max_cycles — stop predicate #2 and outer-loop lacked goal-turn procedure.
+2. S9 / lifecycle listed only `until: no-P0/P1×2` while caps allowed `until: <short>`.
+
+**Fix:** goal.md #2 + outer-loop until table (outer host = goal or S8); lifecycle + improve
+SKILL S9 include `until: <short>`; caps.md outer-host wording; structure pins.
+
+| Iter | Verdict | Finding |
+|---|---|---|
+| material | host-goal custom until / S9 catalog | this section |
+| (pending) | two cleans | after material lands |
 
 ## Clean after custom-until S8 (goal 2124cb734ba1)
 
@@ -140,4 +157,4 @@ Custom until must be judged by improve S8 against disk; Phase 3 only auto-comple
 
 ## Stop after custom-until S8 quality-review
 
-Material `c7553c3` then two cleans (pair after). No more material P0/P1 on continuous-defaults surface.
+Material `c7553c3` then two cleans (pair after). Residual skeptic (host goal + S9) → section above.

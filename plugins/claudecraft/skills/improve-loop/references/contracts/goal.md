@@ -41,9 +41,20 @@ ledger and never blocks reintegrate.
 The continuous run stops when **any** of:
 
 1. `IMPROVE_LOOP.md` **Status** is `complete` or `stopped (...)` **and** the latest Log entry is **landed** (Committed yes + greppable commit), or a clean short-circuit with no work  
-2. **Until on disk** satisfied — default continuous until is  
-   `no material P0/P1 for 2 consecutive cycles (green tests)` when  
-   `consecutive-non-material-cycles >= 2` (and suite green); user-specified **Until** overrides  
+2. **Until on disk** satisfied (header/Driver `until` non-empty and not `none`) — evaluate
+   **after every improve-loop cycle** on **disk facts**, whether the outer host is a **goal**
+   facility or native improve S8 (same procedure; mirror `improve/references/caps.md`):  
+   - **Default P0/P1×2 form** (`no material P0/P1 for 2 consecutive cycles (green tests)`,
+     or phase-3 substring match): if `consecutive-non-material-cycles >= 2` **and** last
+     suite green → until met; set Status `complete` if still active; stop reason
+     `until: no-P0/P1×2`.  
+   - **Custom until** (any other non-empty string): the host goal turn (or improve S8)
+     **must evaluate the until text against disk** (Status, backlog, counters, test PASS,
+     landed paths, Stop-condition). If clearly met → set Status `complete` (or
+     `stopped (until: <short>)`); stop reason `until: <short>`. Do **not** ignore custom
+     until, re-ask for a stop condition already on disk, or wait only for max_cycles.  
+   - improve-loop Phase 3 auto-completes **only** the default P0/P1×2 form; custom until
+     is always outer-host (goal or S8) responsibility.  
 3. Caps: `max_cycles`, `max_elapsed`, token/usd budget, and/or host max-turns / max-budget  
 4. Unrecoverable block (no test command, code-dirty veto without resolution, etc.)
 
