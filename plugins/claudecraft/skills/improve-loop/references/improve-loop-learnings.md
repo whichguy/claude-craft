@@ -123,3 +123,7 @@ signals `goal.complete`/`goal.blocked` when terminal+landed.
 ## Continuous defaults + disk until (state handoff)
 
 Default continuous when target clear; until = no P0/P1 ×2 green on disk (header+Driver+streak). improve S0 writes until/mode/max_cycles; improve-loop never invents until.
+
+## Custom until S8 evaluation
+
+Custom until must be judged by improve S8 against disk; Phase 3 only auto-completes default P0/P1×2 form.

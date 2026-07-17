@@ -378,6 +378,8 @@ describe('claudecraft improve skill structure', function () {
       'utf8'
     );
     expect(caps2).to.match(/cycle_index >= max_cycles|cycle_index.*max_cycles/);
+    expect(caps2).to.match(/Custom until|custom until/i);
+    expect(caps2).to.match(/must evaluate the until text|evaluate the until text/i);
     const outer = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/contracts/outer-loop.md'),
       'utf8'
