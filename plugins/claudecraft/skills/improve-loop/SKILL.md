@@ -524,23 +524,31 @@ repo root** before Phase 0 step 1a, in this order:
    agent / command / hook under `$HOME/.claude/skills|agents|commands|hooks/<name>` (or
    `…/SKILL.md`); known project path (e.g. `backchain skill` → `$HOME/src/backchain`); goal
    objective path.
-2. **Claude-home install symlink follow (mandatory when applicable).** If the candidate path
-   `CAND` is under `$HOME/.claude` **and** is a **symlink** (package dir or file), follow it
-   to the real path and use **that path’s git toplevel** as `TARGET_REPO` — not `~/.claude`.
-   Many installers (e.g. backchain `install.sh`) do
-   `~/.claude/skills/<name> → $repo/skills/<name>`. Prefer L3:
+2. **Claude-home install resolve (mandatory when `CAND` is under `$HOME/.claude`).**
+   Always run L3 when the candidate lives on the install surface — do **not** require the
+   leaf path itself to be a symlink. Common shapes:
+
+   - package dir symlink: `~/.claude/skills/<name> → $repo/skills/<name>`
+   - file symlink: `…/SKILL.md → $repo/…/SKILL.md`
+   - path *inside* a package-dir symlink: `~/.claude/skills/<name>/SKILL.md` (leaf is a real
+     file; ancestor dir is the install symlink)
+
+   Many installers (e.g. backchain `install.sh`) use the package-dir form. Prefer L3:
 
    ```bash
    node "$SKILL_DIR/scripts/resolve-target-repo.js" --target-path "$CAND"
-   # exit 0 → json.target_repo, json.symlink_followed, json.resolved_path
-   # exit 3 → STOP broken symlink
-   # exit 4 → no git root on resolved path; fall through
+   # exit 0 → always use json.target_repo as TARGET_REPO
+   #          json.symlink_followed / json.resolved_path are observability (kickoff)
+   # exit 3 → STOP broken symlink (leaf or intermediate)
+   # exit 4 → no git root on resolved path; fall through to steps 3–5
    ```
 
-   When `symlink_followed` is true, campaign sticky / worktree-enter / merge-back use
-   `json.target_repo`. Kickoff may show install path vs resolved repo.  
-   **Do not** invent a different repo when `CAND` under `~/.claude` is a **real directory**
-   (not a symlink). Broken symlink → stop with reason `symlink broken`.
+   On **exit 0**, campaign sticky / worktree-enter / merge-back **must** use
+   `json.target_repo` (not `~/.claude`, not session cwd). `symlink_followed` is for the
+   kickoff **Install path** row only — never a gate to ignore `target_repo`.  
+   **Do not invent** a different repo when L3 reports `symlink_followed: false` and
+   `target_repo` is still under `~/.claude` (real install tree, not a product symlink).
+   Broken symlink → stop with reason `symlink broken`.
 3. Absolute path already under a non-`~/.claude` checkout → that checkout’s git toplevel.
 4. Goal objective names a repo path → that path’s git toplevel.
 5. Else default to `git rev-parse --show-toplevel` from the current tool cwd.

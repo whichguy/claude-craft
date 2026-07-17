@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 /**
  * resolve-target-repo.js — L3: resolve install-surface paths under ~/.claude
- * to the real git checkout when the install entry is a symlink.
+ * to the real git checkout when the install entry (leaf or ancestor) is a symlink.
  *
  * Usage:
- *   node resolve-target-repo.js --target-path <path> [--claude-home <dir>] [--json]
+ *   node resolve-target-repo.js --target-path <path> [--claude-home <dir>]
+ *
+ * Always call when the candidate path is under claude-home (package dir, file, or a
+ * path *inside* a package-dir install symlink). On exit 0, use json.target_repo as
+ * TARGET_REPO. symlink_followed is observability (kickoff card), not a gate.
  *
  * Exit codes:
  *   0 ok (JSON on stdout)
  *   1 usage
  *   2 path missing
- *   3 broken symlink
+ *   3 broken symlink (leaf or intermediate under claude-home)
  *   4 no git root for resolved path
  *
  * Injectable: GIT_CMD
@@ -24,7 +28,7 @@ const { git, errMsg, isUnder } = require('./lib-paths.js');
 function usage(msg) {
   if (msg) console.error(msg);
   console.error(
-    'usage: node resolve-target-repo.js --target-path <path> [--claude-home <dir>] [--json]'
+    'usage: node resolve-target-repo.js --target-path <path> [--claude-home <dir>]'
   );
   process.exit(1);
 }
@@ -41,10 +45,17 @@ if (!targetArg) usage('require --target-path');
 const claudeHome = path.resolve(
   arg('--claude-home') || process.env.CLAUDE_HOME || path.join(process.env.HOME || '', '.claude')
 );
+let claudeHomeReal = claudeHome;
+try {
+  claudeHomeReal = fs.realpathSync(claudeHome);
+} catch {
+  /* home may not exist yet in fixtures */
+}
+
 const targetPath = path.resolve(targetArg);
 const notes = [];
 
-// lstat sees broken symlinks; existsSync does not (follows)
+// lstat sees broken leaf symlinks; existsSync does not (follows)
 let st;
 try {
   st = fs.lstatSync(targetPath);
@@ -53,33 +64,41 @@ try {
   process.exit(2);
 }
 
-const underClaude = isUnder(targetPath, claudeHome);
+const underClaude =
+  isUnder(targetPath, claudeHome) || isUnder(targetPath, claudeHomeReal);
 const isSymlink = st.isSymbolicLink();
 let resolvedPath = targetPath;
-let symlinkFollowed = false;
 
-if (isSymlink) {
-  try {
-    resolvedPath = fs.realpathSync(targetPath);
-    if (resolvedPath !== targetPath) {
-      symlinkFollowed = underClaude;
-      if (symlinkFollowed) notes.push('symlink-followed');
-      else notes.push('symlink-resolved-outside-claude-home-rule');
-    }
-  } catch (e) {
+try {
+  resolvedPath = fs.realpathSync(targetPath);
+} catch (e) {
+  // Broken leaf or intermediate install symlink
+  if (isSymlink || underClaude) {
     console.error(
       'resolve-target-repo: symlink broken: ' + targetPath + ' — ' + errMsg(e)
     );
     process.exit(3);
   }
-} else {
-  try {
-    // Normalize .. and such without requiring symlink follow
-    resolvedPath = fs.realpathSync(targetPath);
-  } catch {
-    resolvedPath = targetPath;
-  }
-  if (underClaude) notes.push('under-claude-home-not-symlink');
+  notes.push('realpath-failed: ' + errMsg(e).slice(0, 80));
+}
+
+const resolvedOutsideHome =
+  underClaude &&
+  !isUnder(resolvedPath, claudeHome) &&
+  !isUnder(resolvedPath, claudeHomeReal);
+
+const leafSymlinkMoved =
+  isSymlink && path.resolve(resolvedPath) !== path.resolve(targetPath);
+
+// Install follow: left claude-home after realpath (dir/file/ancestor), or leaf symlink moved
+let symlinkFollowed = false;
+if (underClaude && (resolvedOutsideHome || leafSymlinkMoved)) {
+  symlinkFollowed = true;
+  notes.push('symlink-followed');
+} else if (underClaude) {
+  notes.push('under-claude-home-not-symlink');
+} else if (isSymlink) {
+  notes.push('symlink-outside-claude-home');
 }
 
 // Git root: if path is a file, start from dirname
@@ -102,22 +121,7 @@ try {
   notes.push('no-git-root: ' + errMsg(e).slice(0, 120));
 }
 
-if (!targetRepo) {
-  const out = {
-    target_path: targetPath,
-    is_symlink: isSymlink,
-    resolved_path: resolvedPath,
-    under_claude_home: underClaude,
-    claude_home: claudeHome,
-    target_repo: null,
-    symlink_followed: symlinkFollowed,
-    notes,
-  };
-  process.stdout.write(JSON.stringify(out, null, 2) + '\n');
-  process.exit(4);
-}
-
-const result = {
+const out = {
   target_path: targetPath,
   is_symlink: isSymlink,
   resolved_path: resolvedPath,
@@ -128,5 +132,5 @@ const result = {
   notes,
 };
 
-process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-process.exit(0);
+process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+process.exit(targetRepo ? 0 : 4);

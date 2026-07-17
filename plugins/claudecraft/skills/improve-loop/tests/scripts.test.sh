@@ -367,6 +367,18 @@ const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
 process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
 " "$OUT_RF" "$PROD_REAL"
 
+# Path *inside* package-dir install symlink (leaf not a symlink; common agent CAND=SKILL.md)
+OUT_IN="$TMP/resolve-inside-pkg.json"
+node "$RESOLVE" --target-path "$FAKE_HOME/skills/widget/SKILL.md" --claude-home "$FAKE_HOME" >"$OUT_IN"
+assert "inside pkg is_symlink false" grep -q '"is_symlink": false' "$OUT_IN"
+assert "inside pkg symlink_followed true" grep -q '"symlink_followed": true' "$OUT_IN"
+assert "inside pkg notes followed" grep -q 'symlink-followed' "$OUT_IN"
+assert "inside pkg target_repo product" node -e "
+const fs=require('fs'); const path=require('path');
+const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
+" "$OUT_IN" "$PROD_REAL"
+
 # Real directory under claude-home (not a symlink) → that tree's git root, not invent another
 REAL_DIR="$FAKE_HOME/skills/real-skill"
 mkdir -p "$REAL_DIR"
@@ -414,6 +426,19 @@ const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
 process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
 " "$OUT_OUT" "$PROD_REAL"
 assert "outside not symlink_followed" grep -q '"symlink_followed": false' "$OUT_OUT"
+
+# Symlink outside claude-home: still resolves git root; not install-follow
+OUT_LINK="$TMP/outlink"
+ln -sfn "$PROD" "$OUT_LINK"
+OUT_OS="$TMP/resolve-outside-symlink.json"
+node "$RESOLVE" --target-path "$OUT_LINK" --claude-home "$FAKE_HOME" >"$OUT_OS"
+assert "outside symlink target product" node -e "
+const fs=require('fs'); const path=require('path');
+const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
+" "$OUT_OS" "$PROD_REAL"
+assert "outside symlink not install-followed" grep -q '"symlink_followed": false' "$OUT_OS"
+assert "outside symlink note" grep -q 'symlink-outside-claude-home' "$OUT_OS"
 
 # Usage missing --target-path → exit 1
 set +e
