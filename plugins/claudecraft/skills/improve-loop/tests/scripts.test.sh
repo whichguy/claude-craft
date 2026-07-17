@@ -98,7 +98,7 @@ assert "open backlog 1" grep -q '"open_backlog": 1' "$LS"
 assert "log iterations 1" grep -q '"log_iterations": 1' "$LS"
 assert "not landed pending" grep -q '"landed": false' "$LS"
 
-# pointer read/write via pointer.mjs
+# pointer read via pointer.js
 GCD="$(git -C "$REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || git -C "$REPO" rev-parse --git-common-dir)"
 # if relative, resolve
 case "$GCD" in
@@ -220,6 +220,58 @@ assert "pointer clear removes file" test ! -f "$GCD4/improve-loop/active.json"
 # usage strings must not advertise .mjs
 assert "worktree-enter usage is .js" bash -c "node \"$SCRIPTS/worktree-enter.js\" 2>&1 | grep -q worktree-enter.js"
 assert "no .mjs in worktree-enter usage" bash -c "! node \"$SCRIPTS/worktree-enter.js\" 2>&1 | grep -q worktree-enter.mjs"
+
+# tracked launch ledger → exit 5
+REPO5="$TMP/repo5"
+mkdir -p "$REPO5"
+git -C "$REPO5" init -q -b main
+git -C "$REPO5" config user.email "test@example.com"
+git -C "$REPO5" config user.name "Test"
+echo x >"$REPO5/README"
+git -C "$REPO5" add README && git -C "$REPO5" commit -q -m init
+echo '# L' >"$REPO5/IMPROVE_LOOP.md"
+git -C "$REPO5" add IMPROVE_LOOP.md && git -C "$REPO5" commit -q -m ledger
+set +e
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO5" --target t >/dev/null 2>"$TMP/t5.err"
+EC5=$?
+set -e
+assert "tracked ledger exit 5" test "$EC5" -eq 5
+assert "tracked ledger message" grep -q 'tracked launch' "$TMP/t5.err"
+
+# code-dirty launch with untracked legacy ledger → exit 4
+REPO6="$TMP/repo6"
+mkdir -p "$REPO6"
+git -C "$REPO6" init -q -b main
+git -C "$REPO6" config user.email "test@example.com"
+git -C "$REPO6" config user.name "Test"
+echo x >"$REPO6/README"
+git -C "$REPO6" add README && git -C "$REPO6" commit -q -m init
+echo '# L' >"$REPO6/IMPROVE_LOOP.md"
+echo dirty >"$REPO6/extra.c"
+set +e
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO6" --target t >/dev/null 2>"$TMP/t6.err"
+EC6=$?
+set -e
+assert "dirty launch migrate exit 4" test "$EC6" -eq 4
+assert "dirty launch message" grep -q 'code-dirty' "$TMP/t6.err"
+
+# reintegrate_blocked → merge-back-only mode
+REPO7="$TMP/repo7"
+mkdir -p "$REPO7"
+git -C "$REPO7" init -q -b main
+git -C "$REPO7" config user.email "test@example.com"
+git -C "$REPO7" config user.name "Test"
+echo x >"$REPO7/README"
+git -C "$REPO7" add README && git -C "$REPO7" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p >/dev/null
+GCD7="$(git -C "$REPO7" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [[ -z "$GCD7" || "$GCD7" != /* ]]; then
+  GCD7="$(cd "$REPO7" && cd "$(git -C "$REPO7" rev-parse --git-common-dir)" && pwd)"
+fi
+node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test" >/dev/null
+OUT7="$TMP/enter7.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p >"$OUT7"
+assert "reintegrate → merge-back-only" grep -q '"mode": "merge-back-only"' "$OUT7"
 
 echo "---"
 echo "passed=$pass failed=$fail"
