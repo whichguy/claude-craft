@@ -1,22 +1,39 @@
 ---
 name: improve-loop
 description: >-
-  Run one evidence-led improvement cycle for a plain-language target in any git repository:
-  execute a bounded backlog item, test it, record deterministic learnings, replan through a
-  multi-model advisory panel, and commit the durable ledger. Invoke for "/improve <target>",
-  "/claudecraft:improve-loop <target>", "/improve-loop <target>", "improve this project
-  iteratively", or "run a tested improvement cycle"; compose with /goal for multi-cycle
-  campaigns (host max-turns/budget for unattended hard caps).
+  Run a worktree-isolated improvement campaign under /goal until terminal: each invocation
+  is one gated cycle (execute, test, learn, multi-model replan, commit). Entry ensures GOAL_MODE
+  so the host re-drives until Status is complete/stopped and landed. Invoke for "/improve
+  <target>", "/claudecraft:improve-loop <target>", "/improve-loop <target>", "improve this
+  project iteratively", or "run a tested improvement cycle".
 ---
 
 # Improve loop
 
-Run exactly one improvement cycle per invocation. The cycle executes (or deliberately
-skips) a bounded piece of work, runs the target's recorded test command, captures the
-evidence and thesis in `IMPROVE_LOOP.md`, replans from a multi-model advisory panel, and
-commits the result. Git commit messages are the durable, reviewable ledger. While a
-campaign is active, the on-disk `IMPROVE_LOOP.md` is only the resume surface; after a
-terminal cycle that file is archived into the terminal commit message and removed.
+## Campaign architecture (logical separation)
+
+| Layer | Owns | Does not own |
+|---|---|---|
+| **L0 `/goal` (host)** | Multi-turn re-drive until done; max-turns/budget; pause/Esc | Worktree layout, backlog, advisors, commits |
+| **L1 Entry (`/improve`)** | Resolve target; **ensure GOAL_MODE**; one cycle per turn | Self-repeat loop; inventing a second cycle in-turn |
+| **L2 Cycle kernel (Phases 0–5)** | One gated cycle: execute → test → learn → replan → commit → signal | Host multi-turn iteration |
+| **L3 Scripts** (`scripts/`) | Shell probe, worktree enter, pointer RMW, ledger-status, merge-back | Advisor judgment, thesis prose |
+
+```text
+/improve <target>
+  → L1 ensure /goal (canonical objective from references/goal-objective.template.md)
+  → L3 shell-probe + worktree-enter  → WORKSPACE
+  → L2 one cycle (Phases 0–5)
+  → active: update_goal(progress) + end turn  → L0 re-drives next turn
+  → terminal+landed: merge-back + update_goal(completed)
+```
+
+**One cycle per invocation** — this skill does **not** self-repeat inside a single turn.
+Multi-cycle **is** the product: L1 **ensures** `/goal` so the host keeps invoking until the
+campaign goal is met (terminal Status **and** iteration commit landed). Outer hard caps are
+host **max-turns / max-budget** (or Esc). Log `N` is independent of goal turns.
+
+**Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver.
 
 **Workspace rule (non-negotiable):** From cold-start until terminal **merge-back**, **all**
 improve work (ledger, code, tests, commits) happens in **exactly one** campaign worktree on
@@ -28,15 +45,40 @@ Resume always re-enters **that same** worktree (pointer), never a second one. Tw
 paths exist only as plumbing (`WORKSPACE` = the campaign worktree; `LAUNCH` = primary
 checkout for cold-start and end-of-campaign FF) — the campaign does **not** “run on launch.”
 
-This skill does not contain its own repeat mechanism. Use it once for a manual cycle, or
-compose with **`/goal`** for multi-cycle (objective = terminal Status **and** iteration
-commit landed). Outer hard caps are host **max-turns / max-budget** (or Esc) — not this
-skill. Log `N` is independent of goal turns.
+**Package paths** (resolve relative to this skill directory):
+
+```text
+SKILL_DIR/references/goal-objective.template.md   # canonical /goal body
+SKILL_DIR/scripts/shell-probe.sh
+SKILL_DIR/scripts/worktree-enter.js
+SKILL_DIR/scripts/pointer.js
+SKILL_DIR/scripts/ledger-status.js
+SKILL_DIR/scripts/merge-back.js
+SKILL_DIR/scripts/contract-check.js
+```
 
 **Outer goal protocol (single rule):** Only **Phase 5** signals the outer goal. Phases 0–4
 never call `update_goal`, never claim the objective is met, and never emit promise tags.
 Complete the goal **only** when Status is terminal **and** the iteration commit has landed
 (merge-back best-effort, reported, not required). On any stop/veto before that: report only.
+
+### L1 — Ensure GOAL_MODE (before Phase 0 work)
+
+After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
+
+1. If already under a compatible improve-loop `/goal` (objective matches target+repo, or
+   pointer already active for this campaign) → set `GOAL_MODE=yes` and continue.
+2. Else if the host can open goal mode (`/goal` or equivalent + `update_goal` tool): fill
+   `references/goal-objective.template.md` with `TARGET`, `TARGET_REPO_ABS`, `CMD`, open that
+   as the session goal, set `GOAL_MODE=yes`, then run **exactly one** L2 cycle this turn.
+3. Else if `update_goal` exists but slash `/goal` cannot be opened mid-skill: treat session as
+   `GOAL_MODE=yes` for progress/complete signaling and still run one cycle — do **not** claim
+   a standalone one-shot is a finished multi-cycle campaign.
+4. Else (no goal tooling): run **one seed cycle** if useful, print the exact filled objective
+   from the template as operator action, and set Closing **Next** to that `/goal …` line.
+   Multi-cycle without goal is **not** complete product behavior.
+
+Never invent an in-turn multi-cycle self-loop. Never emit ralph promise tags.
 
 ## Status reporting (user-facing — mandatory)
 
@@ -131,7 +173,7 @@ section):
 | **Merge-back** | n/a (still active) \| ok → main \| blocked · run: `git -C <LAUNCH> merge --ff-only <branch>` |
 | **Workspace** | `<WORKSPACE>` (kept) \| removed after merge-back |
 | **Pointer** | `active` \| `reintegrate_blocked` \| deleted |
-| **Next** | re-invoke `/improve <target>` · or `/goal …` · or operator action: <one line> |
+| **Next** | GOAL_MODE+active: goal continues next turn · no GOAL_MODE: paste `/goal` template · terminal: done · blocked: <operator action> |
 ```
 
 Tone: confident, scannable, no filler. Prefer tables over walls of prose. When Result is
@@ -185,23 +227,20 @@ deterministic local gate.
 `clear ledger`, `clear IMPROVE_LOOP` force **discard** of a launch-root leftover ledger
 instead of migrate (see Phase 0 step 1a.3). Default for Status `active` is **migrate**.
 
-**Sibling skill.** `grok-review-converge` is the same shape (one round per invocation + outer
-driver). Prefer **`/goal`** for multi-cycle on both; ralph remains an optional legacy outer
-driver on grok-review-converge only when the operator explicitly wants promise-tag Stop-hook
-quotas — never as improve-loop’s primary path.
+**Sibling skill.** `grok-review-converge` is the same outer-driver family (one round per
+invocation; multi-round under `/goal`). Ralph remains optional legacy only on converge when
+promise-tag Stop-hooks are required — never improve-loop’s primary path.
 
 ## Preconditions
 
 Fail fast in Phase 0. Do not half-run a cycle.
 
-- **Shell must spawn.** This skill needs a working shell for `git`, worktree create, and the
-  recorded test command. In Phase 0 step 1a, probe once (`true` or
-  `git rev-parse --is-inside-work-tree`). If the tool **fails to spawn** (e.g. host
-  `IO Error: No such file or directory` before any command runs) or returns unusable
-  output with no exit path: **stop immediately** — report `blocked (shell unavailable)`,
-  include the host error text if any, and state that worktree/test/commit cannot proceed.
-  Do **not** thrash: no scheduler loops, no multi-subagent delete cascades, no further
-  Phase 0 work that requires shell. File-only tools cannot complete this skill.
+- **Shell must spawn.** Run L3 `scripts/shell-probe.sh --repo "$TARGET_REPO"` (or equivalent
+  git checks). If the tool **fails to spawn** (e.g. host `IO Error: No such file or
+  directory`) or the probe exits non-zero: **stop immediately** — report
+  `blocked (shell unavailable)`, include the host/probe error, and state that
+  worktree/test/commit cannot proceed. Do **not** thrash: no scheduler loops, no
+  multi-subagent delete cascades. File-only tools cannot complete this skill.
 - The working tree must be inside a **non-bare** git repository: `git rev-parse --show-toplevel`
   succeeds and `git rev-parse --is-bare-repository` is not `true`. Commits are the durable
   ledger; without git there is no Phase 4. `git worktree` must work (refuse if
@@ -334,116 +373,59 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    capture rule) and is excluded from the shared code-dirty definition. It resets every turn
    and is never persisted.
 
-   **1a. Enter the one campaign worktree (before any ledger or dirty check).**
+   **1a. Enter the one campaign worktree (before any ledger or dirty check) — via L3 scripts.**
 
-   First resolve **target repo root** (Invocation: Target repository). Then, **from that
-   root** (or `git -C "$TARGET_REPO"`):
+   First resolve **target repo root** (Invocation: Target repository). Then run (from any cwd):
+
+   ```bash
+   SKILL_DIR="$(dirname path/to/this/SKILL.md)"   # skill package root
+   bash "$SKILL_DIR/scripts/shell-probe.sh" --repo "$TARGET_REPO"
+   # on non-zero or spawn failure → STOP blocked (shell unavailable)
+
+   DISCARD=()
+   # if invocation/same-turn text has discard legacy / clear ledger / clear IMPROVE_LOOP:
+   #   DISCARD=(--discard-legacy)
+
+   node "$SKILL_DIR/scripts/worktree-enter.js" \
+     --repo "$TARGET_REPO" --target "$TARGET" \
+     ${TEST_COMMAND:+--test-command "$TEST_COMMAND"} \
+     "${DISCARD[@]}"
+   ```
+
+   Parse the JSON stdout. Set:
 
    ```
-   TARGET_REPO = abs(resolved target repo root)   # not necessarily session cwd
-   COMMON_GIT  = abs(git -C "$TARGET_REPO" rev-parse --git-common-dir)
-   LAUNCH      = dirname(COMMON_GIT)    # refuse bare repos
-   INVOKE_ROOT = abs(git -C "$TARGET_REPO" rev-parse --show-toplevel)
-   POINTER     = $COMMON_GIT/improve-loop/active.json
+   WORKSPACE        = .workspace
+   LAUNCH           = .launch
+   COMMON_GIT       = .common_git
+   POINTER          = .pointer
+   campaign_branch  = .campaign_branch
+   launch_branch    = .launch_branch
+   mode             = .mode   # resume | cold-start | migrate | discard-cold-start | merge-back-only
    ```
 
-   Refuse if bare. **Shell probe (once):** run `true` (or
-   `git -C "$TARGET_REPO" rev-parse --is-inside-work-tree`). On spawn failure or unusable
-   result → stop with `blocked (shell unavailable)` per Preconditions; do not continue 1a.
-   Require `git -C "$TARGET_REPO" worktree list` to succeed.
+   Exit-code map (worktree-enter): `3` lock busy → stop; `4` launch code-dirty → stop
+   `launch code-dirty`; `5` tracked legacy ledger → stop (operator `git rm`); `6` path
+   traversal → stop; `7` worktree create/repair failed → stop; `8` bare → stop.
 
-   **Cold-start helper** (used by step 4 and by migrate in step 3 — same rules, one worktree):
+   If `mode == merge-back-only`: run Phase 5 merge-back only (L3 `merge-back.js`); stop.
 
-   - Single-flight: `mkdir "$COMMON_GIT/improve-loop/lock"` must succeed; if it fails,
-     another start is in progress or crashed — stop and report.
-   - `slug` = short slug from target + `YYYYMMDD-HHMMSS` + **always** a random
-     suffix: `-` + **6 hex** (from `/dev/urandom` or equivalent — never omit the
-     random part; never rely on timestamp uniqueness alone). Branch
-     `improve/<slug>`; path `$LAUNCH/.worktrees/<slug>`. The random suffix is
-     mandatory on every cold-start so concurrent sessions and second-scale
-     restarts cannot collide on a predictable path/branch. On residual
-     branch/path collision (astronomically rare), append another `-` + 4 hex
-     once; if still colliding, stop.
-   - **Ensure gitignore before `worktree add`:** if `$LAUNCH/.gitignore` has no line that is
-     exactly `.worktrees/` (or equivalent pattern that ignores that directory), create or
-     append that line. Prefer editing via the soon-to-be campaign tree after add if the
-     launch tree must stay clean mid-campaign — but the ignore must exist **before** any
-     unignored `.worktrees/<slug>` can show up as launch dirt. Practical order: write/append
-     `$LAUNCH/.gitignore` line `.worktrees/` first (untracked or modified on launch is OK
-     briefly), then `mkdir -p` + `worktree add`; on the first campaign commit include
-     `.gitignore` if still dirty and in scope as isolation plumbing (not a scope violation).
-   - `mkdir -p "$LAUNCH/.worktrees"` then
-     `git -C "$LAUNCH" worktree add -b "improve/<slug>" "$path" HEAD`.
-   - Record `launch_branch` only if LAUNCH is not detached HEAD; else `launch_branch: null`
-     and store `launch_head` SHA (no auto FF later).
-   - Write `POINTER` (`version: 1`, `state: active`, launch_root, launch_branch, launch_head,
-     campaign_branch, worktree_path, target, test_command when known, created_at,
-     reintegrate_error: null). Remove the lock dir after the pointer is written (or on
-     failure after cleanup).
-   - Set `WORKSPACE = path`.
+   Never freehand a second `git worktree add` while a pointer is `active` or
+   `reintegrate_blocked` — the script enforces single-flight + random 6-hex slugs +
+   `.worktrees/` gitignore + migrate-or-discard. If scripts are missing, stop and report
+   (do not re-implement ad hoc).
 
-   **Active campaign detection (first match wins) — always the same WORKSPACE:**
+   Optional status snapshot for kickoff card:
 
-   1. If `POINTER` exists and parses as JSON:
-      - Require `worktree_path` is under `$LAUNCH/.worktrees/` (path-traversal guard;
-        reject otherwise and stop).
-      - If `state == reintegrate_blocked`: do **not** start a new cycle; run **Phase 5
-        merge-back only** (below) and report. Stop. Still the same worktree until merge
-        succeeds — never create a second one.
-      - If the worktree directory exists and `git -C worktree_path rev-parse` works → set
-        `WORKSPACE = worktree_path` (resume **same** workspace).
-      - Else if `campaign_branch` ref exists → repair the **same** path:
-        `git -C "$LAUNCH" worktree add "$worktree_path" "$campaign_branch"`; on failure
-        stop and report. On success set `WORKSPACE`.
-      - Else (branch and worktree gone) → delete pointer; fall through to cold-start.
-   2. Else if `INVOKE_ROOT` is under `$LAUNCH/.worktrees/`, branch matches `improve/*`,
-      and `$INVOKE_ROOT/IMPROVE_LOOP.md` exists → set `WORKSPACE = INVOKE_ROOT` and
-      **repair** the pointer from live state (`state: active`) — already inside the one workspace.
-   3. Else if `$LAUNCH/IMPROVE_LOOP.md` exists (legacy in-place campaign on launch) **and**
-      no usable POINTER worktree → **migrate-or-discard** (do **not** hard-stop; do **not**
-      leave a second campaign on launch):
-
-      **Safety first:** if LAUNCH has **code-dirty** paths other than `IMPROVE_LOOP.md`
-      (same shared code-dirty idea, under LAUNCH), **stop and report** — do not migrate or
-      discard over unrelated dirty work. Operator must clean or commit first.
-
-      **Classify** (first match wins):
-      - **Discard** if any of: invocation/target/same-turn user text contains a legacy
-        discard phrase (`discard legacy` / `clear ledger` / `clear IMPROVE_LOOP`); **or**
-        Status is `complete` or `stopped (...)`; **or** the ledger has zero Log entries
-        and is untracked (`git -C "$LAUNCH" ls-files --error-unmatch IMPROVE_LOOP.md` fails).
-      - **Else Migrate** (default for Status `active` with a real Log).
-
-      **Discard path:** delete `$LAUNCH/IMPROVE_LOOP.md` only when untracked (`rm`). If
-      tracked (`git -C "$LAUNCH" ls-files -- IMPROVE_LOOP.md` non-empty), stop and report —
-      operator must `git rm` / commit; do not invent a discard commit. Then fall through to
-      step 4 cold-start for the **current** `/improve` target (fresh campaign).
-
-      **Migrate path:**
-      1. If launch ledger is tracked, **stop and report** (same as discard tracked case) —
-         migrate only untracked launch leftovers.
-      2. Read full ledger text into memory (`LEGACY_SNAPSHOT`).
-      3. Run **Cold-start helper** (random 6-hex worktree + POINTER).
-      4. Write `$WORKSPACE/IMPROVE_LOOP.md` from `LEGACY_SNAPSHOT`. If `## Isolation` is
-         missing, inject it after the header block (before `## Backlog`):
-         `launch_root`, `campaign_branch`, `worktree_path` set to this WORKSPACE.
-      5. `rm` `$LAUNCH/IMPROVE_LOOP.md` (untracked only — already gated).
-      6. Continue Phase 0 from step 2 onward **inside WORKSPACE** (resume path — do not
-         reseed a blank ledger over the migrated content).
-
-      Report one line in the cycle Notes later if Phase 2 runs: `migrated legacy launch
-      ledger → WORKSPACE` or `discarded legacy launch ledger`.
-   4. Else → **cold-start the one workspace** (only when no active pointer): run the
-      **Cold-start helper** above.
-
-   Never nest worktrees under a secondary feature worktree cwd — always
-   `$LAUNCH/.worktrees/<slug>`. Never create a second improve worktree while a pointer is
-   `active` or `reintegrate_blocked`.
+   ```bash
+   node "$SKILL_DIR/scripts/ledger-status.js" --workspace "$WORKSPACE"
+   ```
 
    **After WORKSPACE is set:** `cd "$WORKSPACE"` (or set every tool/subagent working
    directory to WORKSPACE) for the rest of this turn's cycle work. Prefer real cwd so tests
    and agents stay in the one workspace; use `git -C "$LAUNCH"` only for pointer writes and
    end-of-campaign merge-back.
+
 
 2. If `$WORKSPACE/IMPROVE_LOOP.md` is absent, **do not assume a brand-new campaign**. First
    distinguish **terminal land already committed** (resume file removed by design) from a
@@ -1151,10 +1133,10 @@ mid-campaign. **Always** end the user-visible turn with the **Closing card** fro
 [Status reporting](#status-reporting-user-facing--mandatory) (even on veto/STOP). Phase
 banners + kickoff card earlier in the turn are required when Phase 0 ran at all.
 
-**GOAL_MODE:** an outer `/goal` is active. If the `update_goal` tool exists, use it for
-complete/progress. Else (Claude goal without that tool): state objective met in prose and
-stop further improve cycles. Standalone `/improve` → report only (still use the Closing
-card). Ambiguous → treat as standalone (never false-complete).
+**GOAL_MODE:** true when L1 ensured a goal (or a compatible goal was already active).
+If the `update_goal` tool exists, use it for complete/progress. Else: state objective met in
+prose and stop further improve cycles. If L1 could not ensure goal tooling, still use the
+Closing card and put the filled `/goal` template in **Next** (never false-complete).
 
 | Condition | Action |
 |---|---|
@@ -1172,47 +1154,54 @@ goal with the reason so multi-cycle does not re-open forever.
 2. `PHASE4_COMMIT_OK=true` (or prior land via leftover/short-circuit), and
 3. `git -C "$WORKSPACE" log --grep="improve-loop: iteration N —" -n 1` finds the commit.
 
-- **Terminal + landed → merge-back once (best-effort):**
-  1. `launch_branch` null → skip FF; pointer `reintegrate_blocked`; keep WORKSPACE.
-  2. Else require LAUNCH clean (`status --porcelain` empty); checkout `launch_branch` if needed.
-  3. `git -C "$LAUNCH" merge --ff-only "$campaign_branch"`.
-  4. **ok:** worktree remove → `branch -d` → delete POINTER. Report `merge-back: ok`.
-  5. **fail:** pointer `reintegrate_blocked` + error; leave WORKSPACE; print the FF command.
-     Report `merge-back: blocked`. Still complete goal if GOAL_MODE (land is durable).
-  Teardown order fixed: FF → remove worktree → delete branch → delete pointer. Never
-  delete the campaign branch before a successful FF.
+- **Terminal + landed → merge-back once (best-effort) via L3:**
+
+  ```bash
+  node "$SKILL_DIR/scripts/merge-back.js" --repo "$TARGET_REPO"
+  ```
+
+  Parse JSON: `merge_back` is `ok` | `blocked` | `skipped_detached` | `teardown_partial`.
+  On blocked/skipped, leave WORKSPACE; print the FF command from notes/error. Still complete
+  goal if GOAL_MODE (land is durable). Prefer the script over freehand FF so teardown order
+  (FF → remove worktree → delete branch → delete pointer) stays correct.
 
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
-  Phases 1–4; retry merge-back on the same worktree. Success clears pointer (post-goal cleanup
-  if goal already completed on land).
+  Phases 1–4; run `merge-back.js` on the same pointer. Success clears pointer (post-goal
+  cleanup if goal already completed on land).
 
-- **Active:** end turn; pointer stays `active`; resume via pointer next turn. Under multi-cycle
-  goal: **one improve cycle per assistant turn**.
+- **Active + GOAL_MODE:** end turn; pointer stays `active`; emit progress line;
+  Closing **Next** = goal continues next turn (host re-drives). **One cycle per assistant
+  turn.** Do **not** primary-suggest manual re-invoke.
+- **Active + no GOAL_MODE:** end turn; Closing **Next** = exact filled objective from
+  `references/goal-objective.template.md` so the operator can start `/goal`.
 
-## Multi-cycle: `/goal`
+## Multi-cycle: entry ensures `/goal`
 
-One `/improve` = one cycle. Multi-cycle = outer **`/goal`** (at most one cycle per turn).
-**Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver — that path is
-deprecated for this skill (promise tags, `.claude/ralph-loop.local.md`). Sibling skill
-`grok-review-converge` still documents ralph as an *optional* legacy outer quota; improve-loop
-does not.
+One `/improve` = **one L2 cycle**. Multi-cycle = **L0 `/goal`** re-driving that cycle until
+terminal. L1 **ensures** goal mode on entry (see Campaign architecture) — the operator should
+not need a separate “remember to compose with /goal” step for the happy path.
 
-```
-/goal Run improve-loop for target: <TARGET> in repo: <TARGET_REPO_PATH> with test command: <CMD>.
-Each turn: /improve once (or short-circuit / ledger-flush / merge-back-only / migrate-or-discard).
-One worktree via $(git -C <TARGET_REPO> rev-parse --git-common-dir)/improve-loop/active.json.
-Done when Status terminal AND iteration commit landed (merge-back optional).
-```
+Canonical objective: fill `references/goal-objective.template.md` (single source — do not
+invent a second multi-cycle wrapper).
+
+**Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver (promise tags,
+`.claude/ralph-loop.local.md` are deprecated for this skill). Sibling `grok-review-converge`
+may still document ralph as optional legacy.
 
 **Unattended hard caps (host, not this skill):**
 - Claude: `claude -p "/goal …" --max-turns N --max-budget-usd $` (keep `N` modest — advisors cost).
-- Grok (or any host with goal mode): open `/goal` with the same objective and enforce
-  session **max-turns / max-budget** (or Esc). Signal completion only via Phase 5
-  (`update_goal` when the tool exists; else prose “objective met” and stop further improve
-  cycles). Never emit ralph promise tags from this skill.
+- Grok: `/goal` + session **max-turns / max-budget** (or Esc). Signal completion only via
+  Phase 5 (`update_goal` when present; else prose “objective met”). Never emit ralph promise
+  tags from this skill.
 
-Seed **target + target repo path + test command** in the objective. Merge-back left blocked →
-re-invoke improve (merge-back-only) or a separate merge goal.
+Merge-back left blocked → next `/improve` or goal turn runs merge-back-only.
+
+**Verify package contracts:**
+
+```bash
+node "$SKILL_DIR/scripts/contract-check.js"
+bash "$SKILL_DIR/tests/scripts.test.sh"
+```
 
 This skill makes no assumptions about language, layout, or test framework — always use the
 recorded test command.
