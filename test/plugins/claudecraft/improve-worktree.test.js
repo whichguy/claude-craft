@@ -331,7 +331,10 @@ describe('improve-worktree.sh', function () {
     expect(r.status, r.stderr + r.stdout).to.equal(0);
     expect(r.stdout).to.match(/tip_on_launch=no/);
     expect(r.stdout).to.match(/suggested_next=blocked:open-pr/);
+    expect(r.stdout).to.match(/resume_hint=.*Tip not on launch/i);
     expect(r.stdout).to.match(/resume_hint=.*merge-to-launch|resume_hint=.*PR/i);
+    // open-pr hint must not peer-promote destroy --force (tip may be only copy)
+    expect(r.stdout).to.not.match(/resume_hint=.*destroy --force/i);
     expect(r.stdout).to.match(/merge_to_launch=false/);
   });
 

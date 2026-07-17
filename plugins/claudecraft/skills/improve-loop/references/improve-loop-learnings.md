@@ -82,3 +82,12 @@ Material `567bf37` then two independent cleans:
 - **9** → pair after `06266d4` (docs subject: quality-review iter 9 clean)
 
 Agents may feed improve-worktree status keys into next-auto; flags must parse yes/no.
+
+
+## open-pr resume_hint safety (goal efef0b908b27)
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 10 | material | `551b616` | worktree `resume_hint_for blocked:open-pr` peer-promoted `destroy --force` with open-PR; tip may be only copy |
+
+**Fix:** align open-pr hint with next-auto (Tip not on launch + PR / --merge-to-launch); recover prints de-emphasize force; mocha pin no `resume_hint=.*destroy --force` after no-merge status.

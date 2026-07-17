@@ -145,3 +145,10 @@ Material `cdc3f30` then two independent cleans:
 - **21** → this commit — dual-path-iter21
 
 recover no longer FORCE-destroys; die_status emits resume_hint=.
+
+
+## open-pr hint (efef0b908b27)
+
+| Iter | Verdict | Finding |
+|---|---|---|
+| material | open-pr resume_hint must not peer-promote destroy --force; tip may be only copy |

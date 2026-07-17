@@ -82,7 +82,8 @@ resume_hint_for() {
     reintegrate) printf '%s\n' "improve-worktree.sh reintegrate --repo <repo> --slug <slug>" ;;
     destroy) printf '%s\n' "improve-worktree.sh destroy --repo <repo> --slug <slug>" ;;
     done) printf '%s\n' "No automatic steps left; tip on launch or worktree kept on purpose" ;;
-    blocked:open-pr) printf '%s\n' "Open PR from worktree tip, or reintegrate --merge-to-launch, or destroy --force" ;;
+    # Do not peer-promote destroy --force: tip may be the only copy of the work.
+    blocked:open-pr) printf '%s\n' "Tip not on launch: open PR from worktree tip, or reintegrate --merge-to-launch (check tip_on_launch / merge_to_launch)" ;;
     blocked:rebase-continue) printf '%s\n' "In worktree: resolve, git add, git rebase --continue; then reintegrate/recover" ;;
     blocked:worktree-dirty) printf '%s\n' "Commit or stash worktree changes before reintegrate/destroy" ;;
     blocked:worktree-missing) printf '%s\n' "Worktree path gone; create a new run or recover from tip if known" ;;
@@ -890,7 +891,7 @@ then: improve-worktree.sh recover --repo $REPO --slug $SLUG"
     if [[ -d "$WORKTREE_PATH" ]] && ! tip_on_launch_p "$LAUNCH_PATH" "$tip_k" "$LAUNCH_BRANCH"; then
       printf 'recover: keeping worktree (--keep-worktree); tip %s still unmerged on %s\n' \
         "$tip_k" "$LAUNCH_BRANCH"
-      printf 'recover: next=blocked:open-pr — open a PR, --merge-to-launch, or destroy --force\n'
+      printf 'recover: next=blocked:open-pr — open a PR or reintegrate --merge-to-launch (destroy --force only if discarding tip)\n'
       ok_status recover none blocked:open-pr "kept worktree; tip not on launch"
       return 0
     fi
@@ -906,7 +907,7 @@ then: improve-worktree.sh recover --repo $REPO --slug $SLUG"
   if [[ -d "$WORKTREE_PATH" ]] && ! tip_on_launch_p "$LAUNCH_PATH" "$tip" "$LAUNCH_BRANCH"; then
     printf 'recover: reintegrate ok but tip %s is not on launch %s — keeping worktree\n' \
       "$tip" "$LAUNCH_BRANCH"
-    printf 'recover: open a PR/branch from the tip, re-run with --merge-to-launch, or destroy --force\n'
+    printf 'recover: open a PR/branch from the tip, or reintegrate --merge-to-launch (destroy --force only if discarding tip)\n'
     ok_status recover none blocked:open-pr "kept worktree; tip not on launch"
     return 0
   fi
