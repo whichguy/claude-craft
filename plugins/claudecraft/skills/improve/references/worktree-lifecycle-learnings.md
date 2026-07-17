@@ -129,3 +129,11 @@ Material `2e8a9bb` then two independent cleans:
 - **18** → this commit — dual-path-iter18 + iter18-mocha
 
 Features retained: S11a/S11b, open-pr, tip-on-launch destroy, merge override, mid-rebase.
+
+## Skeptic SECRET_LOST fix
+
+| Iter | Verdict | Commit | Notes |
+|---|---|---|---|
+| 19 | material | `cdc3f30` | recover no FORCE; die_status resume_hint |
+| 20 | **clean** | (this) | dual-path A–G; SECRET kept |
+| 21 | pending | — | second clean |
