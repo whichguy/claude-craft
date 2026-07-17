@@ -44,15 +44,16 @@ already cover active/blocked/veto cases above.
     goal API: report the outcome to the user (and let the driver exit S8 → S9–S13).
 
 - If Status is terminal but not landed because Phase 4 failed or the code-dirty veto fired,
-  do **not** call `goal.complete`. Report the failure or veto and leave the dirty tree for
-  the user or next turn's stop-and-report/ledger-flush path. Completing the host goal here
-  would mark success while the ledger remained uncommitted.
+  do **not** call `goal.complete` **or** `goal.blocked`. Report the failure or veto and leave
+  the dirty tree (and host goal open) for the user or next turn's stop-and-report/ledger-flush
+  path. Completing or blocking the host goal here would end continuous work while the ledger
+  remained uncommitted.
 
 - Two related stops end *before* this phase, each with its own attribution: the **Phase 0
   not-landed + code-dirty stop** (step 4) ends inside Phase 0, and a **Phase 4 secret /
-  code-dirty veto** stops and reports inside Phase 4 (no host-goal complete — same as
+  code-dirty veto** stops and reports inside Phase 4 (no host-goal complete/blocked — same as
   not-landed above). Neither may set a `stopped (...)` Status over dirty code (the
-  code-dirty veto forbids that) and neither may complete the host goal. The continuous host
+  code-dirty veto forbids that) and neither may complete or block the host goal. The continuous host
   (goal or improve) must use **finite** caps so an unresolvable dirty tree cannot spin
   forever; the operator resolves the tree (commit or discard) to resume real cycles.
 

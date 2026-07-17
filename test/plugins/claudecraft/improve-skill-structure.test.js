@@ -119,6 +119,8 @@ describe('claudecraft improve skill structure', function () {
     expect(p5).to.match(/goal\.complete/);
     expect(p5).to.match(/goal\.blocked/);
     expect(p5).to.match(/Status `complete`.*goal\.complete|complete` → \*\*`goal\.complete`/s);
+    // Not-landed must not end host goal (complete or blocked)
+    expect(p5).to.match(/do \*\*not\*\* call `goal\.complete` \*\*or\*\* `goal\.blocked`/);
     expect(p5).to.not.match(/<promise>/);
     // Stale INDEX / progress must not reintroduce re-invoke ranking or promise recipes
     const idx = fs.readFileSync(
