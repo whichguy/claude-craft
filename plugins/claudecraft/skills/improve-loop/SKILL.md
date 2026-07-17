@@ -3,9 +3,10 @@ name: improve-loop
 description: >-
   Run one evidence-led improvement cycle for a plain-language target in any git repository:
   execute a bounded backlog item, test it, record deterministic learnings, replan through a
-  multi-model advisory panel, and commit the durable ledger. Invoke for "/claudecraft:improve-loop <target>",
-  "improve this project iteratively", or "run a tested improvement cycle"; combine with
-  ralph-loop when an unattended, hard-capped outer quota is needed.
+  multi-model advisory panel, and commit the durable ledger. Invoke for "/improve <target>",
+  "/claudecraft:improve-loop <target>", "/improve-loop <target>", "improve this project
+  iteratively", or "run a tested improvement cycle"; compose with /goal for multi-cycle
+  campaigns (host max-turns/budget for unattended hard caps).
 ---
 
 # Improve loop
@@ -13,79 +14,136 @@ description: >-
 Run exactly one improvement cycle per invocation. The cycle executes (or deliberately
 skips) a bounded piece of work, runs the target's recorded test command, captures the
 evidence and thesis in `IMPROVE_LOOP.md`, replans from a multi-model advisory panel, and
-commits the result. Git commits are the durable, reviewable ledger: future cycles read
-both the state file and relevant history.
+commits the result. Git commit messages are the durable, reviewable ledger. While a
+campaign is active, the on-disk `IMPROVE_LOOP.md` is only the resume surface; after a
+terminal cycle that file is archived into the terminal commit message and removed.
+
+**Workspace rule (non-negotiable):** From cold-start until terminal **merge-back**, **all**
+improve work (ledger, code, tests, commits) happens in **exactly one** campaign worktree on
+branch `improve/<slug>` under the launch checkout's `.worktrees/`. The launch checkout is
+**read-only for campaign purposes** mid-run — no campaign commits, no `IMPROVE_LOOP.md`, no
+campaign code edits on launch. Merge into the launch branch happens **only once**, after a
+terminal iteration lands on the campaign branch — never per-cycle, never mid-campaign.
+Resume always re-enters **that same** worktree (pointer), never a second one. Two absolute
+paths exist only as plumbing (`WORKSPACE` = the campaign worktree; `LAUNCH` = primary
+checkout for cold-start and end-of-campaign FF) — the campaign does **not** “run on launch.”
 
 This skill does not contain its own repeat mechanism. Use it once for a manual cycle, or
-compose it with `ralph-loop` for an outer quota with a hard `--max-iterations` cap. The
-ralph quota and this skill's per-target iteration counter are independent.
+compose with **`/goal`** for multi-cycle (objective = terminal Status **and** iteration
+commit landed). Outer hard caps are host **max-turns / max-budget** (or Esc) — not this
+skill. Log `N` is independent of goal turns.
+
+**Outer goal protocol (single rule):** Only **Phase 5** signals the outer goal. Phases 0–4
+never call `update_goal`, never claim the objective is met, and never emit promise tags.
+Complete the goal **only** when Status is terminal **and** the iteration commit has landed
+(merge-back best-effort, reported, not required). On any stop/veto before that: report only.
 
 ## Invocation
 
-Invoke as free text:
-
 ```
-/claudecraft:improve-loop <target, described in plain language>
+/improve <target, described in plain language>
 ```
 
-For example:
+Also: `/improve-loop`, `/claudecraft:improve-loop` (plugin namespace). Example:
+`/improve "error handling in scripts/ingest.py, tests via pytest"`.
 
-```
-/claudecraft:improve-loop "error handling in scripts/ingest.py, tests via pytest"
-```
+No skill flags. Test command: reuse from invocation, goal objective, pointer, or existing
+ledger. If still missing — **interactive:** ask once; **cannot ask** (headless / unattended):
+`Status: stopped (no test command)`, write a Log entry (Thesis `no test command supplied…`,
+Outcome `blocked`, `Committed: pending`), Phase 4 land (ledger-only), Phase 5. Prefer seeding
+the command in the goal objective or a first interactive `/improve`.
 
-As a plugin skill the slash command is namespaced `/claudecraft:improve-loop`. A local
-`/planning-suite:alias improve-loop /claudecraft:improve-loop` restores the bare `/improve-loop` form.
+**Target repository (do not assume session cwd is the campaign repo).** Resolve the **target
+repo root** before Phase 0 step 1a when any of these apply:
+1. The invocation names an absolute path under a git checkout.
+2. The target names a skill or project with a known path (e.g. `backchain skill` →
+   `$HOME/src/backchain` or the path from install docs / user context).
+3. The goal objective names a repo path.
+Otherwise default to `git rev-parse --show-toplevel` from the current tool cwd.
+All of COMMON_GIT / LAUNCH / INVOKE_ROOT / POINTER / worktree creation use that **target
+repo root**, not an unrelated session workspace. If resolution is ambiguous, **interactive:**
+ask once; **unattended:** `Status: stopped (ambiguous target repo)`, ledger-only if a WORKSPACE
+already exists, else report only.
 
-Use no skill flags. If the invocation does not state the target's test command, ask for
-it once in conversation (this interactive ask applies only to a standalone, human-present
-run), then record it in `IMPROVE_LOOP.md`. Reuse the command already recorded for that
-target; never assume a project's test convention. **Exception for unattended runs:** if an
-active `ralph-loop` is driving this session (its state file is present, see Phase 0 step 1)
-and no test command is recorded and none was passed in the wrapper prompt, do **not** block
-waiting for a human answer — there is no one to answer. Instead terminate cleanly with a
-*committable* ledger so ralph stops rather than burning iterations re-hitting this: create
-`IMPROVE_LOOP.md` if absent, **write a real Log entry** — `### Iteration 1` (or the next
-`N` on an existing file), Thesis `no test command supplied for an unattended run`, Test
-result `FAIL`, Outcome `blocked`, `Committed: pending` — set header `Status: stopped (no
-test command)`, then run Phase 4 to commit that ledger (ledger-only; the tree is otherwise
-clean so the code-dirty veto does not fire) and Phase 5 to emit the promise (terminal +
-landed). Report it. The user seeds the command and restarts. This is why the recommended
-flow seeds `IMPROVE_LOOP.md` with a standalone run first.
+**Test command for skill/doc-only targets.** When the change set is a skill or markdown
+contract (no product suite), the recorded command may be a **structural smoke** the repo
+already owns (e.g. `make test-fast`, a `bash -n`/`node --check` script, or a tiny
+`rg`-based contract test checked into the skill repo). Never invent a flaky e2e; prefer a
+deterministic local gate.
+
+**Legacy discard phrases** (optional, in the target or same-turn user text): `discard legacy`,
+`clear ledger`, `clear IMPROVE_LOOP` force **discard** of a launch-root leftover ledger
+instead of migrate (see Phase 0 step 1a.3). Default for Status `active` is **migrate**.
+
+**Sibling skill.** `grok-review-converge` is the same shape (one round per invocation + outer
+driver). Prefer **`/goal`** for multi-cycle on both; ralph remains an optional legacy outer
+driver on grok-review-converge only when the operator explicitly wants promise-tag Stop-hook
+quotas — never as improve-loop’s primary path.
 
 ## Preconditions
 
 Fail fast in Phase 0. Do not half-run a cycle.
 
-- The working tree must be inside a git repository: `git rev-parse --show-toplevel` must
-  succeed. Commits are the durable ledger; without git there is no Phase 4. Stop and say
-  so rather than inventing a second persistence path. Resolve and remember this repo root
-  now — every later step depends on it.
-- `IMPROVE_LOOP.md` at the repository root must not be gitignored. Check with
-  `git check-ignore -q IMPROVE_LOOP.md`. If it is ignored, commits of the state file can
-  silently skip or fail depending on hook setup; refuse clearly so the user can un-ignore
-  it or later choose a different marker file.
-- **Test artifacts must not litter the tracked tree.** The recorded test command may write
-  transient files (byte-code caches, coverage data, snapshots, build output). Recommend the
-  target repo **gitignore** these — `git status --porcelain` omits gitignored paths, so
-  ignored artifacts never trip the dirty-tree guards. Un-ignored persistent test output is a
-  real hazard: this skill excludes it from the *current* turn's guards (see the shared
-  code-dirty definition in Phase 0 step 4 and the turn-level `TEST_ARTIFACT_PATHS` set), but a
-  *later* invocation's fresh Phase 0 dirty-tree guard will see it as dirt and stop. If that happens
-  the skill reports it and asks the operator to gitignore or clean those paths; it never
-  permanently teaches itself to ignore arbitrary paths.
-- Ensure the tools required for the path being taken are present: `git`, a shell capable
-  of running the recorded test command, and, for the 1b path, an available `codex-worker`
-  Agent type. If the live tier is Sonnet/Opus/Fable and `codex-worker` is missing or
-  unavailable, fall back to native implementation in 1a and note the fallback in the Log;
-  do not hard-fail the cycle because that plugin is missing. (Determine the live tier from
-  the running session's own self-identification of its active model — this is ambient
-  context every session already carries, not something to look up externally.)
+- **Shell must spawn.** This skill needs a working shell for `git`, worktree create, and the
+  recorded test command. In Phase 0 step 1a, probe once (`true` or
+  `git rev-parse --is-inside-work-tree`). If the tool **fails to spawn** (e.g. host
+  `IO Error: No such file or directory` before any command runs) or returns unusable
+  output with no exit path: **stop immediately** — report `blocked (shell unavailable)`,
+  include the host error text if any, and state that worktree/test/commit cannot proceed.
+  Do **not** thrash: no scheduler loops, no multi-subagent delete cascades, no further
+  Phase 0 work that requires shell. File-only tools cannot complete this skill.
+- The working tree must be inside a **non-bare** git repository: `git rev-parse --show-toplevel`
+  succeeds and `git rev-parse --is-bare-repository` is not `true`. Commits are the durable
+  ledger; without git there is no Phase 4. `git worktree` must work (refuse if
+  `git worktree list` fails).
+- **Paths** (resolved in Phase 0 step 1a):
+  - `WORKSPACE` — the **single** campaign worktree (`$LAUNCH/.worktrees/<slug>`). **This is
+    where the entire `/improve` campaign runs** (ledger, code, tests, commits). After resolve,
+    `cd "$WORKSPACE"` (or set tool cwd) for all cycle work.
+  - `LAUNCH` — primary worktree (`dirname` of absolute `--git-common-dir`). Used **only** for
+    cold-start `worktree add` and **end-of-campaign** FF merge-back — not for mid-campaign
+    edits.
+  - `POINTER` — `$COMMON_GIT/improve-loop/active.json` where
+    `COMMON_GIT=$(git rev-parse --path-format=absolute --git-common-dir)`. Ensures resume
+    re-enters the **same** WORKSPACE (never a second worktree).
+  While pointer `state: active`, launch must not receive campaign ledger, code, or commits.
+- Recommend the target repo **gitignore** `.worktrees/` (launch checkout must not list campaign
+  paths as litter). Do not auto-edit `.gitignore` unless a backlog item asks.
+- `IMPROVE_LOOP.md` at **WORKSPACE** must not be gitignored. Check with
+  `git -C "$WORKSPACE" check-ignore -q IMPROVE_LOOP.md` once WORKSPACE exists.
+  If it is ignored, refuse clearly so the user can un-ignore it.
+- **Test artifacts must not litter the tracked tree** (evaluated under WORKSPACE). The
+  recorded test command may write transient files (byte-code caches, coverage data, snapshots,
+  build output). Recommend the target repo **gitignore** these — `git status --porcelain`
+  omits gitignored paths, so ignored artifacts never trip the dirty-tree guards. Un-ignored
+  persistent test output is a real hazard: this skill excludes it from the *current* turn's
+  guards (see the shared code-dirty definition in Phase 0 step 4 and the turn-level
+  `TEST_ARTIFACT_PATHS` set), but a *later* invocation's fresh Phase 0 dirty-tree guard will
+  see it as dirt and stop. If that happens the skill reports it and asks the operator to
+  gitignore or clean those paths; it never permanently teaches itself to ignore arbitrary paths.
+- Ensure the tools required for the path being taken are present: `git` and a shell capable
+  of running the recorded test command. **Phase 1 execution does not depend on `codex-worker`
+  (or any other external implementer).** The orchestrator implements natively (or via a
+  generic agent) by default. Optional implementers are never required for the cycle to
+  proceed.
 
 ## Durable state: `IMPROVE_LOOP.md`
 
-Write one state file at the target repository root returned by
-`git rev-parse --show-toplevel`. It has a rewritable header and Backlog plus a strictly
+Write one state file at **`$WORKSPACE/IMPROVE_LOOP.md`** (never on LAUNCH during an active
+campaign). It is the **active-campaign resume surface** only: header, Backlog, and Log for
+the campaign currently in progress. Resume from any cwd uses the **pointer** at
+`$COMMON_GIT/improve-loop/active.json` (not a tracked file) to re-enter the **same**
+WORKSPACE. The long-term, reviewable ledger is **git commit messages**:
+
+- Every cycle's Phase 4 iteration commit body carries Thesis, Outcome, test evidence, advisor
+  consolidation, Notes, and stop-condition state (always).
+- On a **terminal** cycle (`complete` or `stopped (...)`), that same Phase 4 commit also
+  embeds a **verbatim full-file archive** of `IMPROVE_LOOP.md` in the message body and
+  **removes the file from the tree** in that commit — no second clear commit. The next
+  `/improve` cold-starts. Prior learnings remain via
+  `git log --grep="improve-loop: iteration"` (Phase 0 step 7 digest).
+
+While active, the file has a rewritable header and Backlog plus a strictly
 append-only Log, with two narrow exceptions on the *latest, not-yet-committed* entry only:
 (1) its `Committed` and `Notes` fields as Phase 4 specifies, and (2) its `Test result` /
 `Outcome` / `Error signature` and the Stop-condition tracking lines, as Phase 3's completion
@@ -99,6 +157,11 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 **Started:** <date>          **Status:** active | complete | stopped (<reason>)
 **Iteration counter:** N     <!-- derived; next cycle uses N+1; must match Log -->
 
+## Isolation
+- **launch_root:** <LAUNCH>
+- **campaign_branch:** improve/<slug>
+- **worktree_path:** <WORKSPACE>
+
 ## Backlog
 - [x] <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)
 - [ ] <item> — <why it matters>
@@ -111,8 +174,10 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 (append-only — newest entry at the bottom; earlier entries are never edited.
  Two narrow exceptions, both on the *latest, not-yet-committed* entry only:
  (1) as Phase 4 specifies — set `Committed: yes` *before* the commit attempt so a
- successful commit freezes the truth; on commit failure correct that same entry to
- `no — <reason>` and append Notes; never patch after a successful commit.
+ successful commit freezes the truth (active cycles keep it on disk; terminal cycles
+ freeze it in the commit-message archive after the file is removed); on commit failure
+ restore the file if needed, correct that same entry to `no — <reason>`, and append Notes;
+ never patch after a successful commit.
  (2) as Phase 3's completion gate specifies — when a completion-confirmation suite
  fails, correct that entry's `Test result` / `Outcome` / `Error signature` and the
  Stop-condition tracking lines in place. No other field, and no already-committed
@@ -127,12 +192,13 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 **Notes for next cycle:** …
 ```
 
-Do not put an iteration's own commit SHA in its Backlog line or Log entry. That commit
-includes `IMPROVE_LOOP.md`, so its SHA does not exist when the file is written. Instead,
-always use the commit subject `improve-loop: iteration N — <summary>` and look it up with
-the stable marker `git log --grep="improve-loop: iteration N —"`. The em-dash after `N`
-is required: a bare `… iteration N` is a prefix of longer numbers under git's default
-basic regex, so iteration `1` could falsely match `10`, `11`, and later iterations.
+Do not put an iteration's own commit SHA in its Backlog line or Log entry. That SHA does
+not exist when the file is written (and a terminal iteration's commit **deletes** the
+resume file rather than leaving it in the tree tip). Instead, always use the commit
+subject `improve-loop: iteration N — <summary>` and look it up with the stable marker
+`git log --grep="improve-loop: iteration N —"`. The em-dash after `N` is required: a bare
+`… iteration N` is a prefix of longer numbers under git's default basic regex, so
+iteration `1` could falsely match `10`, `11`, and later iterations.
 
 Compute `N` deterministically, never freehand:
 
@@ -141,48 +207,142 @@ N = (number of `### Iteration` headings already in the Log) + 1
 ```
 
 At the start of Phase 2, rewrite `**Iteration counter:**` to that same `N` so the header
-and Log cannot drift. Do not derive `N` from ralph-loop's `iteration` frontmatter field:
-that is the outer quota. A standalone run and a ralph-wrapped run for one target share the
-same sequence in `IMPROVE_LOOP.md`.
+and Log cannot drift. `N` comes only from Log headings — never from host turn counts.
 
 ## The cycle
 
 ### Phase 0 — Resume (native, cheap)
 
-1. Resolve the repository root and enforce all Preconditions: a git repository and a
-   non-ignored state file. Initialize the **turn-level** set `TEST_ARTIFACT_PATHS` to empty
-   now — it accumulates test-command side effects across this turn's suite runs (see Phase 1's
-   shared capture rule) and is excluded from the shared code-dirty definition. It resets every
-   turn and is never persisted, so it cannot go stale.
+1. Resolve the **single campaign WORKSPACE** (and LAUNCH plumbing), then enforce
+   Preconditions. Initialize the **turn-level** set `TEST_ARTIFACT_PATHS` to empty now — it
+   accumulates test-command side effects across this turn's suite runs (see Phase 1's shared
+   capture rule) and is excluded from the shared code-dirty definition. It resets every turn
+   and is never persisted.
 
-   **Fail fast on an unbounded ralph quota — here, before any dirty-stop path.** The hazard
-   this guards against is not a normal cycle under `max_iterations: 0`; it is a **Phase 0
-   stop-and-report** (step 4's not-landed+code-dirty stop, or step 6's pre-cycle dirty-tree
-   stop) that ends the turn with no promise and no landed commit, so ralph's Stop hook simply
-   re-feeds the same prompt forever. Those stops happen *before* step 8, so a fail-fast placed
-   there is unreachable on exactly the paths it needs to guard — check it here instead, before
-   any other step. Read only what this check needs from
-   `<repo root>/.claude/ralph-loop.local.md` (root-anchored, not a bare relative path; ignore
-   the stale `.claude/.ralph-loop.local.md` spelling in the plugin's help file): presence,
-   `session_id`, and `max_iterations`. Determine whether the ralph Stop hook is actually
-   **driving this session** using the *same predicate the hook itself uses* (mirror
-   `stop-hook.sh`, not a plain equality check) — driving is true unless the state file's
-   `session_id` is **both non-empty and different from** this session's id; an **empty or
-   absent** `session_id` is the hook's legacy fall-through and counts as driving *every*
-   session. If the state file is present, the hook is driving this session by that predicate,
-   and `max_iterations == 0` (unlimited), fail-fast immediately: report that unlimited is
-   unsupported for this composition and ask the operator to re-launch with a finite
-   `--max-iterations`. Do this **before** any other action this step or later steps would take
-   — no ledger create/repair, no dirty-tree check, no cycle work. Reuse the same driving
-   predicate at step 8 for Phase 3's ralph-max-iterations terminal check, so a stale
-   *mismatched* state file cannot mis-stop a session it isn't actually driving.
+   **1a. Enter the one campaign worktree (before any ledger or dirty check).**
 
-2. If `IMPROVE_LOOP.md` is absent, create it with the target description, test command
-   (ask once if missing), Status `active`, an empty Log, and zeroed counters. Seed the
-   Backlog immediately. This is a short native step, or a tiny one-shot native Agent call
-   only when the target is too vague to turn into one to three concrete, testable unchecked
-   items without judgment. Never leave the Backlog empty on a fresh file and then enter
-   Phase 1. On this fresh create, skip 3a–4 and go to step 5 with `N = 1`.
+   First resolve **target repo root** (Invocation: Target repository). Then, **from that
+   root** (or `git -C "$TARGET_REPO"`):
+
+   ```
+   TARGET_REPO = abs(resolved target repo root)   # not necessarily session cwd
+   COMMON_GIT  = abs(git -C "$TARGET_REPO" rev-parse --git-common-dir)
+   LAUNCH      = dirname(COMMON_GIT)    # refuse bare repos
+   INVOKE_ROOT = abs(git -C "$TARGET_REPO" rev-parse --show-toplevel)
+   POINTER     = $COMMON_GIT/improve-loop/active.json
+   ```
+
+   Refuse if bare. **Shell probe (once):** run `true` (or
+   `git -C "$TARGET_REPO" rev-parse --is-inside-work-tree`). On spawn failure or unusable
+   result → stop with `blocked (shell unavailable)` per Preconditions; do not continue 1a.
+   Require `git -C "$TARGET_REPO" worktree list` to succeed.
+
+   **Cold-start helper** (used by step 4 and by migrate in step 3 — same rules, one worktree):
+
+   - Single-flight: `mkdir "$COMMON_GIT/improve-loop/lock"` must succeed; if it fails,
+     another start is in progress or crashed — stop and report.
+   - `slug` = short slug from target + `YYYYMMDD-HHMMSS` + **always** a random
+     suffix: `-` + **6 hex** (from `/dev/urandom` or equivalent — never omit the
+     random part; never rely on timestamp uniqueness alone). Branch
+     `improve/<slug>`; path `$LAUNCH/.worktrees/<slug>`. The random suffix is
+     mandatory on every cold-start so concurrent sessions and second-scale
+     restarts cannot collide on a predictable path/branch. On residual
+     branch/path collision (astronomically rare), append another `-` + 4 hex
+     once; if still colliding, stop.
+   - `mkdir -p "$LAUNCH/.worktrees"` then
+     `git -C "$LAUNCH" worktree add -b "improve/<slug>" "$path" HEAD`.
+   - Record `launch_branch` only if LAUNCH is not detached HEAD; else `launch_branch: null`
+     and store `launch_head` SHA (no auto FF later).
+   - Write `POINTER` (`version: 1`, `state: active`, launch_root, launch_branch, launch_head,
+     campaign_branch, worktree_path, target, test_command when known, created_at,
+     reintegrate_error: null). Remove the lock dir after the pointer is written (or on
+     failure after cleanup).
+   - Set `WORKSPACE = path`.
+
+   **Active campaign detection (first match wins) — always the same WORKSPACE:**
+
+   1. If `POINTER` exists and parses as JSON:
+      - Require `worktree_path` is under `$LAUNCH/.worktrees/` (path-traversal guard;
+        reject otherwise and stop).
+      - If `state == reintegrate_blocked`: do **not** start a new cycle; run **Phase 5
+        merge-back only** (below) and report. Stop. Still the same worktree until merge
+        succeeds — never create a second one.
+      - If the worktree directory exists and `git -C worktree_path rev-parse` works → set
+        `WORKSPACE = worktree_path` (resume **same** workspace).
+      - Else if `campaign_branch` ref exists → repair the **same** path:
+        `git -C "$LAUNCH" worktree add "$worktree_path" "$campaign_branch"`; on failure
+        stop and report. On success set `WORKSPACE`.
+      - Else (branch and worktree gone) → delete pointer; fall through to cold-start.
+   2. Else if `INVOKE_ROOT` is under `$LAUNCH/.worktrees/`, branch matches `improve/*`,
+      and `$INVOKE_ROOT/IMPROVE_LOOP.md` exists → set `WORKSPACE = INVOKE_ROOT` and
+      **repair** the pointer from live state (`state: active`) — already inside the one workspace.
+   3. Else if `$LAUNCH/IMPROVE_LOOP.md` exists (legacy in-place campaign on launch) **and**
+      no usable POINTER worktree → **migrate-or-discard** (do **not** hard-stop; do **not**
+      leave a second campaign on launch):
+
+      **Safety first:** if LAUNCH has **code-dirty** paths other than `IMPROVE_LOOP.md`
+      (same shared code-dirty idea, under LAUNCH), **stop and report** — do not migrate or
+      discard over unrelated dirty work. Operator must clean or commit first.
+
+      **Classify** (first match wins):
+      - **Discard** if any of: invocation/target/same-turn user text contains a legacy
+        discard phrase (`discard legacy` / `clear ledger` / `clear IMPROVE_LOOP`); **or**
+        Status is `complete` or `stopped (...)`; **or** the ledger has zero Log entries
+        and is untracked (`git -C "$LAUNCH" ls-files --error-unmatch IMPROVE_LOOP.md` fails).
+      - **Else Migrate** (default for Status `active` with a real Log).
+
+      **Discard path:** delete `$LAUNCH/IMPROVE_LOOP.md` only when untracked (`rm`). If
+      tracked (`git -C "$LAUNCH" ls-files -- IMPROVE_LOOP.md` non-empty), stop and report —
+      operator must `git rm` / commit; do not invent a discard commit. Then fall through to
+      step 4 cold-start for the **current** `/improve` target (fresh campaign).
+
+      **Migrate path:**
+      1. If launch ledger is tracked, **stop and report** (same as discard tracked case) —
+         migrate only untracked launch leftovers.
+      2. Read full ledger text into memory (`LEGACY_SNAPSHOT`).
+      3. Run **Cold-start helper** (random 6-hex worktree + POINTER).
+      4. Write `$WORKSPACE/IMPROVE_LOOP.md` from `LEGACY_SNAPSHOT`. If `## Isolation` is
+         missing, inject it after the header block (before `## Backlog`):
+         `launch_root`, `campaign_branch`, `worktree_path` set to this WORKSPACE.
+      5. `rm` `$LAUNCH/IMPROVE_LOOP.md` (untracked only — already gated).
+      6. Continue Phase 0 from step 2 onward **inside WORKSPACE** (resume path — do not
+         reseed a blank ledger over the migrated content).
+
+      Report one line in the cycle Notes later if Phase 2 runs: `migrated legacy launch
+      ledger → WORKSPACE` or `discarded legacy launch ledger`.
+   4. Else → **cold-start the one workspace** (only when no active pointer): run the
+      **Cold-start helper** above.
+
+   Never nest worktrees under a secondary feature worktree cwd — always
+   `$LAUNCH/.worktrees/<slug>`. Never create a second improve worktree while a pointer is
+   `active` or `reintegrate_blocked`.
+
+   **After WORKSPACE is set:** `cd "$WORKSPACE"` (or set every tool/subagent working
+   directory to WORKSPACE) for the rest of this turn's cycle work. Prefer real cwd so tests
+   and agents stay in the one workspace; use `git -C "$LAUNCH"` only for pointer writes and
+   end-of-campaign merge-back.
+
+2. If `$WORKSPACE/IMPROVE_LOOP.md` is absent, **do not assume a brand-new campaign**. First
+   distinguish **terminal land already committed** (resume file removed by design) from a
+   true fresh workspace:
+
+   - Inspect the most recent improve-loop commit on the campaign branch:
+     `git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 1 --format="%s%n%b"`
+     and/or leftover archive subjects
+     `git -C "$WORKSPACE" log --grep="improve-loop: archive leftover ledger" -n 1 --format="%s"`.
+   - If that tip commit's body contains
+     `--- full IMPROVE_LOOP.md (terminal archive) ---`, **or** its subject is
+     `improve-loop: archive leftover ledger after …`, the campaign is already **terminal +
+     landed** and the resume file was intentionally deleted. Do **not** reseed. Run **Phase 5
+     merge-back only** (same as `reintegrate_blocked`) and stop.
+   - Otherwise create `$WORKSPACE/IMPROVE_LOOP.md` (target, test command per Invocation,
+     Status `active`, Isolation header, empty Log, zeroed counters). Seed the Backlog
+     immediately (native, or a tiny Agent call if the target is too vague for 1–3 items).
+     Never enter Phase 1 with an empty Backlog. Skip 3a–4; go to step 5 with `N = 1`. Update
+     pointer `test_command` / `target` when filled.
+
+   **Resume rule:** absence of `IMPROVE_LOOP.md` on LAUNCH must **not** cold-start when a
+   valid active pointer exists — step 1a already re-entered the **same** WORKSPACE.
 
 3. Otherwise read the Backlog, Stop-condition block, and last two or three Log entries.
    If the Log has zero entries, the file was created by an earlier invocation that crashed
@@ -197,9 +357,9 @@ same sequence in `IMPROVE_LOOP.md`.
 
    3a. **Orphaned `Committed: yes` recovery.** If the latest Log entry says
    `Committed: yes` but
-   `git log --grep="improve-loop: iteration <that entry's N> —" -n 1` finds no commit,
-   the previous cycle wrote pre-commit `yes` but never landed a commit (crash, kill, or
-   hook abort before object creation). Correct it to
+   `git -C "$WORKSPACE" log --grep="improve-loop: iteration <that entry's N> —" -n 1`
+   finds no commit, the previous cycle wrote pre-commit `yes` but never landed a commit
+   (crash, kill, or hook abort before object creation). Correct it to
    `Committed: no — commit never landed` and append one Notes line. Do not invent a
    backfill commit here: this is an honesty repair only, and step 4 may still need a
    ledger flush.
@@ -210,49 +370,52 @@ same sequence in `IMPROVE_LOOP.md`.
    `Committed: no — cycle interrupted before commit` and append one Notes line. This is
    likewise honesty only.
 
-4. Decide **landed vs short-circuit vs ledger-flush**. The dirty-tree guard deliberately
-   ignores `IMPROVE_LOOP.md`; a bookkeeping-only crash can leave terminal Status on disk
-   with no git commit, so Status alone must not short-circuit and burn the outer run with
-   an empty ledger.
+4. Decide **landed vs short-circuit vs ledger-flush**. Status on disk without a landed
+   commit is not done — do not short-circuit on Status alone (avoids burning a multi-cycle
+   goal on an empty ledger). Outer-goal signals stay in Phase 5 only (see Outer goal protocol).
 
-   - Define **landed** for the latest entry as: its `Committed:` line is `yes` **and**
-     `git log --grep="improve-loop: iteration <that entry's N> —" -n 1` finds a commit.
-     Always evaluate this after 3a/3b. The grep must include the em-dash after `N`.
-   - Define **code-dirty** (the single shared definition used by this step, step 6, Phase 3's
-     post-panel check, and Phase 4's veto) by set subtraction: a path is code-dirty **iff**
-     `git status --porcelain` lists it **and** it is **not** in
-     `{IMPROVE_LOOP.md} ∪ TEST_ARTIFACT_PATHS` — the turn-level set initialized empty in step 1
-     and extended after every orchestrator suite run this turn (Phase 1's shared capture rule).
-     `git status --porcelain` already omits gitignored files, so gitignored test artifacts
-     never count. On a fresh turn, before any suite has run, `TEST_ARTIFACT_PATHS` is empty, so
-     un-gitignored artifacts left by a prior cycle *do* count here — intentionally (see the
-     Test-artifacts precondition): report them and ask the operator to gitignore/clean rather
-     than proceeding.
-   - If Status is `complete` or `stopped (...)` **and landed**, do not start a new cycle.
-     Report that state and, under ralph-loop, emit the completion promise in Phase 5. This
-     prevents a quota burn when a finished, committed run is fed to the wrapper once more.
-   - If the latest entry is **not landed** and the tree is **code-dirty**, whether Status
-     is active or terminal, stop and report now. Do not promise, do not enter Phase 1, and
-     do not allocate a new `N`. A PASS cycle that crashed after Phase 1 often has this
-     shape. Automatically flushing only `IMPROVE_LOOP.md` would land a terminal Status and
-     allow ralph to promise-exit while abandoning the code diff. The user must commit,
-     discard, or finish the prior cycle's intent before continuing.
-   - If the latest entry is **not landed** and the tree is **not code-dirty** (only
-     `IMPROVE_LOOP.md` is dirty, or the tree is clean), do a **ledger flush**: skip
-     Phases 1–3; run Phase 4 using the latest entry's iteration number as `N` without
-     allocating a new number; then run Phase 5. This covers terminal-without-commit and
-     active bookkeeping-only interruptions. Phase 5 emits the promise only if Status is
-     terminal and this flush landed.
-   - Otherwise, if the latest entry is landed and Status is `active`, continue to step 5
-     for a real new cycle and allocate the next `N` only then. The zero-Log case never
-     reaches this branch because step 3 routed it directly to step 5.
+   - **Landed** (latest entry, after 3a/3b): on-disk `Committed: yes` **and**
+     `git -C "$WORKSPACE" log --grep="improve-loop: iteration <N> —" -n 1` finds a commit
+     (em-dash required). Same-turn terminal after archive uses Phase 5's landed rule (file
+     already removed).
+   - **Code-dirty** (shared with step 6, Phase 3 post-panel, Phase 4 veto): under WORKSPACE,
+     path is code-dirty **iff** `git -C "$WORKSPACE" status --porcelain` lists it **and** it
+     is **not** in `{IMPROVE_LOOP.md} ∪ TEST_ARTIFACT_PATHS`. Ignore LAUNCH dirt. Fresh turn
+     has empty `TEST_ARTIFACT_PATHS`, so un-ignored prior test litter counts — report and ask
+     operator to gitignore/clean (see Test-artifacts precondition).
+   - Status terminal **and landed**: do not start a new cycle. If the resume file still
+     exists, run **leftover-ledger archive** (below), then Phase 5. Do not seed a fresh
+     ledger. (Modern terminal archive already removed the file; next `/improve` cold-starts
+     via step 2.)
+
+     **Leftover-ledger archive** (terminal + landed + file still present): one commit,
+     pathspec only `IMPROVE_LOOP.md`. Subject
+     `improve-loop: archive leftover ledger after <Status>` (not an iteration subject). Body:
+     one line that iteration `N` already landed, plus:
+
+     ```
+     --- full IMPROVE_LOOP.md (terminal archive) ---
+     <verbatim current file contents>
+     --- end IMPROVE_LOOP.md ---
+     ```
+
+     Secret-scan, then `git -C "$WORKSPACE" rm -- IMPROVE_LOOP.md` (or delete if untracked)
+     and commit on the campaign branch. On archive-commit fail: restore (Phase 4 rule), leave
+     file; Phase 5 may still complete if the *iteration* commit already landed. On success →
+     Phase 5 merge-back (best-effort).
+   - **Not landed + code-dirty:** stop and report (no Phase 1, no new `N`). Operator must
+     commit/discard/finish the prior diff — do not ledger-flush over abandoned code.
+   - **Not landed + not code-dirty:** **ledger flush** — skip Phases 1–3; Phase 4 with the
+     latest entry's `N` (no new allocation); then Phase 5.
+   - **Landed + Status `active`:** continue to step 5; allocate next `N` then. (Zero-Log
+     already went to step 5 from step 3.)
 
 5. If the Backlog has no unchecked items while Status is `active`, skip **Phase 1 execute
-   only**. Do not skip the rest of Phase 0: steps 6–8 still run because Phase 3 needs git
-   history and the ralph iteration count regardless of execution, and Phase 4 bookkeeping
-   must still occur. Allocate this cycle's `N` if the zero-Log path did not already set it.
-   After step 8 use lightweight Phase 2, then Phase 3, Phase 4, and Phase 5. Do not invent
-   an ad-hoc code task to fill the cycle; replanning can reopen work or declare completion.
+   only**. Do not skip the rest of Phase 0: steps 6–7 still run because Phase 3 needs git
+   history regardless of execution, and Phase 4 bookkeeping must still occur. Allocate this
+   cycle's `N` if the zero-Log path did not already set it. After step 7 use lightweight
+   Phase 2, then Phase 3, Phase 4, and Phase 5. Do not invent an ad-hoc code task to fill
+   the cycle; replanning can reopen work or declare completion.
 
    For the **lightweight Phase 2** empty-backlog/no-execute path, append an entry with
    `Committed: pending`, Thesis such as `empty-backlog replan (no Phase 1 execute)`, Test
@@ -262,21 +425,17 @@ same sequence in `IMPROVE_LOOP.md`.
    matrix row; resetting `consecutive-no-progress` for this no-op would hide a real stall.
    Set the header counter to `N`, then run Phase 3 normally.
 
-6. For turns that will run Phases 1–3, apply the dirty-tree guard using the **shared
-   code-dirty definition** (step 4): if anything code-dirty is present, stop and report rather
-   than folding unrelated pre-existing work into this cycle's commit. (This is a fresh turn, so
-   `TEST_ARTIFACT_PATHS` is empty and only gitignored artifacts are excluded — un-ignored test
-   litter from a prior cycle trips here on purpose; report it and ask the operator to
-   gitignore/clean.) This also includes intentional dirty state left by an earlier mid-commit
-   failure. Do not auto-stash. Ledger-flush turns already branched at step 4 and never reach
-   this guard for a new cycle.
+6. For turns that will run Phases 1–3, apply the dirty-tree guard (shared **code-dirty**
+   definition, step 4): if anything code-dirty is present, stop and report — do not fold
+   pre-existing work into this cycle. Do not auto-stash. Ledger-flush turns already branched
+   at step 4.
 
 7. Build a **prior-learnings digest** for this target from git history (git commits are the
    durable, reviewable ledger; this is what makes learnings reviewable across cycles).
 
    - Fetch the **full commit bodies** of the last 15 prior improve-loop iterations for this
-     target:
-     `git log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%n%b%n---"`.
+     target (from WORKSPACE; shared object DB):
+     `git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%n%b%n---"`.
      This is a **bulk prefix match** against the literal `improve-loop: iteration` — it
      matches every improve-loop commit. **No number and no em-dash belongs in this
      pattern.** (The per-iteration lookups used elsewhere in the skill,
@@ -284,8 +443,8 @@ same sequence in `IMPROVE_LOOP.md`.
      em-dash to stop `iteration 1` matching `10`; do not conflate them. Adding an em-dash
      here would match **zero** commits, since real subjects put a number between `iteration`
      and `—`.)
-   - Separately run `git log --oneline -20` for the target repo's own (non-improve-loop)
-     recent history and pass it as a pointer for general context.
+   - Separately run `git -C "$WORKSPACE" log --oneline -20` for recent history and pass
+     it as a pointer for general context.
    - From the 15 bodies, extract a compact, in-memory digest: per iteration, its `Thesis`,
      `Outcome` (explicitly flag any `disproven`), a one-line test-evidence summary, and
      `Notes for next cycle`.
@@ -306,89 +465,64 @@ same sequence in `IMPROVE_LOOP.md`.
    Pass paths or pointers into agents rather than inlining a large log dump; the digest
    itself is small enough to pass as a compact summary.
 
-8. If step 1's driving predicate found the ralph state file, re-read it here for the fuller
-   set Phase 3 needs: frontmatter fields `active`, `iteration`, `session_id`,
-   `max_iterations` (`0` means unlimited; step 1 already fail-fasted before reaching here if
-   this session is driving and it was `0` — see step 1), `completion_promise` (`null` or a
-   quoted string), and `started_at`. Phase 3's terminal check #4 needs `iteration` and
-   `max_iterations`, gated on the **same driving predicate as step 1** (not a plain
-   `session_id` equality — a stale, non-empty, mismatched `session_id` means the hook isn't
-   driving this session and must not mis-stop it): treat the final permitted outer turn as
-   *driving* **AND** `max_iterations > 0 AND iteration >= max_iterations`. ralph starts at
-   iteration 1, increments only when continuing, and its Stop hook checks that condition
-   before incrementing at the top of each firing. `/cancel-ralph` deletes this file; that
-   requires no action here.
-
 ### Phase 1 — Execute
 
-This is the fresh-agent context-clearing step. Select the next unchecked Backlog item. As a
-backstop, before selecting, skip any unchecked item that re-asserts a prior disproven thesis
-**unless** the item's Backlog-line rationale explicitly re-opens it with a stated reason (per
-Phase 3's reason-in-rationale rule). This catches a disproven re-attempt that survived into
-the Backlog despite Phase 3's guard. It reads the same disproven-theses list carried from
-Phase 0 step 7 (a thesis is "disproven" only if its most-recent recorded outcome was
-`disproven`) and judges semantically, not by substring match.
+Select the next unchecked Backlog item. As a backstop, before selecting, skip any unchecked
+item that re-asserts a prior disproven thesis **unless** the item's Backlog-line rationale
+explicitly re-opens it with a stated reason (per Phase 3's reason-in-rationale rule). This
+catches a disproven re-attempt that survived into the Backlog despite Phase 3's guard. It
+reads the same disproven-theses list carried from Phase 0 step 7 (a thesis is "disproven"
+only if its most-recent recorded outcome was `disproven`) and judges semantically, not by
+substring match.
 
-- **1a, always, native:** Dispatch a fresh `general-purpose` Agent, never
-  `codex-worker`, with the next unchecked Backlog item and pointers to
-  `IMPROVE_LOOP.md` and recent git history (paths/refs, not inlined content). **Instruct it
-  explicitly: do not commit, do not `git add`/stage, and do not edit `IMPROVE_LOOP.md` —
-  just modify the working tree and report what changed.** A 1a commit or stage would bypass
-  this cycle's scope check, secret scan, and exactly-one-commit discipline, and a
-  stray staged file would ride along on the next commit. The `general-purpose` agent
-  normally has all tools, including Skill. When the item names an existing Claude Code skill,
-  instruct it to use the Skill tool when that tool is in its toolset. If Skill is unavailable
-  in an unusual restricted configuration, perform the equivalent work directly by reading the
-  skill file if needed; do not block the cycle on subagent Skill-tool availability.
+**Implementation is native by default — this skill does not depend on `codex-worker`.**
+Execute the selected item in WORKSPACE using whichever of these is available, in order:
 
-  If the live tier is Sonnet/Opus/Fable (checked fresh each cycle from the dispatching
-  session's own self-identification of its active model, per the Preconditions note
-  above), a bounded code change is needed, and `codex-worker` is available, have 1a stop
-  short of writing code and return a scoped implementation specification: goal, exact file
-  list, acceptance criteria, and `Do not commit`. Otherwise, have 1a implement or
-  investigate itself.
+1. **Orchestrator-native (preferred default):** the session running this skill implements or
+   investigates the item itself under WORKSPACE.
+2. **Fresh generic agent (optional):** dispatch `general-purpose` (or equivalent) with the
+   item and pointers to `IMPROVE_LOOP.md` and recent git history (paths/refs, not inlined).
+3. **Optional external implementer (never required):** only if the operator or session
+   explicitly wants one *and* such an agent is available (e.g. `codex-worker`, Grok rescue,
+   or another coding agent). Missing or failing optional implementers **must not** block the
+   cycle — fall back to (1) or (2) and note the fallback in the Log.
 
-- **1b, conditional:** Only when 1a returned that scoped specification, dispatch
-  `codex-worker` without worktree isolation; this loop is single-threaded in the same
-  tree. Give it the bounded brief: goal, exact file scope, constraints, acceptance
-  criteria, and the exact instruction `Do not commit; leave changes in the working tree.`
-  It should report structured `done`/`partial`/`blocked`/`failed` status, git-verified
-  changed files, what it verified, risks, and, when blocked with open questions, enough
-  context to resume the same underlying Codex thread rather than launching a fresh one.
-  This clarify-and-resume exchange happens entirely within this same Phase 1 dispatch,
-  using `codex-worker`'s own built-in protocol (answer the open questions, then resume the
-  same thread, capped at two rounds before deciding or escalating) — it is resolved before
-  1b reports back, never something threaded across cycles via the Log.
-- **Scope check on 1b's report:** `codex-worker`'s own structured report already lists
-  git-verified changed files against its declared scope and flags any mismatch as a risk —
-  read that flag. If it reports any changed path outside the file scope declared in its
-  brief, do not silently fold that path into this cycle's commit: note it in the Log
-  (`scope violation: <path> was outside the declared file scope`) and set this cycle's
-  Outcome to `blocked` rather than accepting an unreviewed out-of-scope change. Phase 4's
-  code-dirty veto then refuses a ledger-only commit over the unresolved diff, exactly as
-  any other blocked-and-dirty state is handled.
+**Hard rules for every executor path (native or agent):**
+
+- Do **not** commit, do **not** `git add`/stage, and do **not** edit `IMPROVE_LOOP.md` —
+  only modify the working tree and report what changed. A commit or stage would bypass this
+  cycle's scope check, secret scan, and exactly-one-commit discipline.
+- Stay in WORKSPACE (no nested worktree isolation; WORKSPACE already is the campaign tree).
+- When the item names an existing skill and the Skill tool is available, use it; otherwise
+  read the skill file and do the equivalent work. Do not block on Skill-tool availability.
+- If using a subagent, pass `cwd`/paths under WORKSPACE. If it returns a structured scope
+  report, honor mismatches: any changed path outside a declared file scope → Log
+  `scope violation: <path>…` and set Outcome `blocked` (Phase 4 code-dirty veto applies).
+- Optional implementers that support clarify-and-resume may use that protocol **within this
+  same Phase 1** (cap two rounds), then return; never thread open questions across cycles.
+
+After the work lands (or the investigation finishes), the executor reports only what it can
+know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggested*
+`OUTCOME`. It does **not** establish the authoritative STATUS.
 
 - **The orchestrator — not the executor — owns the test run, the STATUS, and the revert.**
-  The 1a/1b dispatch settles and returns; that subagent is then gone and cannot run a
-  post-settle suite or revert later. So the executor's structured report carries only what
-  it can know at return time: `WHAT_CHANGED` (paths it touched), `THESIS` (one line), and a
-  *suggested* `OUTCOME`. It does **not** establish the authoritative STATUS.
+  Any subagent has returned and cannot run a post-settle suite or revert later.
 
 - Ground file identity in git, not an LLM report, and capture it **before running the
   test** — otherwise files the *test* creates (coverage reports, snapshots, generated
   fixtures, local caches) would land in the change set and get committed as if they were the
   work. So the moment the executor returns and before the test runs, compute `CHANGED_PATHS`
-  as a **set of pathnames** from `git status --porcelain`: strip the two-column status code
-  and its following space from each line; for a rename line (`R  old -> new`) take the `new`
-  path; unquote any path git quoted (paths with spaces/special characters are wrapped in
-  double quotes with C-style escapes). Drop `IMPROVE_LOOP.md` (Phase 1 must not edit it;
-  Phase 4 handles it separately). This is the executor's change set; anything that becomes
-  dirty *only after* the test run is test output and is never staged. Phase 4 stages code
-  paths only from this git-grounded, parsed, pre-test set — never from the executor's
-  `WHAT_CHANGED` alone.
+  as a **set of pathnames** from `git -C "$WORKSPACE" status --porcelain`: strip the
+  two-column status code and its following space from each line; for a rename line
+  (`R  old -> new`) take the `new` path; unquote any path git quoted (paths with
+  spaces/special characters are wrapped in double quotes with C-style escapes). Drop
+  `IMPROVE_LOOP.md` (Phase 1 must not edit it; Phase 4 handles it separately). This is the
+  executor's change set; anything that becomes dirty *only after* the test run is test
+  output and is never staged. Phase 4 stages code paths only from this git-grounded, parsed,
+  pre-test set — never from the executor's `WHAT_CHANGED` alone.
 
-- Then the orchestrator (native) runs the recorded test command **exactly once** — even if
-  the executor believes nothing changed. Capture full output to a temp file; keep a tail
+- Then the orchestrator (native) runs the recorded test command **exactly once** from
+  **WORKSPACE** — even if the executor believes nothing changed. Capture full output to a temp file; keep a tail
   (e.g. last 80 lines) for the Log. From that authoritative run derive `STATUS`
   (`PASS`/`FAIL`) and the `ERROR_SIGNATURE` (`none` on PASS; see Phase 2), and finalize
   `OUTCOME` by reconciling the executor's suggestion against STATUS — e.g. an executor's
@@ -408,8 +542,9 @@ Phase 0 step 7 (a thesis is "disproven" only if its most-recent recorded outcome
 - **Record this turn's test artifacts — shared rule, applied after *every* orchestrator suite
   run this turn** (here in Phase 1, and again in Phase 3 sub-cases (b) and (c)). Around each
   suite run, snapshot the live tree immediately **before** running it —
-  `pre_suite := parse(git status --porcelain)` — then, once it finishes, **extend** (never
-  replace) the turn-level set: `TEST_ARTIFACT_PATHS += parse(git status --porcelain now) −
+  `pre_suite := parse(git -C "$WORKSPACE" status --porcelain)` — then, once it finishes,
+  **extend** (never replace) the turn-level set:
+  `TEST_ARTIFACT_PATHS += parse(git -C "$WORKSPACE" status --porcelain now) −
   pre_suite − {IMPROVE_LOOP.md}`. Only paths that **became** dirty *during* the suite are
   captured; any dirt that pre-existed the run stays **out** of the set and therefore stays
   subject to Phase 4's veto. Extend on **PASS and FAIL** alike. Do this capture **before** any
@@ -428,12 +563,12 @@ Phase 0 step 7 (a thesis is "disproven" only if its most-recent recorded outcome
   executor has already returned) reverts the attempted changes so code is clean before
   Phase 2:
 
-  - For tracked paths, use `git restore --staged --worktree -- <path>` (i.e. `git restore
-    -SW`, or `git checkout -- <path>` **after** `git restore --staged`) for every path in
-    `CHANGED_PATHS` — a plain `git restore -- <path>`/`git checkout -- <path>` only rewrites
-    the worktree and leaves a staged copy behind, so an executor that ran `git add` would
-    leave the tree non-clean and trip Phase 4's veto. Restoring staged **and** worktree
-    clears both.
+  - For tracked paths, use `git -C "$WORKSPACE" restore --staged --worktree -- <path>`
+    (i.e. `git restore -SW`, or `git checkout -- <path>` **after** `git restore --staged`) for
+    every path in `CHANGED_PATHS` — a plain `git restore -- <path>`/`git checkout -- <path>`
+    only rewrites the worktree and leaves a staged copy behind, so an executor that ran
+    `git add` would leave the tree non-clean and trip Phase 4's veto. Restoring staged **and**
+    worktree clears both.
   - Explicitly delete untracked files or directories the executor created; restore does not
     remove them. Delete only paths in `CHANGED_PATHS` / `WHAT_CHANGED`, never with a broad
     `git clean -fd`.
@@ -508,21 +643,20 @@ It prevents an unattended loop from drifting silently.
 
 #### Advisor configuration and non-edit authority
 
-Use a configurable advisor list, defaulting to two advisors:
+Use a configurable advisor list. Defaults when those Agent types exist:
 
-- `codex:codex-rescue`
-- `grok-cc:grok-rescue`
+- `codex:codex-rescue` (optional — omit if unavailable)
+- `grok-cc:grok-rescue` (optional — omit if unavailable)
 
-Dispatch each through the **Agent tool** with the listed `subagent_type`, and let the Agent
-tool provide the concurrency and async (see Budget and usability below) — do not hand-roll
-background jobs or poll companion scripts. Both advisors are thin one-shot forwarders
-(codex-rescue → `codex-companion.mjs task`, grok-rescue → `grok-companion.mjs task`) that
-return their review text as the agent's result. They have full access to the worktree and
-are expected to see uncommitted diffs and the full `IMPROVE_LOOP.md` Log (this cycle's
-Phase 2 entry included). The scope boundary is not filesystem privacy — it is that (a)
-advisors never edit, and (b) consolidation keeps new Backlog items scoped to the stated
-target (out-of-scope observations go in Log Notes, not Backlog bullets). The list may grow
-by adding advisors; the mechanism is unchanged.
+**Advisors are optional.** Zero usable advisors is fine: Consolidation 1's
+**native-replanner fallback** still produces a Backlog. Do not hard-fail Phase 3 because
+Codex/Grok plugins are missing. Dispatch each available advisor through the **Agent tool**
+with the listed `subagent_type`, and let the Agent tool provide concurrency and async — do
+not hand-roll background jobs. Thin forwarders return review text as the agent result. They
+have full access to WORKSPACE and should see uncommitted diffs and the full `IMPROVE_LOOP.md`
+Log (this cycle's Phase 2 entry included). Scope: (a) advisors never edit, (b) consolidation
+keeps new Backlog items scoped to the stated target (out-of-scope observations go in Log
+Notes). The list may grow or shrink; the mechanism is unchanged.
 
 **Read-only dispatch.** In every advisor prompt, ask for read-only behavior in plain
 language: `This is a read-only advisory review. Do not make any edits or run any write
@@ -603,13 +737,17 @@ direction disagreement exists, Round 2 is mandatory.
 
 #### Round 2 — rebuttal
 
-For every advisor with usable Round-1 text, **resume that exact advisor with `SendMessage`
-to its recorded Agent id** — not a fresh dispatch, and not a companion `--resume` (which
-means only "the latest session for this tool/cwd" and can attach to the wrong session).
-SendMessage continues the specific Round-1 advisor from its own transcript, which is the
-true per-advisor resume this panel wants; even if the advisor's underlying tool thread
-can't be reattached, the agent still has its own Round-1 review in context. Send it its own
-Round-1 position plus the Round-1 consolidation, all advisors in parallel:
+**Skip Round 2** (treat Consolidation 1 as final) when any of: host has no per-agent resume
+tool (`SendMessage` or equivalent), Round 1 already showed strong agreement (above), or
+zero usable Round-1 advisors. Do not invent a second full-panel failure from a missing
+resume tool — note `Round 2 skipped (no resume tool)` in Notes if that is the reason.
+
+When resume **is** available: for every advisor with usable Round-1 text, **resume that
+exact advisor with `SendMessage` to its recorded Agent id** — not a fresh dispatch, and not
+a companion `--resume` (which means only "the latest session for this tool/cwd" and can
+attach to the wrong session). SendMessage continues the specific Round-1 advisor from its
+own transcript. Send it its own Round-1 position plus the Round-1 consolidation, all
+advisors in parallel:
 
 > Here's what you said, here's the consolidated view across all advisors—final pass,
 > revise or stand by your recommendation.
@@ -674,8 +812,7 @@ or unchecks a previously-checked item, restore that entry before applying the re
 candidate. Separately, if it is empty, unparseable, or would wipe a formerly non-empty
 Backlog without explicit complete/stop rationale, do not apply it at all. Keep the prior
 Backlog, append `replan output unusable; Backlog unchanged` to the latest Notes, and let
-the terminal test below evaluate only counters and ralph state; do not invent `complete`
-from a wiped list.
+the terminal test below evaluate only counters; do not invent `complete` from a wiped list.
 
 After the rounds and surgical apply or deliberate non-apply, re-check for code-dirtiness
 using the **shared code-dirty definition** (Phase 0 step 4; excludes `IMPROVE_LOOP.md` and
@@ -728,10 +865,7 @@ counters Phase 2 already wrote to update Status *in this exact order*:
      would double-count. **Precondition:** if the revert failed, Outcome is `blocked`, or the
      tree is code-dirty, do **not** complete here — leave it to Phase 4's code-dirty veto and
      Phase 0's next-invocation guard.
-4. Ralph-loop is **driving this session** (Phase 0 step 1/8's predicate — not a plain
-   `session_id` equality) and `max_iterations > 0` and `iteration >= max_iterations` →
-   `stopped (ralph max iterations)`
-5. Otherwise leave Status `active`.
+4. Otherwise leave Status `active`.
 
 Advisors never edit counters, so a panel that wants to continue cannot override a counter
 stop. The order matters: every FAIL increments no-progress, so three identical FAILs reach
@@ -742,7 +876,10 @@ Update Status before Phase 4 so the terminal note is in the same commit as the c
 
 Attempt exactly one commit for a cycle, or for a ledger-flush turn that reaches this phase
 with a writable tree, unless the code-dirty veto below fires. Pure bookkeeping cycles still
-commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
+touch `IMPROVE_LOOP.md` when permitted. **Terminal cycles** (`complete` or `stopped (...)`)
+still use that single commit: archive the full ledger in the **commit message body** and
+**remove** `IMPROVE_LOOP.md` from the tree in the same commit (see staging and body rules
+below). No second clear commit.
 
 - Use this cycle's Log iteration number for `N`: the number just written in Phase 2 for a
   normal cycle, including empty-backlog lightweight Phase 2; or the latest existing entry's
@@ -750,15 +887,17 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
   orphan the greppable marker from the existing Log heading.
 
 - Apply the **code-dirty veto before staging**. Classify a turn with the same staging rule
-  below. A **ledger-only** turn would stage only `IMPROVE_LOOP.md`: STATUS is not PASS, **or
-  Outcome is `blocked`** (even when STATUS is PASS — e.g. a scope violation caught in Phase 1
-  leaves green tests but an untrusted diff), or STATUS is PASS but `CHANGED_PATHS` is empty,
-  or it is a Phase-0 ledger flush or an empty-backlog replan. A **non-ledger-only** turn is
-  STATUS PASS **and Outcome not `blocked`** with a non-empty post-Phase-1 `CHANGED_PATHS`
-  intersection that remains dirty. Those code paths should be dirty and must not be vetoed.
-  (Making `Outcome: blocked` always ledger-only is what routes a blocked-with-dirty-code
-  cycle — scope violation, or a failed FAIL revert — into the veto below instead of silently
-  committing the untrusted diff on a green test run.)
+  below. A **ledger-only** turn stages only the resume-file path (an add/modify of
+  `IMPROVE_LOOP.md` when Status is `active`, or a **deletion** of `IMPROVE_LOOP.md` when
+  Status is terminal): STATUS is not PASS, **or Outcome is `blocked`** (even when STATUS is
+  PASS — e.g. a scope violation caught in Phase 1 leaves green tests but an untrusted
+  diff), or STATUS is PASS but `CHANGED_PATHS` is empty, or it is a Phase-0 ledger flush or
+  an empty-backlog replan. A **non-ledger-only** turn is STATUS PASS **and Outcome not
+  `blocked`** with a non-empty post-Phase-1 `CHANGED_PATHS` intersection that remains dirty.
+  Those code paths should be dirty and must not be vetoed. (Making `Outcome: blocked` always
+  ledger-only is what routes a blocked-with-dirty-code cycle — scope violation, or a failed
+  FAIL revert — into the veto below instead of silently committing the untrusted diff on a
+  green test run.)
 
   - On a ledger-only turn, re-check code dirtiness using the **shared code-dirty definition**
     (Phase 0 step 4; excludes `IMPROVE_LOOP.md` and this turn's `TEST_ARTIFACT_PATHS`). If any
@@ -774,36 +913,38 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
     extra dirty files outside `CHANGED_PATHS` remain unstaged for the next cycle's Phase-0
     dirty-tree guard.
 
-- One light safety check before committing (this loop commits unattended): scan the
-  content of every path about to be committed — the staged code paths **and
-  `IMPROVE_LOOP.md`** (the ledger embeds `TEST_OUTPUT_TAIL` and raw error text, so a
-  test-printed token could otherwise land in it) — for secret-shaped strings
-  (`AKIA[0-9A-Z]{16}`, `ghp_[A-Za-z0-9]{36}`, `sk-[A-Za-z0-9]{20,}`, `AIza[0-9A-Za-z_-]{35}`,
-  `-----BEGIN [A-Z ]*PRIVATE KEY-----`, and similar). On a match, don't commit: set the
-  latest Log entry's `Committed:` to `no — secret-shaped string detected in <path>`, append
-  a Notes line, and stop and report for the user to scrub. **Also scan the composed
-  commit-message body string** (the second `git commit -m "<body>"` argument) for the same
-  patterns before running `git commit`: the body now carries the advisor-consolidation
-  narrative (see the body rule below), which is not written into `IMPROVE_LOOP.md` and so is
-  not covered by the file-content scan above. On a match in the message body, don't commit:
-  set `Committed:` to `no — secret-shaped string detected in commit message`, append a Notes
-  line, and stop and report.
+- **Commit procedure — fixed order (do not reorder).** This loop commits unattended. Secret
+  patterns: `AKIA[0-9A-Z]{16}`, `ghp_[A-Za-z0-9]{36}`, `sk-[A-Za-z0-9]{20,}`,
+  `AIza[0-9A-Za-z_-]{35}`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`, and similar.
 
-- Stage this cycle's own paths and commit — the plain `git add` + `git commit`, with one
-  discipline: **stage explicit paths only, never `git add -A`/`add .`** (a standing
-  convention, and the reason Phase 0's dirty-tree guard already ensured nothing unrelated is
-  dirty). Build the path list:
-  - Always include `IMPROVE_LOOP.md`.
-  - **Only when STATUS is PASS, Outcome is not `blocked`, and `CHANGED_PATHS` is non-empty**,
-    also include the code paths in this cycle's change set that are still dirty (the parsed
-    post-Phase-1 `CHANGED_PATHS` set intersected with the currently-dirty paths).
-  - Otherwise — STATUS FAIL after a successful revert, `Outcome: blocked` on a clean tree,
-    empty-backlog replan, PASS with empty `CHANGED_PATHS`, or a ledger flush — the path list
-    is **only** `IMPROVE_LOOP.md`.
-
-  Then `git add -- <path> [<path> …]` (the `--` and exact names also pick up a brand-new
-  untracked file) and commit with both a subject and a body, e.g.
-  `git commit -m "improve-loop: iteration N — <summary>" -m "<body>"`.
+  1. **Pre-commit `Committed: yes`.** Set the latest Log entry's `Committed:` to `yes` in
+     the on-disk file (narrow append-only exception). Skip when the code-dirty veto already
+     wrote `Committed: no`. Leave the file on disk until step 5 succeeds.
+  2. **Snapshot.** Read the full final `IMPROVE_LOOP.md` text into memory (`LEDGER_SNAPSHOT`).
+     Required for terminal archive and for commit-fail restore.
+  3. **Compose the commit body** (subject/body rules below). For terminal Status, append the
+     full-ledger archive block using `LEDGER_SNAPSHOT`.
+  4. **Secret-scan before staging.** Scan (a) every code path that will be staged from
+     `CHANGED_PATHS` (if any), (b) `LEDGER_SNAPSHOT` (covers the resume file whether it will
+     be added or deleted), and (c) the **composed commit-message body string**. On a match:
+     set `Committed: no — secret-shaped string detected in <path|commit message>`, append
+     Notes, leave the file on disk, do **not** `git rm`, stop and report. Do not attempt
+     commit.
+  5. **Stage explicit paths only under WORKSPACE — never `git add -A` / `add .`.**
+     - **Non-terminal (Status `active`):** `git -C "$WORKSPACE" add -- IMPROVE_LOOP.md`.
+       Also, when STATUS is PASS, Outcome is not `blocked`, and `CHANGED_PATHS` is non-empty,
+       add the still-dirty code paths from `CHANGED_PATHS`.
+     - **Terminal (`complete` or `stopped (...)`):**
+       `git -C "$WORKSPACE" rm -- IMPROVE_LOOP.md` if tracked; if untracked, delete the
+       file and do not add it. Also add still-dirty code paths from `CHANGED_PATHS` when
+       STATUS is PASS, Outcome is not `blocked`, and that set is non-empty. A ledger-only
+       terminal commit may stage **only** the deletion of `IMPROVE_LOOP.md` (not a re-add of
+       its contents).
+  6. **Commit once on the campaign branch:**
+     `git -C "$WORKSPACE" commit -m "improve-loop: iteration N — <summary>" -m "<body>"`.
+     Record success in-memory for Phase 5 (`PHASE4_COMMIT_OK=true`, this cycle's `N`).
+     (Crash before Phase 5 after a terminal commit: Phase 0 step 2 recovers from the archive
+     in the commit body.)
 
 - The subject is always `improve-loop: iteration N — <summary>` — the em-dash marker after
   `N` is load-bearing (grep lookups depend on it). The **body** must contain **every** of the
@@ -834,24 +975,36 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
     paraphrased.
   - **Stop-condition state** — `consecutive-no-progress` / `consecutive-same-error` values
     after this cycle, and any terminal `Status` set this cycle.
+  - **Full ledger archive (terminal commits only)** — when Status is `complete` or
+    `stopped (...)`, append the verbatim `LEDGER_SNAPSHOT` under fixed delimiters
+    (required; this is the durable campaign archive once the file is removed):
+
+    ```
+    --- full IMPROVE_LOOP.md (terminal archive) ---
+    <LEDGER_SNAPSHOT as of pre-commit Committed: yes>
+    --- end IMPROVE_LOOP.md ---
+    ```
+
+    Non-terminal commits must **not** include this block (the file remains the resume surface).
 
   Only a **pure ledger flush** (which has no panel) may use a short summary such as
   `ledger flush after interrupt`. An **empty-backlog replan has a real panel**, so its body
   still records the Advisor consolidation field like any normal cycle; its summary line may
   prefix `empty-backlog replan → complete|reopened` but must still carry the panel
   consolidation and a one-line rationale. Even a ledger-flush short-form body must carry a
-  one-line rationale so the learning is still reviewable.
-
-- Before attempting the commit, set the latest Log entry's `Committed:` to `yes` and stage
-  that edit. This is the narrow append-only exception: a successful commit freezes the
-  truthful label, while a post-success patch would recreate the chicken-and-egg problem.
-  If the process dies before the object exists, Phase 0 step 3a repairs it. Skip this
-  pre-commit write when the code-dirty veto already wrote `Committed: no`.
+  one-line rationale so the learning is still reviewable. A terminal empty-backlog or
+  ledger-flush that sets Status terminal still must include the full-ledger archive block
+  and remove the file.
 
 - If `git commit` fails or is interrupted—hook rejection, lock contention, an empty commit,
-  or otherwise—do not treat the cycle as successful. Correct that entry to
-  `Committed: no — <raw error>` and append the raw failure to Notes. Leave this correction
-  uncommitted; the tree was already going to remain dirty for the next cycle or user.
+  or otherwise—do not treat the cycle as successful. **Restore first if a terminal `git rm`
+  already ran or the worktree file is missing:**
+  `git -C "$WORKSPACE" restore --staged --worktree -- IMPROVE_LOOP.md` when git still
+  knows the path; if that cannot recreate the file, rewrite
+  `$WORKSPACE/IMPROVE_LOOP.md` from `LEDGER_SNAPSHOT`. Then correct the latest Log entry
+  to `Committed: no — <raw error>` and append the raw failure to Notes. Leave this
+  correction uncommitted. Never leave a successful-looking terminal deletion without a
+  commit object.
 
   Apply the commit-fail counter correction natively, but do not re-score the whole cycle:
   increase `consecutive-no-progress` by one **only if Phase 2 reset it to 0 this cycle**.
@@ -863,76 +1016,78 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
   correction. Never use it for the code-dirty veto, which never attempts `git commit`.
   Do not invent a second commit attempt in the same cycle.
 
-- If STATUS is PASS and the only staged file is `IMPROVE_LOOP.md` with no content change,
-  that should not happen after Phase 2/3; if git reports `nothing to commit`, handle it as
-  the commit failure above.
+- If STATUS is PASS and the only staged change is a no-op on `IMPROVE_LOOP.md` with no
+  content change (active path only), that should not happen after Phase 2/3; if git reports
+  `nothing to commit`, handle it as the commit failure above. A terminal deletion is always
+  a real change and must not be treated as a no-op.
 
-### Phase 5 — Loop decision (native, no further file writes)
+### Phase 5 — Outer signal + **merge-back (end of campaign only)**
 
-Phase 3 set terminal Status on a full cycle and Phase 4 attempted the ledger commit. Act
-only on a **committed** terminal state.
+Apply the **Outer goal protocol**. Land first; merge-back second and best-effort; never merge
+mid-campaign.
 
-- If Status is `complete` or `stopped (...)` **and** the latest Log entry is **landed**—it
-  has `Committed: yes` and
-  `git log --grep="improve-loop: iteration N —"` finds the commit—then:
+**GOAL_MODE:** an outer `/goal` is active. If the `update_goal` tool exists, use it for
+complete/progress. Else (Claude goal without that tool): state objective met in prose and
+stop further improve cycles. Standalone `/improve` → report only. Ambiguous → treat as
+standalone (never false-complete).
 
-  - Under active ralph-loop, end the turn with `<promise>IMPROVE_LOOP_DONE</promise>` as the
-    **final line**, with the tag's contents matching the configured completion promise
-    literally. A one-line human summary *before* that final line is fine — the Stop hook
-    extracts the contents of the first `<promise>…</promise>` tag found in the last assistant
-    text block, trims outer whitespace, collapses internal whitespace, and compares with
-    exact bash `=` equality (after stripping the configured phrase's surrounding quotes), so
-    a preceding summary line does not interfere. What is **not** fine: emitting the bare
-    phrase without the tags, or wrapping the tag mid-sentence inside other prose on the same
-    line.
-  - Standalone, report the outcome to the user and do not emit a promise tag.
+| Condition | Action |
+|---|---|
+| Terminal + landed | Report + merge-back; if GOAL_MODE → **complete** (include Status + `merge-back: ok\|blocked`) |
+| Terminal + not landed | Report failure/veto; **do not** complete |
+| Active after cycle | Report; optional short progress if GOAL_MODE; **do not** complete |
+| Dirty/veto before Phase 5 | Report only (never invent terminal Status over dirty code) |
 
-- If Status is terminal but not landed because Phase 4 failed or the code-dirty veto fired,
-  do not emit the promise. Report the failure or veto and leave the dirty tree for the user
-  or next turn's stop-and-report/ledger-flush path. A promise here would end ralph-loop
-  while its ledger remained uncommitted.
+`stopped (...)` and `complete` are both **finished campaigns** once landed — complete the
+goal with the reason so multi-cycle does not re-open forever.
 
-- Two related stops end *before* this phase, each with its own attribution: the **Phase 0
-  not-landed + code-dirty stop** (step 4) ends inside Phase 0, and a **Phase 4 secret /
-  code-dirty veto** stops and reports inside Phase 4 (its promise-suppression is already
-  covered by the not-landed bullet above). Neither may set a `stopped (...)` Status (committing
-  a terminal note over dirty code is exactly what the code-dirty veto forbids) and neither may
-  emit the promise (that would be false success over an uncommitted tree). Under ralph-loop the
-  turn simply ends with a report; ralph's Stop hook then advances the outer `iteration`, so
-  `max_iterations` — which **must be a finite `> 0`** (Phase 0 step 1 fails fast otherwise; see
-  "Running it on a quota") — is the hard backstop that bounds an unresolvable dirty-tree state.
-  The operator resolves the tree (commit or discard) to let the loop resume real cycles.
+**Same-turn landed** (resume file may already be gone after terminal archive) iff:
 
-- Otherwise Status is active. End normally. Under ralph-loop, its Stop hook invokes the
-  wrapper again with the same prompt; Phase 0 always re-derives state from the on-disk
-  ledger regardless of what triggered the turn.
+1. Status is `complete` or `stopped (...)`,
+2. `PHASE4_COMMIT_OK=true` (or prior land via leftover/short-circuit), and
+3. `git -C "$WORKSPACE" log --grep="improve-loop: iteration N —" -n 1` finds the commit.
 
-## Running it on a quota
+- **Terminal + landed → merge-back once (best-effort):**
+  1. `launch_branch` null → skip FF; pointer `reintegrate_blocked`; keep WORKSPACE.
+  2. Else require LAUNCH clean (`status --porcelain` empty); checkout `launch_branch` if needed.
+  3. `git -C "$LAUNCH" merge --ff-only "$campaign_branch"`.
+  4. **ok:** worktree remove → `branch -d` → delete POINTER. Report `merge-back: ok`.
+  5. **fail:** pointer `reintegrate_blocked` + error; leave WORKSPACE; print the FF command.
+     Report `merge-back: blocked`. Still complete goal if GOAL_MODE (land is durable).
+  Teardown order fixed: FF → remove worktree → delete branch → delete pointer. Never
+  delete the campaign branch before a successful FF.
 
-A single `/claudecraft:improve-loop <target>` (or the bare `/improve-loop` if you have
-aliased it locally) performs exactly one cycle and reports. Use this for a
-manual first look, and preferably to seed `IMPROVE_LOOP.md` before running unattended.
-Then wrap the skill with the already-installed `ralph-loop` plugin:
+- **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
+  Phases 1–4; retry merge-back on the same worktree. Success clears pointer (post-goal cleanup
+  if goal already completed on land).
+
+- **Active:** end turn; pointer stays `active`; resume via pointer next turn. Under multi-cycle
+  goal: **one improve cycle per assistant turn**.
+
+## Multi-cycle: `/goal`
+
+One `/improve` = one cycle. Multi-cycle = outer **`/goal`** (at most one cycle per turn).
+**Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver — that path is
+deprecated for this skill (promise tags, `.claude/ralph-loop.local.md`). Sibling skill
+`grok-review-converge` still documents ralph as an *optional* legacy outer quota; improve-loop
+does not.
 
 ```
-/ralph-loop "Invoke the claudecraft:improve-loop skill (via the Skill tool) for one cycle (or its Phase 0 short-circuit / ledger-flush path). If ./IMPROVE_LOOP.md exists, resume from it (do not re-ask for the target or test command). If it does not exist, create it for target: <TARGET> with test command: <CMD>. Don't just describe the procedure — actually run the skill. Emit <promise>IMPROVE_LOOP_DONE</promise> only when the skill's Phase 5 instructs you to (Status terminal AND the latest Log entry's commit has landed) — never from reading Status alone, and never if Phase 4 failed. If the outer max iterations is exhausted mid-run, the skill should set Status to stopped (ralph max iterations) and commit via Phase 4 before Phase 5 emits the promise." --max-iterations N --completion-promise "IMPROVE_LOOP_DONE"
+/goal Run improve-loop for target: <TARGET> in repo: <TARGET_REPO_PATH> with test command: <CMD>.
+Each turn: /improve once (or short-circuit / ledger-flush / merge-back-only / migrate-or-discard).
+One worktree via $(git -C <TARGET_REPO> rev-parse --git-common-dir)/improve-loop/active.json.
+Done when Status terminal AND iteration commit landed (merge-back optional).
 ```
 
-- The wrapper must name the target and test command for cold start; `against
-  ./IMPROVE_LOOP.md` alone is insufficient when no file has been seeded.
-- `N` in the wrapper is ralph's outer `max_iterations` quota, independent of
-  improve-loop's Log counter. It **must be a finite integer `> 0`.** ralph treats
-  `max_iterations: 0` as *unlimited*, which is **unsupported** for this composition: an
-  unresolvable Phase-0 stop-and-report (e.g. a code-dirty tree the operator has not cleaned)
-  ends each turn cleanly but cannot self-terminate without either resolving the tree or
-  emitting a false-success promise, so a finite `N` is the only backstop that bounds it. Keep
-  `N` modest.
-- The wrapper must not promise-exit after casually seeing `Status: complete`; that races
-  the ledger-flush path when only `IMPROVE_LOOP.md` is dirty. Phase 5 alone authorizes the
-  promise.
-- This uses existing ralph-loop infrastructure rather than adding new loop-driving code.
-- In `claude -p`, the namespaced form `/ralph-loop:ralph-loop` may be required; interactive
-  sessions use `/ralph-loop`.
+**Unattended hard caps (host, not this skill):**
+- Claude: `claude -p "/goal …" --max-turns N --max-budget-usd $` (keep `N` modest — advisors cost).
+- Grok (or any host with goal mode): open `/goal` with the same objective and enforce
+  session **max-turns / max-budget** (or Esc). Signal completion only via Phase 5
+  (`update_goal` when the tool exists; else prose “objective met” and stop further improve
+  cycles). Never emit ralph promise tags from this skill.
 
-This skill makes no assumptions about any project's language, layout, test framework, or
-build tool. Ask for and record the target test command rather than inferring one.
+Seed **target + target repo path + test command** in the objective. Merge-back left blocked →
+re-invoke improve (merge-back-only) or a separate merge goal.
+
+This skill makes no assumptions about language, layout, or test framework — always use the
+recorded test command.
