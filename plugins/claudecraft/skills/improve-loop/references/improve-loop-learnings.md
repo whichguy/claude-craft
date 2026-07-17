@@ -88,6 +88,17 @@ Agents may feed improve-worktree status keys into next-auto; flags must parse ye
 
 | Iter | Verdict | Commit | Finding |
 |---|---|---|---|
-| 10 | material | `551b616` | worktree `resume_hint_for blocked:open-pr` peer-promoted `destroy --force` with open-PR; tip may be only copy |
+| 10 | material | `149cedc` | worktree `resume_hint_for blocked:open-pr` peer-promoted `destroy --force` with open-PR; tip may be only copy |
 
 **Fix:** align open-pr hint with next-auto (Tip not on launch + PR / --merge-to-launch); recover prints de-emphasize force; mocha pin no `resume_hint=.*destroy --force` after no-merge status.
+
+## Clean after open-pr hint (efef0b908b27)
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 11 | **clean** | pair after `149cedc` | contract-iter2 FAIL=0; mocha 70; open-pr hint + status flags hold |
+
+## Stop after open-pr hint (goal efef0b908b27)
+
+Material `149cedc` then two independent cleans (iter 11 + iter 12).  
+Agents must not treat destroy --force as a peer next step on `blocked:open-pr`.
