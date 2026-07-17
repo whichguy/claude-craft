@@ -209,11 +209,11 @@ counters Phase 2 already wrote to update Status *in this exact order*:
      would double-count. **Precondition:** if the revert failed, Outcome is `blocked`, or the
      tree is code-dirty, do **not** complete here — leave it to Phase 4's code-dirty veto and
      Phase 0's next-invocation guard.
-4. **Improve driver / host caps exhausted** (when continuous): if the `improve` driver
-   reports over `max_cycles` / `max_elapsed` / budget, or the host goal signals budget
-   exhaustion without a landed complete → leave Status as set by the driver/goal host
-   (`stopped (max_cycles)` / budget block via `goal.blocked`); do **not** invent a
-   product-specific outer-loop Status token here. improve-loop itself does not own outer
+4. **Improve driver / host caps exhausted** (when continuous): if the continuous **host**
+   ends the run (improve caps or goal budget), do **not** invent a new Status token here.
+   Prefer leaving Status `active` for a mid-cap cycle, or `stopped (user)` only if the
+   operator explicitly stopped — outer caps are enforced by the host (`goal.blocked` /
+   improve S9 stop reason), not by improve-loop Phase 3. improve-loop does not own outer
    iteration counters.
 5. Otherwise leave Status `active`.
 

@@ -5,17 +5,17 @@ Normative one-cycle law. **SKILL.md** is the operator card; open these when exec
 | File | Contents |
 |---|---|
 | `ledger-schema.md` | `IMPROVE_LOOP.md` format, **`## Driver`**, `N`, commit subjects, blocked-token catalog |
-| `phase-0-resume.md` | **Rehydration** (chat untrusted), dirty/landed guards, digests, outer-loop probe |
+| `phase-0-resume.md` | **Rehydration** (chat untrusted), dirty/landed guards, digests, host-caps note |
 | `phase-1-execute.md` | Executor + orchestrator test/revert |
 | `phase-2-learn.md` | Log entry, counter matrix |
 | `phase-3-replan.md` | Advisors/native replan, Status stops |
 | `phase-4-commit.md` | Staging, vetoes, commit body |
-| `phase-5-decision.md` | Pulse, promises, **auto worktree teardown**, resume template, anti-double-teardown |
-| `contracts/goal.md` | Portable continuous objective; disk resume after compact |
+| `phase-5-decision.md` | Pulse, host `goal.complete`/`blocked`, **auto worktree teardown**, resume template |
+| `contracts/goal.md` | Continuous host: goal iterates improve-loop; disk resume after compact |
 | `contracts/progress.md` | Control-channel progress pulses (ephemeral; Log+git win) |
 | `contracts/executor.md` | Implementer must not commit |
 | `contracts/advisor.md` | Read-only replan advisors |
-| `contracts/outer-loop.md` | Driver / host goal / re-invoke ranking |
+| `contracts/outer-loop.md` | Ranking: host goal → `improve` driver (finite caps) |
 
-Continuous multi-cycle: `../../improve/SKILL.md`.  
+Continuous multi-cycle: host **goal** or `../../improve/SKILL.md`.  
 Worktree: `../../../tools/improve-worktree.sh`.

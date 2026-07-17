@@ -112,6 +112,7 @@ N = (number of `### Iteration` headings already in the Log) + 1
 ```
 
 At the start of Phase 2, rewrite `**Iteration counter:**` to that same `N` so the header
-and Log cannot drift. Do not derive `N` from any outer-loop iteration counter (host goal,
-re-invoke wrapper, etc.) — that is a separate quota. Standalone and continuous runs for one
+and Log cannot drift. Do not derive `N` from any outer continuous counter (host goal
+max-turns, improve `max_cycles`, etc.) — that is a separate quota. Standalone and continuous
+runs for one
 target share the same sequence in `IMPROVE_LOOP.md`.

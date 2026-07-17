@@ -117,7 +117,21 @@ describe('claudecraft improve skill structure', function () {
       'utf8'
     );
     expect(p5).to.match(/goal\.complete/);
+    expect(p5).to.match(/goal\.blocked/);
+    expect(p5).to.match(/Status `complete`.*goal\.complete|complete` → \*\*`goal\.complete`/s);
     expect(p5).to.not.match(/<promise>/);
+    // Stale INDEX / progress must not reintroduce re-invoke ranking or promise recipes
+    const idx = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/INDEX.md'),
+      'utf8'
+    );
+    expect(idx).to.not.match(/re-invoke ranking|Pulse, promises/i);
+    expect(idx).to.match(/host goal|Host goal/i);
+    const progress = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/progress.md'),
+      'utf8'
+    );
+    expect(progress).to.not.match(/Re-invoke wrappers|promise rules unchanged/i);
   });
 
   it('progress contract defines pulse schema and emit cadence', function () {

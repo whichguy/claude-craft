@@ -124,7 +124,7 @@ markdown. Exit 2 if `cycle` is missing.
 | Grok goal mode | `update_goal` message (or equivalent) with markdown |
 | No goal facility | User-visible assistant markdown block |
 | Headless / CI | stdout with `## Improve progress` |
-| Re-invoke wrappers | Assistant-visible pulse each cycle (promise rules unchanged) |
+| `improve` driver S8 | User-visible pulse each cycle (`goal.report` if host goal also bound) |
 
 **Order:** try host goal progress → always ensure visible markdown fallback.
 

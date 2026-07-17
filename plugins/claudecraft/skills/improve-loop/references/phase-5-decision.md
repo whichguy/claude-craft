@@ -35,9 +35,11 @@ already cover active/blocked/veto cases above.
   has `Committed: yes` and
   `git log --grep="improve-loop: iteration N —"` finds the commit—then:
 
-  - Under a host **goal** continuous run: call **`goal.complete`** (success-shaped) or
-    **`goal.blocked`** (stall/budget/error-shaped) per `contracts/goal.md` with a short
-    summary. Do **not** invent product-specific completion-promise tags.
+  - Under a host **goal** continuous run (per `contracts/goal.md`), with a short summary:
+    - Status `complete` → **`goal.complete`**
+    - Status `stopped (...)` (stall, same-error, no-progress, user stop, caps, etc.) →
+      **`goal.blocked`** (do not call complete on a stop reason)
+    Do **not** invent product-specific completion-promise tags.
   - Standalone (single improve-loop invoke) or under the **`improve` driver** without a
     goal API: report the outcome to the user (and let the driver exit S8 → S9–S13).
 
