@@ -93,15 +93,19 @@ after the pulse — do not wait for the user:
    `improve-loop: driver — next_auto reintegrate` (ledger-schema only-ledger rule).  
 2. `reintegrate` — **S11a** rebase onto source tip; **S11b** merge tip → source when
    `merge_to_launch` (default true). Conflicts may include `IMPROVE_LOOP.md` itself — resolve
-   in the worktree.  
-3. On success: `next_auto: destroy` (or `done` if `keep_worktree`); then `destroy` unless keep.  
-   If `merge_to_launch=false`, after S11a set `blocked:open-pr` or `done` with PR hint — do
-   **not** claim launch was updated.  
-4. On failure: set catalog token (`blocked:rebase-continue`, `blocked:launch-dirty`, …);
-   **print the resume template** (below); stop. Do not promise success. Prefer **`recover`**
-   when run_json shows reintegrate failed/conflict and the worktree still exists
-   (`improve-worktree.sh recover --repo … --slug …`), else manual `rebase --continue` +
-   reintegrate.
+   in the worktree. Prefer `improve-worktree.sh status` after each step (`suggested_next`,
+   `tip_on_launch`, `resume_hint`).  
+3. On success with tip **on launch** (`tip_on_launch=yes` / S11b merged): `next_auto: destroy`
+   (or `done` if `keep_worktree`); then `destroy` unless keep. **Do not** pass `--force` unless
+   the operator explicitly wants to discard uncommitted dirt.  
+   If `merge_to_launch=false` **or** tip still unmerged after S11a: set **`blocked:open-pr`**
+   (not `done`, even with `keep_worktree`) — do **not** claim launch was updated; do **not**
+   auto-destroy the tip.  
+4. On failure: set catalog token (`blocked:rebase-continue`, `blocked:launch-dirty`,
+   `blocked:worktree-dirty`, …); **print the resume template** (below); stop. Do not promise
+   success. Prefer **`recover`** when run_json shows reintegrate failed/conflict and the
+   worktree still exists (`improve-worktree.sh recover --repo … --slug …`) — recover **does
+   not** force-destroy dirty worktrees. Else manual `rebase --continue` + reintegrate.
 
 **Status `complete` does not skip teardown** while a worktree still needs reintegrate.
 
@@ -123,12 +127,14 @@ Steps:
 3. Prefer run_json for paths if file exists; run improve-worktree.sh status --repo … --slug … for summary
 4. Execute next_auto only:
    - cycle | reintegrate | destroy | done
+   - blocked:open-pr → open PR from tip, or reintegrate --merge-to-launch; never claim merged
    - blocked:rebase-continue → fix conflicts in worktree, git rebase --continue, reintegrate
    - reintegrate_status failed/conflict → prefer: improve-worktree.sh recover --repo … --slug …
-   - blocked:destroy-failed → destroy [--force]
+   - blocked:worktree-dirty → commit/stash non-ledger dirt (destroy/recover will refuse otherwise)
+   - blocked:destroy-failed → destroy; use --force only when discarding intentionally
    - other blocked:* → fix reason in blocked_detail
 5. Use test_command from ledger; never invent tests
-6. Update ## Driver after the step
+6. Update ## Driver after the step (recompute next_auto from disk / improve-next-auto.js)
 ```
 
 

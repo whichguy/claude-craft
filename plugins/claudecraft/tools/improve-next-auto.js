@@ -62,6 +62,16 @@ function deriveNextAuto(s) {
   const mergeToLaunch = s.merge_to_launch !== false && s.merge_to_launch !== 'false';
   const reint = s.reintegrate_status == null ? null : String(s.reintegrate_status);
   const keep = !!s.keep_worktree;
+  // Optional tip ancestry (from improve-worktree status tip_on_launch=). When unknown,
+  // fall back to merge_to_launch only — never invent tip-on-launch=true.
+  const tipOnLaunch =
+    s.tip_on_launch === true ||
+    s.tip_on_launch === 'true' ||
+    s.tip_on_launch === 'yes';
+  const tipKnownOff =
+    s.tip_on_launch === false ||
+    s.tip_on_launch === 'false' ||
+    s.tip_on_launch === 'no';
   const status = String(s.status || 'active');
   const underCaps = s.under_caps !== false && s.under_caps !== 'false';
   const onceFinished = !!s.once_finished;
@@ -72,6 +82,8 @@ function deriveNextAuto(s) {
   const pathRelocated = !!s.path_relocated;
   const destroyFailed = !!s.destroy_failed;
   const reintOk = reint === 'ok';
+  // Tip not on launch: merge_to_launch=false after S11a, or explicit tip_on_launch=no
+  const tipUnmerged = tipKnownOff || (reintOk && !mergeToLaunch && !tipOnLaunch);
   const terminal =
     onceFinished ||
     status === 'complete' ||
@@ -113,11 +125,13 @@ function deriveNextAuto(s) {
     return out('reintegrate', 'none', onlyLedger && wtDirty);
   }
 
+  // reintegrate ok + tip still only in worktree → open-pr (even with keep_worktree)
+  if (wtPresent && reintOk && tipUnmerged) {
+    return out('blocked:open-pr', 'tip not on launch; open PR or --merge-to-launch');
+  }
+
   if (wtPresent && reintOk && !keep) {
     if (destroyFailed) return out('blocked:destroy-failed', 'destroy failed');
-    if (!mergeToLaunch) {
-      return out('blocked:open-pr', 'merge_to_launch=false; tip not merged to launch');
-    }
     return out('destroy', 'none', onlyLedger && wtDirty);
   }
 
@@ -130,16 +144,16 @@ function deriveNextAuto(s) {
       }
       return out('reintegrate', 'none', onlyLedger && wtDirty);
     }
-    if (wtPresent && reintOk && !keep && mergeToLaunch) {
-      return out('destroy', 'none', onlyLedger && wtDirty);
+    if (wtPresent && reintOk && tipUnmerged) {
+      return out('blocked:open-pr', 'tip not on launch');
     }
-    if (wtPresent && reintOk && !mergeToLaunch) {
-      return out('blocked:open-pr', 'merge_to_launch=false');
+    if (wtPresent && reintOk && !keep) {
+      return out('destroy', 'none', onlyLedger && wtDirty);
     }
     return out('done', 'none', false);
   }
 
-  // keep_worktree after reintegrate ok
+  // keep_worktree after reintegrate ok and tip on launch (or merge true without tip known off)
   if (wtPresent && reintOk && keep) {
     return out('done', 'none', false);
   }

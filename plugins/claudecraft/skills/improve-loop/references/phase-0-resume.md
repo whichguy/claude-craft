@@ -41,16 +41,19 @@ node <plugin>/tools/improve-next-auto.js --file snapshot.json
 # → { next_auto, blocked_detail, resume_hint, auto_commit_ledger }
 ```
 
-Build `snapshot.json` from git/Driver/run_json facts (see tool header). Otherwise apply the
+Build `snapshot.json` from git/Driver/run_json facts (see tool header). Include
+`tip_on_launch` from `improve-worktree.sh status` when a worktree exists. Otherwise apply the
 same order by hand: mid-rebase → `blocked:rebase-continue`; else worktree dirty (non-ledger)
 → `blocked:worktree-dirty`; else only-ledger dirty before reintegrate/destroy → auto-commit
 driver ledger; else no test command unattended → `blocked:no-tests`; else cold target ≠
 ledger title without “resume existing” → `blocked:ledger-target-mismatch`; else Status
 active under caps → `cycle`; else worktree present and reintegrate not ok → `reintegrate`
-(**even if Status is complete**); if `merge_to_launch=false` after reintegrate ok →
-`blocked:open-pr` (do not claim merged to launch); else reintegrate ok and not
-keep_worktree → `destroy` (destroy fail → `blocked:destroy-failed`); else `done`. Recompute
-every turn; do not trust a stale `resume_hint` for control flow.
+(**even if Status is complete**); if after reintegrate ok the tip is **not** on launch
+(`merge_to_launch=false` **or** `tip_on_launch=no`) → `blocked:open-pr` (do not claim merged
+to launch; **even with keep_worktree**); else reintegrate ok and not keep_worktree →
+`destroy` (destroy refuses uncommitted dirt without `--force`; fail →
+`blocked:destroy-failed` / `blocked:worktree-dirty`); else `done`. Recompute every turn; do
+not trust a stale `resume_hint` for control flow.
 
 **Ambiguous runs:** multiple non-destroyed `.git/improve-runs/*.json` without a clear slug →
 `blocked:ambiguous-run` (do not guess).

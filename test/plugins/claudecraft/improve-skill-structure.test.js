@@ -149,6 +149,30 @@ describe('claudecraft improve skill structure', function () {
     expect(fs.existsSync(path.join(path.dirname(goal), 'progress.md'))).to.equal(true);
   });
 
+  it('phase-5/0 + next-auto agree tip unmerged → blocked:open-pr not done', function () {
+    const p5 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-5-decision.md'),
+      'utf8'
+    );
+    const p0 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),
+      'utf8'
+    );
+    const schema = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/ledger-schema.md'),
+      'utf8'
+    );
+    // Must not tell agents next_auto=done while tip unmerged (stale phrasing)
+    expect(p5).to.not.match(/merge_to_launch=false[\s\S]{0,80}or `?done`? with PR/i);
+    expect(p5).to.match(/blocked:open-pr/);
+    expect(p5).to.match(/tip_on_launch/);
+    expect(p0).to.match(/tip_on_launch|tip is \*\*not\*\* on launch/i);
+    expect(schema).to.match(/not.*done.*keep_worktree|keep_worktree/i);
+    const nextAuto = fs.readFileSync(path.join(CC, 'tools/improve-next-auto.js'), 'utf8');
+    expect(nextAuto).to.match(/tip_on_launch/);
+    expect(nextAuto).to.match(/tipUnmerged|tip not on launch/i);
+  });
+
   it('Driver section + disk rehydration + resume template are normative', function () {
     const ledger = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/ledger-schema.md'),

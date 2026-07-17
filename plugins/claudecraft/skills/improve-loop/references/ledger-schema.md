@@ -89,8 +89,9 @@ This is **not** a second ledger — one file only. Lifecycle machine fields also
 | `path-relocated` | Driver absolute paths don’t match this machine; rewrite from run_json or stop |
 | `ledger-target-mismatch` | Existing ledger title/target ≠ this invoke’s target (need explicit resume-existing) |
 | `no-tests` | Unattended and no test command in ledger/header |
-| `open-pr` | `merge_to_launch=false`; S11a done or skipped merge — open PR / branch tip yourself |
-| `destroy-failed` | reintegrate ok but destroy failed; retry destroy / `--force` |
+| `open-pr` | Tip not on launch (`merge_to_launch=false` and/or `tip_on_launch=no` after S11a); open PR / `--merge-to-launch`; **not** `done` even if `keep_worktree` |
+| `destroy-failed` | reintegrate ok but destroy failed; retry destroy; `--force` only to discard intentionally |
+| `worktree-dirty` | Also used when destroy/recover refuse uncommitted dirt (tip may already be on launch) |
 
 **Only-ledger auto-commit (narrow):** when the next automatic step is `reintegrate` or
 `destroy` and `git status` shows **only** `IMPROVE_LOOP.md` dirty, commit bookkeeping with

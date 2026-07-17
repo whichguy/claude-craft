@@ -129,14 +129,38 @@ describe('improve-next-auto.js', function () {
       next: 'blocked:open-pr',
     },
     {
-      name: 'keep_worktree → done after reintegrate',
+      name: 'keep_worktree → done after reintegrate when tip on launch',
       in: {
         worktree_present: true,
         reintegrate_status: 'ok',
         keep_worktree: true,
+        merge_to_launch: true,
+        tip_on_launch: true,
         status: 'complete',
       },
       next: 'done',
+    },
+    {
+      name: 'keep_worktree + merge false after reintegrate → open-pr',
+      in: {
+        worktree_present: true,
+        reintegrate_status: 'ok',
+        keep_worktree: true,
+        merge_to_launch: false,
+        status: 'complete',
+      },
+      next: 'blocked:open-pr',
+    },
+    {
+      name: 'tip_on_launch false after reintegrate → open-pr even if merge true',
+      in: {
+        worktree_present: true,
+        reintegrate_status: 'ok',
+        merge_to_launch: true,
+        tip_on_launch: false,
+        status: 'complete',
+      },
+      next: 'blocked:open-pr',
     },
     {
       name: 'destroy-failed',
