@@ -16,7 +16,8 @@
 #
 # Subcommands:
 #   create       Detached worktree at launch tip; write run state under .git/
-#   carry        Carry launch WIP into worktree as bootstrap commit
+#   carry        Patch launch WIP into worktree (bootstrap commit), then drain launch
+#                to clean HEAD so S11b is not blocked by launch_dirty
 #   status       Print run JSON + --- summary --- (mid_rebase, suggested_next, …)
 #   reintegrate  S11a rebase; S11b merge tip→launch (default)
 #   destroy      Remove worktree (refuses unmerged tip or failed reintegrate unless --force)

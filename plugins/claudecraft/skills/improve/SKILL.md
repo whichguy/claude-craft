@@ -45,7 +45,7 @@ Skip only with `--no-worktree` / “no worktree”.
 ```bash
 bash <plugin>/tools/improve-worktree.sh create --repo <repo> --slug <slug> \
   [--keep-worktree] [--no-merge-to-launch]
-# if launch dirty and carry:
+# if launch dirty — carry patches WIP into WT, bootstrap-commits, drains launch clean:
 bash <plugin>/tools/improve-worktree.sh carry --repo <repo> --slug <slug>
 ```
 
