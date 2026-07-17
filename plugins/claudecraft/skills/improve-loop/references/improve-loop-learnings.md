@@ -96,9 +96,12 @@ Agents may feed improve-worktree status keys into next-auto; flags must parse ye
 
 | Iter | Verdict | Commit | Finding |
 |---|---|---|---|
-| 11 | **clean** | pair after `149cedc` | contract-iter2 FAIL=0; mocha 70; open-pr hint + status flags hold |
+| 11 | **clean** | `cf9e7aa` | contract-iter2 FAIL=0; mocha 70; open-pr hint + status flags hold |
+| 12 | **clean** | pair after `cf9e7aa` | contract-iter3 FAIL=0; mocha 70; second consecutive |
 
 ## Stop after open-pr hint (goal efef0b908b27)
 
-Material `149cedc` then two independent cleans (iter 11 + iter 12).  
+Material `149cedc` then two independent cleans:
+- **11** → `cf9e7aa`
+- **12** → pair after `cf9e7aa` (subject: quality-review iter 12 clean)  
 Agents must not treat destroy --force as a peer next step on `blocked:open-pr`.
