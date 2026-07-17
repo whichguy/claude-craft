@@ -1,6 +1,6 @@
 <!-- Extracted from improve-loop SKILL.md — normative cycle law; do not rewrite casually -->
-<!-- Outer continuous loop: prefer improve driver or host goal (contracts/goal.md, outer-loop.md).
-     Ralph-loop probes below apply only when that optional re-invoke adapter is driving. -->
+<!-- Outer continuous loop: host goal iterates improve-loop, or improve driver S8
+     (contracts/goal.md, outer-loop.md). No product-specific re-invoke plugin required. -->
 
 ### Phase 0 — Resume (native, cheap)
 
@@ -69,27 +69,15 @@ Then continue with the numbered steps below.
    shared capture rule) and is excluded from the shared code-dirty definition. It resets every
    turn and is never persisted, so it cannot go stale.
 
-   **Fail fast on an unbounded ralph quota — here, before any dirty-stop path.** The hazard
-   this guards against is not a normal cycle under `max_iterations: 0`; it is a **Phase 0
-   stop-and-report** (step 4's not-landed+code-dirty stop, or step 6's pre-cycle dirty-tree
-   stop) that ends the turn with no promise and no landed commit, so ralph's Stop hook simply
-   re-feeds the same prompt forever. Those stops happen *before* step 8, so a fail-fast placed
-   there is unreachable on exactly the paths it needs to guard — check it here instead, before
-   any other step. Read only what this check needs from
-   `<repo root>/.claude/ralph-loop.local.md` (root-anchored, not a bare relative path; ignore
-   the stale `.claude/.ralph-loop.local.md` spelling in the plugin's help file): presence,
-   `session_id`, and `max_iterations`. Determine whether the ralph Stop hook is actually
-   **driving this session** using the *same predicate the hook itself uses* (mirror
-   `stop-hook.sh`, not a plain equality check) — driving is true unless the state file's
-   `session_id` is **both non-empty and different from** this session's id; an **empty or
-   absent** `session_id` is the hook's legacy fall-through and counts as driving *every*
-   session. If the state file is present, the hook is driving this session by that predicate,
-   and `max_iterations == 0` (unlimited), fail-fast immediately: report that unlimited is
-   unsupported for this composition and ask the operator to re-launch with a finite
-   `--max-iterations`. Do this **before** any other action this step or later steps would take
-   — no ledger create/repair, no dirty-tree check, no cycle work. Reuse the same driving
-   predicate at step 8 for Phase 3's ralph-max-iterations terminal check, so a stale
-   *mismatched* state file cannot mis-stop a session it isn't actually driving.
+   **Continuous hosts need finite caps (operator/host responsibility).** Multi-cycle
+   runs are driven by **host goal** or the **`improve` driver** (`contracts/goal.md`,
+   `outer-loop.md`) — not by this skill inventing an outer loop. Unattended continuous
+   work must use **finite** goal/host max-turns·budget and/or improve `max_cycles` /
+   elapsed / budget. Unlimited outer iteration is unsupported: Phase 0 stop-and-report
+   (not-landed+code-dirty, or step 6 dirty-tree) ends a turn without completing the goal,
+   and an unlimited host would spin. Do **not** probe product-specific re-invoke state
+   files; if the host is continuous and caps are clearly unlimited/absent, fail-fast and
+   ask the operator to set finite caps before any ledger create/repair or cycle work.
 
 2. If `IMPROVE_LOOP.md` is absent, create it with the target description, test command
    (ask once if missing), Status `active`, an empty Log, zeroed counters, and a `## Driver`
@@ -145,28 +133,29 @@ Then continue with the numbered steps below.
      Test-artifacts precondition): report them and ask the operator to gitignore/clean rather
      than proceeding.
    - If Status is `complete` or `stopped (...)` **and landed**, do not start a new cycle.
-     Report that state and, under ralph-loop, emit the completion promise in Phase 5. This
-     prevents a quota burn when a finished, committed run is fed to the wrapper once more.
+     Report that state; under a host **goal**, call `goal.complete` / `goal.blocked` as
+     appropriate in Phase 5. This prevents burning outer turns when a finished, committed
+     run is fed again.
    - If the latest entry is **not landed** and the tree is **code-dirty**, whether Status
-     is active or terminal, stop and report now. Do not promise, do not enter Phase 1, and
-     do not allocate a new `N`. A PASS cycle that crashed after Phase 1 often has this
-     shape. Automatically flushing only `IMPROVE_LOOP.md` would land a terminal Status and
-     allow ralph to promise-exit while abandoning the code diff. The user must commit,
-     discard, or finish the prior cycle's intent before continuing.
+     is active or terminal, stop and report now. Do not mark the host goal complete, do not
+     enter Phase 1, and do not allocate a new `N`. A PASS cycle that crashed after Phase 1
+     often has this shape. Automatically flushing only `IMPROVE_LOOP.md` would land a
+     terminal Status while abandoning the code diff. The user must commit, discard, or
+     finish the prior cycle's intent before continuing.
    - If the latest entry is **not landed** and the tree is **not code-dirty** (only
      `IMPROVE_LOOP.md` is dirty, or the tree is clean), do a **ledger flush**: skip
      Phases 1–3; run Phase 4 using the latest entry's iteration number as `N` without
      allocating a new number; then run Phase 5. This covers terminal-without-commit and
-     active bookkeeping-only interruptions. Phase 5 emits the promise only if Status is
-     terminal and this flush landed.
+     active bookkeeping-only interruptions. Phase 5 signals host goal complete only if
+     Status is terminal and this flush landed.
    - Otherwise, if the latest entry is landed and Status is `active`, continue to step 5
      for a real new cycle and allocate the next `N` only then. The zero-Log case never
      reaches this branch because step 3 routed it directly to step 5.
 
 5. If the Backlog has no unchecked items while Status is `active`, skip **Phase 1 execute
    only**. Do not skip the rest of Phase 0: steps 6–8 still run because Phase 3 needs git
-   history and the ralph iteration count regardless of execution, and Phase 4 bookkeeping
-   must still occur. Allocate this cycle's `N` if the zero-Log path did not already set it.
+   history regardless of execution, and Phase 4 bookkeeping must still occur. Allocate this
+   cycle's `N` if the zero-Log path did not already set it.
    After step 8 use lightweight Phase 2, then Phase 3, Phase 4, and Phase 5. Do not invent
    an ad-hoc code task to fill the cycle; replanning can reopen work or declare completion.
 
@@ -222,15 +211,9 @@ Then continue with the numbered steps below.
    Pass paths or pointers into agents rather than inlining a large log dump; the digest
    itself is small enough to pass as a compact summary.
 
-8. If step 1's driving predicate found the ralph state file, re-read it here for the fuller
-   set Phase 3 needs: frontmatter fields `active`, `iteration`, `session_id`,
-   `max_iterations` (`0` means unlimited; step 1 already fail-fasted before reaching here if
-   this session is driving and it was `0` — see step 1), `completion_promise` (`null` or a
-   quoted string), and `started_at`. Phase 3's terminal check #4 needs `iteration` and
-   `max_iterations`, gated on the **same driving predicate as step 1** (not a plain
-   `session_id` equality — a stale, non-empty, mismatched `session_id` means the hook isn't
-   driving this session and must not mis-stop it): treat the final permitted outer turn as
-   *driving* **AND** `max_iterations > 0 AND iteration >= max_iterations`. ralph starts at
-   iteration 1, increments only when continuing, and its Stop hook checks that condition
-   before incrementing at the top of each firing. `/cancel-ralph` deletes this file; that
-   requires no action here.
+8. **Host continuous context (optional).** If this turn is under a host **goal** or the
+   **`improve` driver**, note available caps (goal max-turns/budget; improve `max_cycles` /
+   elapsed / budget from parse/`## Driver`) for Phase 3 Status decisions. Outer stop is
+   owned by the host goal stop predicate or improve caps — not by a product-specific
+   re-invoke state file. Every continuous turn still **rehydrates from disk** (header +
+   `## Driver` + last Log entries) before trusting chat.

@@ -4,15 +4,16 @@ description: >-
   Run one evidence-led improvement cycle in any git repository (host-agnostic kernel):
   bounded backlog item → test → deterministic learnings → replan → one ledger commit.
   Invoke as "/claudecraft:improve-loop <target>" when installed via claude-craft, or by
-  loading this skill in other harnesses. Continuous multi-cycle runs → improve driver skill
-  (or host goal per references/contracts/goal.md). Optional finite outer re-invoke wrappers OK.
+  loading this skill in other harnesses. Multi-cycle continuity: host goal iterates this
+  skill (contracts/goal.md) or use the improve driver skill — not a Stop-hook re-invoke plugin.
 ---
 
 # Improve loop (one cycle)
 
-**Exactly one cycle** per invocation (or Phase 0 short-circuit / ledger-flush).  
-Continuous runs: use the **`improve`** driver skill, or a host **goal** facility bound to
-`references/contracts/goal.md`. Do not invent a second persistence path outside git.
+**Exactly one cycle** per invocation (or Phase 0 short-circuit / ledger-flush) — the atomic
+unit, **not** a full continuous campaign. Multi-cycle: host **goal** iterates (each turn =
+one cycle + `goal.report`) per `references/contracts/goal.md`, or use the **`improve`**
+driver skill for an in-process S8 loop. Do not invent a second persistence path outside git.
 
 This file is the **operator card + phase index**. Normative detail lives in `references/`
 (see `references/INDEX.md`). **When executing a phase, Read that phase’s reference file**
@@ -25,7 +26,7 @@ before applying its rules.
 | Scope | One git repo root; `IMPROVE_LOOP.md` (+ `## Driver`) + optional code |
 | Commits | **Yes** — orchestrator may commit once per cycle; prefer worktree |
 | Tests | Stated or already recorded; **never invented** |
-| Continuous | `improve` driver or host goal — not unlimited outer quotas |
+| Continuous | Host **goal** iterates this skill, or **`improve`** driver — finite caps only |
 | Automation | Most appropriate safe path by default; **stop only when blocked**; resume from **disk** |
 | Resume | Phase 0 rehydration: chat untrusted; read header + `## Driver` + last Log entries |
 | Progress | Pulse each cycle → `references/contracts/progress.md`; prefer `../../tools/improve-progress-format.js` |
@@ -80,7 +81,7 @@ Execute in order. For each step, **Read** the linked file and follow it fully.
 | 2 | Append Log; update counters; check off only confirmed+code; **draft progress pulse** | `references/phase-2-learn.md` |
 | 3 | Advisor/native replan; surgical Backlog; Status stops | `references/phase-3-replan.md` |
 | 4 | One commit (or code-dirty/secret veto); 7-field body; **finalize pulse Committed/paths** | `references/phase-4-commit.md` |
-| 5 | **Emit control-channel progress pulse**; outer promise only if terminal **and** landed | `references/phase-5-decision.md` |
+| 5 | **Emit control-channel progress pulse**; host `goal.complete`/`blocked` if terminal **and** landed | `references/phase-5-decision.md` |
 
 **Load rule:** do not rely on memory of a 900-line monolith — open the phase reference for the phase you are in.
 

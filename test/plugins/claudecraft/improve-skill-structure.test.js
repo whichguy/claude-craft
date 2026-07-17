@@ -85,6 +85,41 @@ describe('claudecraft improve skill structure', function () {
     expect(text).to.match(/must not.*only continuous path/i);
   });
 
+  it('continuous path is host goal + improve driver; no normative ralph / promise protocol', function () {
+    const refRoot = path.join(CC, 'skills/improve-loop');
+    const improveRoot = path.join(CC, 'skills/improve');
+    // Exclude *learnings* banks (may record historical removals)
+    const files = walk(refRoot)
+      .concat(walk(improveRoot))
+      .filter((f) => !/learnings/i.test(path.basename(f)));
+    const blob = files.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+    // No product re-invoke plugin as required continuous path
+    expect(blob).to.not.match(/\/ralph-loop/);
+    expect(blob).to.not.match(/ralph-loop\.local\.md/);
+    expect(blob).to.not.match(/IMPROVE_LOOP_DONE/);
+    expect(blob).to.not.match(/\bralph-loop\b/i);
+    expect(blob).to.not.match(/stopped \(ralph max iterations\)/);
+    // Goal iterates + improve driver present
+    const outer = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/outer-loop.md'),
+      'utf8'
+    );
+    const goal = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/goal.md'),
+      'utf8'
+    );
+    expect(outer).to.match(/Host \*\*goal\*\*|host \*\*goal\*\*|Host goal/i);
+    expect(outer).to.match(/improve.*driver|`improve` driver/i);
+    expect(goal).to.match(/iterates|each iteration/i);
+    expect(goal).to.match(/goal\.complete/);
+    const p5 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-5-decision.md'),
+      'utf8'
+    );
+    expect(p5).to.match(/goal\.complete/);
+    expect(p5).to.not.match(/<promise>/);
+  });
+
   it('progress contract defines pulse schema and emit cadence', function () {
     const text = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/contracts/progress.md'),

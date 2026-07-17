@@ -105,3 +105,17 @@ Material `149cedc` then two independent cleans:
 - **11** → `cf9e7aa`
 - **12** → pair after `cf9e7aa` (subject: quality-review iter 12 clean)  
 Agents must not treat destroy --force as a peer next step on `blocked:open-pr`.
+
+## Drop ralph; multi-cycle via host goal (historical)
+
+**Thesis:** improve-loop must not require a Stop-hook re-invoke plugin; one cycle remains
+atomic; multi-cycle is host **goal** iterating improve-loop (or `/improve` S8).
+
+**Outcome:** stripped normative ralph / `IMPROVE_LOOP_DONE` / `ralph-loop.local.md` from
+improve-loop + improve surface; outer-loop + goal contracts rank goal → improve; Phase 5
+signals `goal.complete`/`goal.blocked` when terminal+landed.
+
+**Key learnings:**
+1. One cycle ≠ continuous campaign — goal iterates.
+2. Finite host/improve caps replace re-invoke max_iterations.
+3. Do not complete host goal over uncommitted ledger (same as old promise ban).

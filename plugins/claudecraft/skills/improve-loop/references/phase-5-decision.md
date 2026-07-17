@@ -7,7 +7,7 @@ paths). Prefer no extra file writes beyond Driver/ledger; lifecycle steps may co
 
 #### Control-channel progress pulse (required)
 
-Before promise/terminal handling, **emit** the cycle’s progress pulse per
+Before terminal / host-goal handling, **emit** the cycle’s progress pulse per
 `contracts/progress.md`:
 
 1. Complete fields from Phases 2–4 (outcome, test, committed, changes, learnings).  
@@ -28,54 +28,46 @@ Mid-cycle optional pulse: only if Phase 1 is still running past a soft wall-cloc
 ---
 
 Phase 3 set terminal Status on a full cycle and Phase 4 attempted the ledger commit. Act
-only on a **committed** terminal state for **promises**; progress pulses already cover
-active/blocked/veto cases above.
+only on a **committed** terminal state for **host goal complete/blocked**; progress pulses
+already cover active/blocked/veto cases above.
 
 - If Status is `complete` or `stopped (...)` **and** the latest Log entry is **landed**—it
   has `Committed: yes` and
   `git log --grep="improve-loop: iteration N —"` finds the commit—then:
 
-  - Under an **active re-invoke outer loop** that uses a completion promise (e.g. ralph-style),
-    end the turn with `<promise>IMPROVE_LOOP_DONE</promise>` as the **final line**, with the
-    tag's contents matching the configured completion promise literally. A one-line human
-    summary *before* that final line is fine — the host Stop hook typically extracts the
-    first `<promise>…</promise>` tag in the last assistant text block, trims outer whitespace,
-    collapses internal whitespace, and compares with exact equality (after stripping the
-    configured phrase's surrounding quotes). What is **not** fine: emitting the bare phrase
-    without the tags, or wrapping the tag mid-sentence inside other prose on the same line.
-  - Standalone (or continuous driver without a promise protocol), report the outcome to the
-    user and do not emit a promise tag.
+  - Under a host **goal** continuous run: call **`goal.complete`** (success-shaped) or
+    **`goal.blocked`** (stall/budget/error-shaped) per `contracts/goal.md` with a short
+    summary. Do **not** invent product-specific completion-promise tags.
+  - Standalone (single improve-loop invoke) or under the **`improve` driver** without a
+    goal API: report the outcome to the user (and let the driver exit S8 → S9–S13).
 
 - If Status is terminal but not landed because Phase 4 failed or the code-dirty veto fired,
-  do not emit the promise. Report the failure or veto and leave the dirty tree for the user
-  or next turn's stop-and-report/ledger-flush path. A promise here would end an outer
-  re-invoke loop while its ledger remained uncommitted.
+  do **not** call `goal.complete`. Report the failure or veto and leave the dirty tree for
+  the user or next turn's stop-and-report/ledger-flush path. Completing the host goal here
+  would mark success while the ledger remained uncommitted.
 
 - Two related stops end *before* this phase, each with its own attribution: the **Phase 0
   not-landed + code-dirty stop** (step 4) ends inside Phase 0, and a **Phase 4 secret /
-  code-dirty veto** stops and reports inside Phase 4 (its promise-suppression is already
-  covered by the not-landed bullet above). Neither may set a `stopped (...)` Status (committing
-  a terminal note over dirty code is exactly what the code-dirty veto forbids) and neither may
-  emit the promise (that would be false success over an uncommitted tree). Under a re-invoke
-  outer loop the turn simply ends with a report; the outer iteration advances, so a
-  **finite** max-iterations backstop (Phase 0 fails fast on unlimited when that adapter is
-  driving — see phase-0) bounds an unresolvable dirty-tree state. The operator resolves the
-  tree (commit or discard) to let the loop resume real cycles.
+  code-dirty veto** stops and reports inside Phase 4 (no host-goal complete — same as
+  not-landed above). Neither may set a `stopped (...)` Status over dirty code (the
+  code-dirty veto forbids that) and neither may complete the host goal. The continuous host
+  (goal or improve) must use **finite** caps so an unresolvable dirty tree cannot spin
+  forever; the operator resolves the tree (commit or discard) to resume real cycles.
 
-- Otherwise Status is active. End normally. Under a re-invoke outer loop, the host invokes
-  the wrapper again with the same prompt; Phase 0 always re-derives state from the on-disk
-  ledger regardless of what triggered the turn. Under the `improve` driver, continue S8 or
-  exit to reintegrate per driver caps.
+- Otherwise Status is active. End normally. Under a host **goal**, the host may start
+  another turn (each turn rehydrates from disk via Phase 0). Under the `improve` driver,
+  continue S8 or exit to reintegrate per driver caps.
 
 ## Continuous / quota composition
 
-**Prefer (host-agnostic):** the **`improve` driver** skill — native S0–S13 loop, worktree,
-caps, always reintegrate **with merge into the launch/source branch by default**. See
-`../../improve/SKILL.md` and `contracts/goal.md` / `contracts/outer-loop.md`.
+**Prefer (host-agnostic multi-cycle):** host **goal** iterating one improve-loop cycle per
+turn (`contracts/goal.md`). **Secondary:** **`improve` driver** — native S0–S13 loop,
+worktree, caps, always reintegrate **with merge into the launch/source branch by default**.
+See `../../improve/SKILL.md` and `contracts/outer-loop.md`.
 
-A single improve-loop invocation performs **exactly one** cycle and reports. Use that for
-a manual first look, and preferably to seed `IMPROVE_LOOP.md` before unattended continuous
-runs.
+A single improve-loop invocation performs **exactly one** cycle and reports. That is the
+atomic unit — **not** a full continuous campaign. Seed `IMPROVE_LOOP.md` with one cycle
+(or create under continuous S4), then let goal/`improve` iterate.
 
 ### Worktree end (auto — once mode or when continuous driver is not taking S11)
 
@@ -102,10 +94,11 @@ after the pulse — do not wait for the user:
    (not `done`, even with `keep_worktree`) — do **not** claim launch was updated; do **not**
    auto-destroy the tip.  
 4. On failure: set catalog token (`blocked:rebase-continue`, `blocked:launch-dirty`,
-   `blocked:worktree-dirty`, …); **print the resume template** (below); stop. Do not promise
-   success. Prefer **`recover`** when run_json shows reintegrate failed/conflict and the
-   worktree still exists (`improve-worktree.sh recover --repo … --slug …`) — recover **does
-   not** force-destroy dirty worktrees. Else manual `rebase --continue` + reintegrate.
+   `blocked:worktree-dirty`, …); **print the resume template** (below); stop. Do not mark
+   the host goal complete. Prefer **`recover`** when run_json shows reintegrate
+   failed/conflict and the worktree still exists (`improve-worktree.sh recover --repo …
+   --slug …`) — recover **does not** force-destroy dirty worktrees. Else manual
+   `rebase --continue` + reintegrate.
 
 **Status `complete` does not skip teardown** while a worktree still needs reintegrate.
 
@@ -138,23 +131,17 @@ Steps:
 ```
 
 
-### Optional: finite re-invoke wrappers (adapter example)
+### Multi-cycle hosts (not re-invoke plugins)
 
-If the host has a ralph-style Stop re-invoke plugin, it may wrap one cycle at a time with a
-**finite** max iterations and a completion promise only when Phase 5 allows (terminal
-**and** landed). Example shape (Claude Craft packaging):
-
-```
-/ralph-loop "Invoke the improve-loop skill for one cycle (or Phase 0 short-circuit / ledger-flush). If ./IMPROVE_LOOP.md exists, resume from it. If not, create it for target: <TARGET> with test command: <CMD>. Emit <promise>IMPROVE_LOOP_DONE</promise> only when Phase 5 instructs (Status terminal AND latest Log commit landed). If outer max iterations exhausted mid-run, set Status to stopped (ralph max iterations), Phase 4 commit, then Phase 5 promise." --max-iterations N --completion-promise "IMPROVE_LOOP_DONE"
-```
-
-Rules for any re-invoke wrapper:
+Use **host goal** (preferred) or **`/claudecraft:improve`** for continuous campaigns. Rules:
 
 - Name target + test command on cold start (ledger path alone is insufficient when missing).
-- Outer max iterations **must be finite `> 0`** — unlimited is unsupported (dirty-tree
-  stop-and-report cannot self-exit without a false promise).
-- Do not promise-exit from Status alone; Phase 5 authorizes the promise only when landed.
-- Prefer the `improve` driver when worktree + reintegrate + destroy are needed.
+- Outer caps **must be finite** — unlimited is unsupported (dirty-tree stop-and-report
+  cannot self-exit without a false complete).
+- Do not call `goal.complete` from Status alone; Phase 5 authorizes host complete only when
+  terminal **and** landed.
+- Prefer the `improve` driver when worktree + reintegrate + destroy orchestration is needed
+  in-process without a goal UI.
 
 This skill makes no assumptions about any project's language, layout, test framework, or
 build tool. Ask for and record the target test command rather than inferring one.

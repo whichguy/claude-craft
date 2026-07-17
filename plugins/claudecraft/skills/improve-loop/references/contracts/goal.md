@@ -1,15 +1,26 @@
-<!-- Host-agnostic contract — improve continuous runs bind stop predicates here -->
+<!-- Host-agnostic contract — continuous runs bind stop predicates here -->
 
 # Contract: Goal (continuous objective)
 
-Improve’s **continuous** outer loop is harness-neutral. Hosts **may** provide a goal facility; if they do not, the driver runs an equivalent **native** loop.
+Improve’s **continuous** outer loop is harness-neutral. **Host goal** is the preferred
+multi-cycle host: the goal **iterates** until a stop predicate, and each iteration runs
+**exactly one** improve-loop cycle. If the host has no goal facility, the **`improve` driver**
+runs an equivalent **native** S8 loop with the same stop semantics.
+
+```text
+goal.start(objective, stop_predicate, caps?)   # finite caps required unattended
+  while not stop:
+    improve-loop one cycle (or Phase 0 short-circuit / ledger-flush)
+    goal.report(progress)
+  goal.complete(summary) | goal.blocked(reason)
+```
 
 ## Capability
 
 ```text
 goal.start(objective, stop_predicate, caps?)
 goal.report(progress)           # progress pulse — see progress.md (this directory)
-goal.complete(summary)          # success-shaped terminal
+goal.complete(summary)          # success-shaped terminal (Status terminal + landed)
 goal.blocked(reason)            # stall / budget / error terminal
 ```
 
@@ -27,11 +38,11 @@ ledger and never blocks reintegrate.
 
 ## Stop predicate (shared)
 
-The run’s inner improve-loop cycles stop when **any** of:
+The continuous run stops when **any** of:
 
 1. `IMPROVE_LOOP.md` **Status** is `complete` or `stopped (...)` **and** the latest Log entry is **landed** (Committed yes + greppable commit), or a clean short-circuit with no work  
 2. User **until** condition (if any) is satisfied (only required for success-shaped complete when declared)  
-3. Caps: `max_cycles`, `max_elapsed`, token/usd budget  
+3. Caps: `max_cycles`, `max_elapsed`, token/usd budget, and/or host max-turns / max-budget  
 4. Unrecoverable block (no test command, code-dirty veto without resolution, etc.)
 
 **After** any stop that used a worktree: always **reintegrate** (and destroy unless keep-worktree / reintegrate failed). Teardown is not optional when the host “completes goal.”
@@ -40,10 +51,9 @@ The run’s inner improve-loop cycles stop when **any** of:
 
 | Host | Binding |
 |---|---|
-| Claude Code | Built-in goal + progress tools **or** native S8 driver loop |
+| Claude Code | Built-in goal + progress tools **or** native S8 (`/claudecraft:improve`) |
 | Grok | Host goal mode + `update_goal` **or** native S8 |
 | Codex / headless | Native S8 + process max-turns/budget as host backstop |
-| ralph-style re-invoke | Outer re-prompt with completion promise = terminal+landed (optional) |
 
 ## Rules
 
@@ -54,3 +64,5 @@ The run’s inner improve-loop cycles stop when **any** of:
 5. After context compaction or a new turn: **rehydrate from disk** (`IMPROVE_LOOP.md` `## Driver` +
    `.git/improve-runs` + git) per improve-loop Phase 0 — not from goal chat history alone.
    If `next_auto` is `reintegrate`/`destroy`, prefer a teardown-only turn before more cycles.
+6. **Finite caps only** for unattended continuous goals — unlimited outer iteration is unsupported
+   (dirty-tree stop-and-report cannot self-exit without a false complete).

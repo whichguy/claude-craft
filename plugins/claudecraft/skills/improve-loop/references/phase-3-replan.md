@@ -155,8 +155,8 @@ or unchecks a previously-checked item, restore that entry before applying the re
 candidate. Separately, if it is empty, unparseable, or would wipe a formerly non-empty
 Backlog without explicit complete/stop rationale, do not apply it at all. Keep the prior
 Backlog, append `replan output unusable; Backlog unchanged` to the latest Notes, and let
-the terminal test below evaluate only counters and ralph state; do not invent `complete`
-from a wiped list.
+the terminal test below evaluate only counters and host/improve caps; do not invent
+`complete` from a wiped list.
 
 After the rounds and surgical apply or deliberate non-apply, re-check for code-dirtiness
 using the **shared code-dirty definition** (Phase 0 step 4; excludes `IMPROVE_LOOP.md` and
@@ -209,9 +209,12 @@ counters Phase 2 already wrote to update Status *in this exact order*:
      would double-count. **Precondition:** if the revert failed, Outcome is `blocked`, or the
      tree is code-dirty, do **not** complete here — leave it to Phase 4's code-dirty veto and
      Phase 0's next-invocation guard.
-4. Ralph-loop is **driving this session** (Phase 0 step 1/8's predicate — not a plain
-   `session_id` equality) and `max_iterations > 0` and `iteration >= max_iterations` →
-   `stopped (ralph max iterations)`
+4. **Improve driver / host caps exhausted** (when continuous): if the `improve` driver
+   reports over `max_cycles` / `max_elapsed` / budget, or the host goal signals budget
+   exhaustion without a landed complete → leave Status as set by the driver/goal host
+   (`stopped (max_cycles)` / budget block via `goal.blocked`); do **not** invent a
+   product-specific outer-loop Status token here. improve-loop itself does not own outer
+   iteration counters.
 5. Otherwise leave Status `active`.
 
 Advisors never edit counters, so a panel that wants to continue cannot override a counter
