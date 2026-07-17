@@ -22,11 +22,19 @@ Banked while auditing **improve-loop** + dependent tools (`improve-next-auto.js`
 | Iter | Verdict | Commit | Finding |
 |---|---|---|---|
 | 1 | material | `ac278b8` | next-auto keep→done + phase-5 “or done with PR” contradicted worktree open-pr |
-| 2 | **clean** | (this) | contract CLI + mocha 33; no new P0/P1 |
-| 3 | pending | — | second clean |
+| 2 | **clean** | `ce8258a` | contract CLI + mocha 33; no new P0/P1 |
+| 3 | **clean** | (this) | contract-iter3 + mocha 33 |
 
 ## Related tools
 
 - `tools/improve-next-auto.js` — deriveNextAuto snapshot (optional `tip_on_launch`)
 - `tools/improve-worktree.sh` — S11a/S11b lifecycle (authoritative for tip ancestry)
 - `skills/improve/` — continuous driver S0–S13
+
+## Stop (improve-loop goal da393bbeb079)
+
+Material `ac278b8` then two independent cleans:
+- **2** → `ce8258a`
+- **3** → this commit
+
+Key fix: tip unmerged → `blocked:open-pr` in next-auto + phase docs (not done).
