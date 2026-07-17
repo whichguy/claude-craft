@@ -62,7 +62,14 @@ Continuous improve driver S12/S13 + lifecycle flowchart match tip-on-launch open
 
 | Iter | Verdict | Commit | Finding |
 |---|---|---|---|
-| 7 | material | (this) | status emits `worktree_exists` + yes/no; next-auto used `worktree_present` + `!!` so `"no"`/`"false"` were truthy and wrong-key snapshots false-`done` |
+| 7 | material | `567bf37` | status emits `worktree_exists` + yes/no; next-auto used `worktree_present` + `!!` so `"no"`/`"false"` were truthy and wrong-key snapshots false-`done` |
 
 **Fix:** `flag()` / `explicitFalse()` + `worktree_exists` alias; mocha pins status-style
 snapshots; phase-0 documents the map. Invariants 4–6 unchanged.
+
+
+## Clean after status-mapping
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 8 | **clean** | (this) | contract-iter8 FAIL=0; mocha 41; status-style + S12 laws hold |
