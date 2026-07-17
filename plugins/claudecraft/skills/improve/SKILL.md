@@ -78,8 +78,11 @@ in the ledger header (ledger-schema).
 Read `references/caps.md` and `../improve-loop/references/contracts/progress.md`.  
 While Status active and under caps (break order in caps.md):
 
-1. Cap/until check from **disk** (Status, consecutive-non-material-cycles, cycle_index, max_cycles, until) → if stop, break to S9.  
-2. Increment Driver `cycle_index`; **run one improve-loop cycle** in the active tree (load improve-loop skill; follow its phase index and Read phase references). improve-loop reads **only disk** — it must not need the parse card from chat.  
+1. Cap/until check from **disk** per `caps.md` S8 break order (including
+   `cycle_index >= max_cycles` before starting another cycle) → if stop, break to S9.  
+2. Increment Driver `cycle_index` (0→1 on first cycle); **run one improve-loop cycle** in the
+   active tree (load improve-loop skill; follow its phase index and Read phase references).
+   improve-loop reads **only disk** — it must not need the parse card from chat.  
 3. Re-read `IMPROVE_LOOP.md` Status / Stop-condition / Driver.  
 4. **Ensure a control-channel progress pulse** for this cycle (learnings, changes, backlog/caps progress). If the cycle did not emit one, synthesize JSON from the latest Log entry + `git status` / last commit and prefer  
    `node <plugin>/tools/improve-progress-format.js`  

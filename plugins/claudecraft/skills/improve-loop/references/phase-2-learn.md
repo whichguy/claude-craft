@@ -24,9 +24,9 @@ Use this explicit matrix:
 
 | Test STATUS | Outcome | `consecutive-no-progress` | `consecutive-same-error` | `consecutive-non-material-cycles` |
 |---|---|---|---|---|
-| PASS | confirmed / partial, **material P0/P1 land** (non-ledger paths for a P0/P1 item) | reset → 0 | reset → 0, signature → none | **reset → 0** |
-| PASS | confirmed / partial, **non-ledger land but Notes say P2/YAGNI-only** | reset → 0 | reset → 0 | **+1** (non-material) |
-| PASS | **`CHANGED_PATHS` empty** (no code landed; reconciled to `partial`) | **+1** | reset → 0 | **+1** (non-material) |
+| PASS | confirmed / partial, **non-ledger `CHANGED_PATHS` non-empty** (default = material) | reset → 0 | reset → 0, signature → none | **reset → 0** |
+| PASS | confirmed / partial, non-ledger land **and Notes explicitly P2/YAGNI-only** | reset → 0 | reset → 0 | **+1** (non-material) |
+| PASS | **`CHANGED_PATHS` empty** (no code landed; reconciled to `partial`; ledger-only OK) | **+1** | reset → 0 | **+1** (non-material) |
 | PASS | disproven (tests still green but thesis wrong) | +1 | reset → 0 | **+1** |
 | FAIL | any, signature **equals** prior entry's signature | +1 | +1 (keep signature) | hold |
 | FAIL | any, signature **differs** from prior (or prior was none) | +1 | reset → 1 with new signature | hold |
@@ -34,11 +34,12 @@ Use this explicit matrix:
 
 **Material vs non-material (for until P0/P1×2):**
 
-- **Material:** non-ledger path(s) landed that fix a P0/P1 backlog item (or Log Notes explicitly
-  say material P0/P1). Resets `consecutive-non-material-cycles` to 0.  
-- **Non-material:** suite PASS and no material P0/P1 land (ledger-only, empty CHANGED_PATHS,
-  or P2-only with Notes). Increments `consecutive-non-material-cycles`.  
-- FAIL/blocked: **hold** the non-material streak (do not count as a clean non-material cycle).
+- **Material (default when code lands):** non-ledger path(s) in `CHANGED_PATHS` after Phase 1.
+  Resets `consecutive-non-material-cycles` to 0. Do **not** require a "P0/P1" label on the
+  backlog line — any real code land breaks the clean streak (safe default).  
+- **Non-material:** suite PASS and (a) empty non-ledger `CHANGED_PATHS` (ledger-only or
+  no-op), or (b) Notes **explicitly** say P2/YAGNI-only for the only lands. Increments streak.  
+- FAIL/blocked: **hold** the non-material streak (not a clean non-material cycle).
 
 **Precedence (evaluate top to bottom; first match wins):**
 1. Outcome `blocked` — key it on the **Outcome, not on whether tests ran**: use the blocked

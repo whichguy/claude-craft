@@ -360,12 +360,18 @@ describe('claudecraft improve skill structure', function () {
       'utf8'
     );
     expect(p2).to.match(/consecutive-non-material-cycles|non-material/);
+    expect(p2).to.match(/default = material|default when code lands/i);
     const p3 = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/phase-3-replan.md'),
       'utf8'
     );
     expect(p3).to.match(/consecutive-non-material-cycles >= 2|Until P0\/P1/);
     expect(p3).to.match(/non-empty and not `none`|until` is \*\*non-empty/i);
+    const caps2 = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/caps.md'),
+      'utf8'
+    );
+    expect(caps2).to.match(/cycle_index >= max_cycles|cycle_index.*max_cycles/);
     const outer = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/contracts/outer-loop.md'),
       'utf8'
