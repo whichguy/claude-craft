@@ -23,7 +23,7 @@ Banked while auditing **improve-loop** + dependent tools (`improve-next-auto.js`
 |---|---|---|---|
 | 1 | material | `ac278b8` | next-auto keep→done + phase-5 “or done with PR” contradicted worktree open-pr |
 | 2 | **clean** | `ce8258a` | contract CLI + mocha 33; no new P0/P1 |
-| 3 | **clean** | (this) | contract-iter3 + mocha 33 |
+| 3 | **clean** | (this) | contract-iter3b FAIL=0 + mocha 33 (honest re-run) |
 
 ## Related tools
 
@@ -38,3 +38,6 @@ Material `ac278b8` then two independent cleans:
 - **3** → this commit
 
 Key fix: tip unmerged → `blocked:open-pr` in next-auto + phase docs (not done).
+
+
+Note: cycle 3 uses terminal status=complete fixtures for teardown next_auto checks.
