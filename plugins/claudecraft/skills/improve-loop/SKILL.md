@@ -374,7 +374,7 @@ after key evaluations). Use stable labels so operators can skim:
 | Phase 0 enter | cold-start vs resume vs discard-stale | mode = …; launch code-dirt = none\|paths; ambient ignored = … | create/reuse WORKSPACE |
 | Phase 0 residual branch | open P0/P1 vs residual-only | open count = k; streak = m | execute item **or** skip Phase 1 execute |
 | Phase 1 select | open P0/P1 candidates; COMPLETED_SET / DISPROVEN_SET from git | selected = …; skipped reseed of completed/disproven = … | implement / investigate |
-| Phase 1 post-test | STATUS + CHANGED_PATHS + suggested Outcome | PASS\|FAIL; paths empty? → reconcile Outcome | delete open line **or** leave open **or** revert |
+| Phase 1 post-test | STATUS + CHANGED_PATHS + suggested Outcome | PASS\|FAIL; paths empty? → reconcile Outcome | on PASS: **post-PASS hygiene** (docs + scoped cleanup) then delete/leave open; on FAIL: revert |
 | Phase 2 counters | STATUS × Outcome matrix row | no-progress / same-error / non-material after update | append Log; **remove** completed item from Backlog |
 | Phase 3 replan | digest + ledger + advisors usable K/M | Round 2 yes\|skip; open P0/P1 after = k; streak → m | surgical Backlog/Deferred apply |
 | Phase 3 complete gate | residual ×2 + suite green | streak ≥ 2? open = 0? suite gate a\|b\|c | set Status complete\|active\|stopped |
@@ -506,7 +506,8 @@ status beat with a **reasoning beat** (considering / evaluates / about to) at th
   `· about to · execute | skip Phase 1 execute`.
 - **After test:** `Test · PASS|FAIL` + ≤2-line summary (or first error signature).
   Plus: `· evaluates · STATUS · CHANGED_PATHS empty|n · Outcome → …` /
-  `· about to · delete completed item from Backlog | leave open | revert`.
+  on PASS also `· considering · docs stale? · scoped tech-debt/artifacts?` /
+  `· about to · apply post-PASS hygiene | no-op | delete completed item | leave open | revert`.
 - **Phase 3:** `Advisors · usable K/M` + `Round 2 · yes|skipped (<why>)` + one-line
   replan direction (or `Backlog unchanged`).
   Plus: `· evaluates · open after replan = k · streak m→m'` /
@@ -759,6 +760,11 @@ Shared family rules (both skills):
    invoke, multi-round under `/goal` (or optional ralph). Ralph never primary for improve-loop.
 6. **Destination CWD** — when the target repo ≠ Grok session cwd, sticky to the **target repo**
    for product commands; never sticky into disposable worktrees.
+7. **Post-PASS hygiene (directive, not a phase)** — after the suite **PASS**es (and Outcome is
+   not `blocked`), **consider** updating consumer docs for what just landed and cleaning scoped
+   stale artifacts / tech-debt litter from this change or consolidation. Fold into the same
+   cycle’s `CHANGED_PATHS` when action is warranted; no-op is fine. **Not** a new phase banner
+   or L2 step — judgment only, cheap and in-scope.
 
 **Sibling skill.** `grok-review-converge` implements the review/fix specialization of this
 family (Grok material/minor + clean-streak ×2). Improve-loop’s multi-cycle is L1 autonomous
@@ -1206,8 +1212,9 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   spaces/special characters are wrapped in double quotes with C-style escapes). Drop
   `IMPROVE_LOOP.md` (Phase 1 must not edit it; Phase 4 handles it separately). This is the
   executor's change set; anything that becomes dirty *only after* the test run is test
-  output and is never staged. Phase 4 stages code paths only from this git-grounded, parsed,
-  pre-test set — never from the executor's `WHAT_CHANGED` alone.
+  output and is never staged — **except** post-PASS hygiene paths intentionally extended
+  below. Phase 4 stages code paths only from this git-grounded set (pre-test plus any
+  post-PASS hygiene extension) — never from the executor's `WHAT_CHANGED` alone.
 
 - Then the orchestrator (native) runs the recorded test command **exactly once** with
   process CWD = **WORKSPACE**, without sticking the host session there — e.g.
@@ -1248,6 +1255,34 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   gitignored they resurface as dirt on the next invocation's fresh Phase 0 guard; after
   committing, if un-ignored artifacts remain, report them and recommend the operator gitignore
   or clean them.
+
+- **Post-PASS hygiene (directive — not a separate phase).** When `STATUS` is **PASS** and
+  Outcome is **not** `blocked`, **before Phase 2**, the orchestrator **considers** (judgment
+  only — not mandatory work every cycle):
+
+  1. **Documentation** — did this cycle’s landed behavior leave any *consumed* docs stale or
+     incomplete (README, AGENTS.md, SKILL.md, architecture notes, generated doc regions the
+     repo already owns)? Prefer updating those surfaces over inventing new doc systems.
+  2. **Repo / git cleanup** — did this change, merge, or consolidation leave removable tech-debt
+     litter in scope (`.bak`, superseded dual copies, dead paths the thesis retired, other
+     stale artifacts clearly obsolete now)? Pathspec-safe only; **never** broad `git clean -fd`,
+     freehand stash, or whole-repo archaeology.
+
+  Emit a short reasoning beat: `· considering · docs + scoped cleanup` /
+  `· evaluates · stale docs? · removable debt?` / `· about to · apply | no-op`.
+
+  **If action is warranted** (cheap, in-scope, clearly correct): apply the edits/deletes under
+  WORKSPACE, then **re-parse** porcelain and **extend** `CHANGED_PATHS` with any new hygiene
+  paths (still drop `IMPROVE_LOOP.md` and paths in `TEST_ARTIFACT_PATHS`). Pure prose docs or
+  deletes do **not** require re-running the suite by default; if hygiene edits **executable
+  contract** sources the recorded command covers, re-run the suite **once** and re-apply the
+  shared `TEST_ARTIFACT_PATHS` capture before Phase 2.
+
+  **If nothing material:** optional Notes line
+  `post-PASS hygiene: considered docs + repo cleanup; no changes`. Do **not** invent P0/P1
+  solely for hygiene theater. **Residual-only / empty-execute** cycles skip aggressive hygiene
+  (no unrelated doc rewrites on residual surveys). **FAIL** path: no post-PASS fold-in — use
+  the revert rules below.
 
 - If STATUS is FAIL and there is nothing further to try this cycle, the orchestrator (the
   executor has already returned) reverts the attempted changes so code is clean before
