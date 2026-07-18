@@ -36,6 +36,8 @@ After fields are resolved:
 2. **`until`** (continuous only; when user did not pass an until string)  
    - Default string (persist verbatim to ledger header + Driver):  
      **`no material P0/P1 for 2 consecutive cycles (green tests)`**  
+   - This is the **no-criteria default**: iterate until two consecutive non-material
+     green cycles (Phase 3 rule 3). Empty P0/P1 backlog after one cycle is not enough.  
    - Once mode: `until` is `none` unless user passed one.
 
 3. **`max_cycles`**  

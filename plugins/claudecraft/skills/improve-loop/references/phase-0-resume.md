@@ -23,8 +23,14 @@ historical Log.
    Log consistency.  
 4. **`## Driver`** — paths + `next_auto` / `resume_hint` + **mode / until / max_cycles /
    cycle_index** (campaign stop fields). Prefer header Until/Max cycles if Driver omits them;
-   never invent until from chat. If the section is **malformed**, treat as **missing**.  
-5. **Chat / user prose** — intent only; never invent a test command, until string, or mark complete.
+   never invent a **custom** until from chat. If the section is **malformed**, treat as
+   **missing**.  
+   **Continuous + empty until:** if `mode` is continuous (header/Driver) and both header
+   `Until` and Driver `until` are empty/`none`/absent, **persist the fixed default**
+   `no material P0/P1 for 2 consecutive cycles (green tests)` into header + Driver before
+   Phase 1. This is not inventing user criteria — it restores the no-criteria continuous
+   default so Phase 3 rule 3 can fire and rule 4 stays suppressed.  
+5. **Chat / user prose** — intent only; never invent a test command, custom until string, or mark complete.
    User “finish” / “stop the run” while Status active → set Status `stopped (user)` and
    derive teardown (`reintegrate` if worktree remains). Incomplete cold-resume paste
    missing repo/slug (and cwd not inside a worktree) → **ask once** interactively, or
@@ -164,10 +170,13 @@ Then continue with the numbered steps below.
    For the **lightweight Phase 2** empty-backlog/no-execute path, append an entry with
    `Committed: pending`, Thesis such as `empty-backlog replan (no Phase 1 execute)`, Test
    result `PASS` (the suite was intentionally not re-run because no change set exists),
-   Outcome `partial`, and Error signature `none`. Hold both stop-condition counters and
-   the stored error signature *exactly* as they were. Do not apply the normal PASS/partial
-   matrix row; resetting `consecutive-no-progress` for this no-op would hide a real stall.
-   Set the header counter to `N`, then run Phase 3 normally.
+   Outcome `partial`, and Error signature `none`. Hold both **stall** counters
+   (`consecutive-no-progress`, `consecutive-same-error`) and the stored error signature
+   *exactly* as they were — do not apply the normal PASS/partial matrix row that would
+   reset `consecutive-no-progress`. For **`consecutive-non-material-cycles`**, follow
+   phase-2-learn empty-backlog rule: under default P0/P1×2 until, **+1** on this PASS so
+   two consecutive clean surveys can complete the campaign; otherwise hold unless Phase 3
+   runs a completion suite. Set the header counter to `N`, then run Phase 3 normally.
 
 6. For turns that will run Phases 1–3, apply the dirty-tree guard using the **shared
    code-dirty definition** (step 4) on the **active tree** (worktree if set, else launch).

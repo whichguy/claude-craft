@@ -48,8 +48,11 @@ S12 destroy       →  remove worktree when tip_on_launch
 ### S0 — Parse
 
 Read `references/parse.md`. Extract repo, target, tests, until, mode, worktree, caps.  
-**Defaults:** clear target → **continuous**; continuous until unset →  
+**Defaults:** clear target → **continuous**; continuous until unset (no criteria specified) →  
 `no material P0/P1 for 2 consecutive cycles (green tests)`; max_cycles 10.  
+**No-criteria stop:** completion requires two consecutive non-material green cycles
+(Phase 3 rule 3 / streak ≥ 2). Empty P0/P1 backlog after one cycle is **not** enough —
+rule 4 empty-backlog complete is suppressed under this default.  
 Echo parse card and **proceed** (do not wait for confirm). Abort unattended if tests/target
 missing with no ledger to resume; ask once for tests if interactive and missing.
 
@@ -106,8 +109,9 @@ While Status active and under caps (break order in caps.md):
    (see `../improve-loop/references/contracts/progress.md`), then emit via `goal.report` if available, else visible markdown.  
 5. **Update `## Driver`:** recompute `next_auto` / `resume_hint` / `updated` from disk rules (Phase 0);
    prefer `node <plugin>/tools/improve-next-auto.js` with a fact snapshot when Node is available; keep until/max_cycles/mode.  
-6. If terminal or until satisfied (default: streak ≥ 2; **or** custom until met per caps.md;
-   or Status complete), break (then S9–S12 — do not skip reintegrate while a worktree exists).
+6. If terminal or until satisfied (default: streak ≥ 2 only — not single-cycle empty backlog;
+   **or** custom until met per caps.md; or Status complete), break (then S9–S12 — do not skip
+   reintegrate while a worktree exists).
 
 **Goal host (preferred multi-cycle host):** if the harness has a goal facility, bind it per
 `../improve-loop/references/contracts/goal.md` — the goal **iterates** (each turn runs one

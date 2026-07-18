@@ -36,27 +36,47 @@ per `progress.md` (sibling contract):
 same markdown as a **user-visible control-channel message**. Reporting never replaces the
 ledger and never blocks reintegrate.
 
-## Stop predicate (shared)
+## Stop predicate (shared) — canonical table
 
-The continuous run stops when **any** of:
+**Precedence (first match wins):** existing terminal status → same-error ×3 → no-progress ×3
+→ driver/host caps → until classification. Caps and outer-loop docs **reference** this table;
+Phase 3 keeps executing numbered rules that implement it.
 
-1. `IMPROVE_LOOP.md` **Status** is `complete` or `stopped (...)` **and** the latest Log entry is **landed** (Committed yes + greppable commit), or a clean short-circuit with no work  
-2. **Until on disk** satisfied (header/Driver `until` non-empty and not `none`) — evaluate
-   **after every improve-loop cycle** on **disk facts**, whether the outer host is a **goal**
-   facility or native improve S8 (same procedure; mirror `improve/references/caps.md`):  
+| Condition | Result |
+|---|---|
+| Existing `complete` or `stopped (...)` (and landed when required) | Preserve it |
+| Same error ≥3 | `stopped (same-error ×3)` |
+| No progress ≥3 | `stopped (no-progress ×3)` |
+| Driver/host cap (`max_cycles` / `max_elapsed` / budget) | `stopped (<cap>)` |
+| Default P0/P1×2: zero unchecked P0/P1 + streak ≥2 + **current-cycle PASS** | Complete (`until: no-P0/P1×2`) |
+| Default P0/P1×2: zero unchecked P0/P1 + streak ≥2 + **no current-cycle suite** | **Confirm** — stay active; next cycle is a verification cycle (Phase 1 runs the recorded suite despite empty backlog); re-evaluate. Consecutive confirm with suite still absent increments no-progress |
+| Default P0/P1×2: eligible + current-cycle FAIL | Continue (seed regression work) |
+| Custom until unmet | Continue, regardless of backlog |
+| Custom until met + current-cycle PASS | Complete (`until: <short>`) |
+| Custom until met + no current-cycle suite | Confirm (as above) |
+| Custom until met + FAIL | Continue |
+| Once mode (`until: none`): empty backlog + PASS / none / FAIL | Complete / Confirm / Continue |
+
+Do **not** complete on "last non-material cycle was PASS" alone — that is non-current
+verification and routes to **Confirm**, never Complete.
+
+Evaluate **after every improve-loop cycle** on **disk facts** (goal facility or native S8;
+mirror `improve/references/caps.md`):
+
+1. Status already terminal and landed (or clean short-circuit with no work).  
+2. **Until on disk** (header/Driver `until` non-empty and not `none`):  
    - **Default P0/P1×2 form** (`no material P0/P1 for 2 consecutive cycles (green tests)`,
-     or phase-3 substring match): if `consecutive-non-material-cycles >= 2` **and** last
-     suite green → until met; set Status `complete` if still active; stop reason
-     `until: no-P0/P1×2`.  
-   - **Custom until** (any other non-empty string): the host goal turn (or improve S8)
-     **must evaluate the until text against disk** (Status, backlog, counters, test PASS,
-     landed paths, Stop-condition). If clearly met → set Status `complete` (or
-     `stopped (until: <short>)`); stop reason `until: <short>`. Do **not** ignore custom
-     until, re-ask for a stop condition already on disk, or wait only for max_cycles.  
-   - improve-loop Phase 3 auto-completes **only** the default P0/P1×2 form; custom until
-     is always outer-host (goal or S8) responsibility.  
-3. Caps: `max_cycles`, `max_elapsed`, token/usd budget, and/or host max-turns / max-budget  
-4. Unrecoverable block (no test command, code-dirty veto without resolution, etc.)
+     or phase-3 substring match): requires **all** of zero unchecked P0/P1, streak ≥ 2, and
+     current-cycle suite PASS to complete. Empty backlog alone is **not** enough — Phase 3
+     rule 4 is suppressed under this default.  
+   - **Custom until**: outer host (goal turn or improve S8) **must evaluate the until text
+     against disk**. Met + current-cycle PASS → complete; met + no suite → Confirm; unmet →
+     continue. Custom until is an authoritative product decision — never auto-complete from
+     empty backlog alone.  
+   - improve-loop Phase 3 auto-completes **only** the default form (rule 3); rule 4
+     empty-backlog complete is **once-mode (`until: none`) only**.  
+3. Caps: `max_cycles`, `max_elapsed`, token/usd budget, and/or host max-turns / max-budget.  
+4. Unrecoverable block (no test command, code-dirty veto without resolution, etc.).
 
 Until/mode/max_cycles live on the ledger header + `## Driver` (same values). Hosts must not
 invent a different stop string in chat after seed.

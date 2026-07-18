@@ -69,6 +69,24 @@ describe('claudecraft improve skill structure', function () {
     expect(text).to.match(/contracts\/goal\.md/);
   });
 
+  it('improve campaign shape: create once → iterate in worktree → reintegrate once', function () {
+    const skill = fs.readFileSync(path.join(CC, 'skills/improve/SKILL.md'), 'utf8');
+    expect(skill).to.match(/Campaign shape/i);
+    expect(skill).to.match(/create \(once\)|create once/i);
+    expect(skill).to.match(/reintegrate\s+→\s+once|reintegrate once/i);
+    expect(skill).to.match(/Not\*\* merge after every cycle|Not merge after every cycle/i);
+    expect(skill).to.match(/no permanent improve\/\*|no permanent.*branch/i);
+    expect(skill).to.match(/improve-loop.*one cycle|one cycle only/i);
+    const life = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/lifecycle.md'),
+      'utf8'
+    );
+    expect(life).to.match(/Worktree campaign model/i);
+    expect(life).to.match(/Create once|create once/i);
+    expect(life).to.match(/reintegrate once|once at end/i);
+    expect(life).to.match(/not.*after every cycle|Not\*\* after every cycle/i);
+  });
+
   it('normative law phrases still exist under improve-loop/references', function () {
     const refRoot = path.join(CC, 'skills/improve-loop/references');
     const blob = walk(refRoot).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
@@ -361,6 +379,10 @@ describe('claudecraft improve skill structure', function () {
     );
     expect(p2).to.match(/consecutive-non-material-cycles|non-material/);
     expect(p2).to.match(/default = material|default when code lands/i);
+    // Empty-backlog under default until must +1 non-material streak (two clean surveys)
+    expect(p2).to.match(/default P0\/P1×2 form|default P0\/P1x2 form/i);
+    expect(p2).to.match(/as non-material \*\*\+1\*\*/i);
+    expect(p2).to.match(/empty-backlog lightweight path/i);
     // P2/YAGNI row must appear before default material non-empty row (table order)
     const p2idx = p2.indexOf('P2/YAGNI-only');
     const matIdx = p2.indexOf('default = material');
@@ -373,6 +395,16 @@ describe('claudecraft improve skill structure', function () {
     );
     expect(p3).to.match(/consecutive-non-material-cycles >= 2|Until P0\/P1/);
     expect(p3).to.match(/non-empty and not `none`|until` is \*\*non-empty/i);
+    // Default until: rule 4 empty-backlog complete must be suppressed (streak≥2 only)
+    expect(p3).to.match(/Suppress rule 4 when default until is active/i);
+    expect(p3).to.match(/do not\*\* set Status `complete` here|do not set Status `complete` here/i);
+    expect(p3).to.match(/only rule 3|streak ≥ 2|streak >= 2/i);
+    // Zero open P0/P1 required; no carried-PASS complete; Confirm path present
+    expect(p3).to.match(/zero unchecked \*\*P0\/P1\*\*|zero unchecked P0\/P1/i);
+    expect(p3).to.match(/current-cycle PASS|this cycle's suite is green/i);
+    expect(p3).to.match(/Do \*\*not\*\* complete on "the last non-material cycle was PASS"|Do not complete on "the last non-material cycle was PASS"/i);
+    expect(p3).to.match(/Confirm path|verification cycle required/i);
+    expect(p3).to.match(/Also suppress rule 4 for custom/i);
     const caps2 = fs.readFileSync(
       path.join(CC, 'skills/improve/references/caps.md'),
       'utf8'
@@ -380,6 +412,7 @@ describe('claudecraft improve skill structure', function () {
     expect(caps2).to.match(/cycle_index >= max_cycles|cycle_index.*max_cycles/);
     expect(caps2).to.match(/Custom until|custom until/i);
     expect(caps2).to.match(/must evaluate the until text|evaluate the until text/i);
+    expect(caps2).to.match(/rule 4 is suppressed|rule 4.*suppressed/i);
     const outer = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/contracts/outer-loop.md'),
       'utf8'
@@ -388,13 +421,37 @@ describe('claudecraft improve skill structure', function () {
     // Host goal (preferred continuous path) must evaluate custom until — not S8-only
     expect(outer).to.match(/Host-goal|host goal|Outer host/i);
     expect(outer).to.match(/Custom non-empty|custom until|Custom until/i);
+    expect(outer).to.match(/rule 4.*suppressed|suppressed.*rule 4/i);
     const goal = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/contracts/goal.md'),
       'utf8'
     );
     expect(goal).to.match(/Custom until/);
-    expect(goal).to.match(/evaluate the until text against disk|against disk/i);
+    expect(goal).to.match(/evaluate the until text against disk|against disk|until text vs disk/i);
     expect(goal).to.match(/host goal turn|Outer host|goal facility|improve S8/i);
+    expect(goal).to.match(/Empty P0\/P1 backlog alone is \*\*not\*\* enough|zero unchecked P0\/P1/i);
+    // Canonical stop table: confirm row + no carried-PASS complete
+    expect(goal).to.match(/canonical table|Stop predicate \(shared\) — canonical/i);
+    expect(goal).to.match(/\*\*Confirm\*\*|Confirm — stay active/i);
+    expect(goal).to.match(/Do \*\*not\*\* complete on "last non-material cycle was PASS"|Do not complete on "last non-material cycle was PASS"/i);
+    expect(goal).to.match(/Precedence \(first match wins\)|terminal status → same-error/i);
+    // Ownership: improve-loop once-mode may create/reintegrate; continuous uses improve driver
+    const lifeOwn = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/lifecycle.md'),
+      'utf8'
+    );
+    expect(lifeOwn).to.match(/Ownership split|standalone once-mode/i);
+    expect(lifeOwn).to.not.match(/improve-loop` never create\/reintegrates|never create\/reintegrates/i);
+    // Continuous + empty until on rehydrate → write fixed default
+    const p0 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),
+      'utf8'
+    );
+    expect(p0).to.match(/Continuous \+ empty until|continuous.*empty until/i);
+    expect(p0).to.match(/no material P0\/P1 for 2 consecutive cycles/);
+    expect(parse).to.match(/no-criteria default|No-criteria/i);
+    expect(improve).to.match(/No-criteria stop|no criteria specified/i);
+    expect(improve).to.match(/rule 4.*suppressed|suppressed under this default/i);
     // S9 stop-reason catalog includes custom until short form
     const life = fs.readFileSync(
       path.join(CC, 'skills/improve/references/lifecycle.md'),

@@ -28,6 +28,26 @@ S13 DONE           final pulse; next_auto=done only when not still blocked:open-
 
 Progress schema: `../../improve-loop/references/contracts/progress.md`.
 
+## Worktree campaign model
+
+**Create once → iterate in worktree → reintegrate once** (default ON).
+
+| Phase | Timing | What |
+|---|---|---|
+| S2 create | **once** at campaign start | Detached-HEAD worktree at launch tip — **no** permanent `improve/*` branch |
+| S3 carry | once if launch dirty | Patch WIP into WT, bootstrap-commit, drain launch clean |
+| S8 iterate | **N times** until until/caps | Each step = one `improve-loop` cycle in **worktree cwd**; cycle commits stack on the detached tip |
+| S11 reintegrate | **once** at end (if WT created) | S11a rebase tip onto source; S11b merge tip → launch (default) — **not** after every cycle |
+| S12 destroy | once when tip on launch | Remove worktree unless keep / open-pr / blocked |
+
+- Mid-campaign ledger + code commits live **only** on the worktree tip until S11.
+- Continuous: many S8 cycles then one S11. Once mode: one S8 cycle then S11.
+- **Ownership split:** continuous campaigns use **`improve` S2/S3/S11/S12** for create /
+  reintegrate / destroy. **Standalone once-mode** (`/claudecraft:improve-loop` without the
+  driver) still uses improve-loop **Phase 0** (create/enter) and **Phase 5** (reintegrate)
+  as documented on the improve-loop operator card — do not claim improve-loop never
+  creates or reintegrates.
+
 ## Driver + resume (no second state file)
 
 Durable product state is **one** `IMPROVE_LOOP.md` in the **active** tree (includes `## Driver`).

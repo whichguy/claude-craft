@@ -21,17 +21,21 @@ Never run continuous improve-loop under an **unlimited** outer quota: dirty-tree
 **Default continuous until** (when unset on disk):  
 `no material P0/P1 for 2 consecutive cycles (green tests)` — tracked via ledger
 `consecutive-non-material-cycles` (improve-loop Phase 2); default form auto-completes in
-Phase 3 when streak ≥ 2. Persist **Until** + **Max cycles** on the ledger so rehydrate
-does not re-prompt.
+Phase 3 **rule 3 only** when **zero unchecked P0/P1** + streak ≥ 2 + **current-cycle**
+suite PASS. Carried PASS alone → Confirm (stay active; verification cycle). Phase 3
+**rule 4** (empty P0/P1 backlog → complete) is **suppressed** under this default **and**
+under custom non-`none` until. Persist **Until** + **Max cycles** on the ledger so
+rehydrate does not re-prompt. Canonical table: `goal.md`.
 
 **Until evaluation (both continuous hosts):** After each improve-loop cycle, the **outer
-host** (preferred: host **goal**; else improve S8) must apply `goal.md` stop predicate #2
+host** (preferred: host **goal**; else improve S8) must apply `goal.md` stop table
 and/or `improve/references/caps.md` step 4 — same rules:
 
 | Until on disk | Who evaluates | When met |
 |---|---|---|
-| Default P0/P1×2 form | Phase 3 auto **and** outer host re-check | streak ≥ 2 + green |
-| Custom non-empty string | **Outer host only** (goal turn or S8) — not Phase 3 | until text vs disk facts |
+| Default P0/P1×2 form | Phase 3 rule 3 **and** outer host re-check (rule 4 suppressed) | zero open P0/P1 + streak ≥ 2 + **current-cycle** green |
+| Custom non-empty string | **Outer host only** (goal turn or S8) — not Phase 3 | until text vs disk + current-cycle PASS |
+| `none` / absent (once) | Phase 3 rule 4 empty-backlog path | backlog empty + current-cycle green |
 
 Host-goal campaigns **must not** skip custom-until evaluation; ignoring it until max_cycles
 is the same defect class as S8-only evaluation (see quality-review learnings).

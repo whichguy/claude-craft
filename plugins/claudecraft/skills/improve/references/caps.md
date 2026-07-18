@@ -20,17 +20,25 @@ Read **disk** (`IMPROVE_LOOP.md` Status + Stop-condition + Driver), not chat.
 1. Hard block: Driver `next_auto` is `blocked:*` that needs human (rebase-continue, etc.) → break to S9 (blocked).  
 2. `max_cycles` / `max_elapsed` / budget exceeded → break (`stopped (max_cycles)` / … on ledger if not already).  
 3. Status already `stopped (same-error ×3)` or `stopped (no-progress ×3)` → break.  
-4. **Until satisfied** (header/Driver `until` non-empty and not `none`):  
-   - **Default P0/P1×2 form** (substring match per phase-3): if
-     `consecutive-non-material-cycles >= 2` **and** last suite green → success stop.  
+4. **Until** (header/Driver `until` non-empty and not `none`) — see canonical table in
+   `improve-loop/references/contracts/goal.md` (precedence: terminal → stalls → caps → until):  
+   - **Default P0/P1×2 form** (substring match per phase-3): success stop only when
+     **zero unchecked P0/P1** **and** `consecutive-non-material-cycles >= 2` **and**
+     **current-cycle** suite PASS. Do **not** complete on carried/last non-material PASS
+     alone (Confirm: stay active; next cycle runs the suite). Under this default, **do not**
+     treat “backlog empty of P0/P1 after one green cycle” as done — Phase 3 rule 4 is suppressed;
+     only the streak≥2 + zero open + current-cycle green path completes.  
    - **Custom until** (any other non-empty string): after each cycle, the **outer host**
      (native improve S8 **or** host **goal** turn — same rule; see
-     `improve-loop/references/contracts/goal.md` stop predicate #2) **must evaluate the until text**
+     `improve-loop/references/contracts/goal.md`) **must evaluate the until text**
      against disk facts (Status, backlog, counters, test PASS, Landed paths). If clearly
-     met → set Status `complete` (or stop reason `until: <short>`) and break. Do not ignore
-     custom until or re-ask the user for a stop condition that is already on disk.  
+     met **and** current-cycle suite PASS → set Status `complete` (or stop reason
+     `until: <short>`) and break. Met without a current-cycle suite → Confirm (continue
+     one verification cycle). Do not ignore custom until, re-ask for a stop condition
+     already on disk, or auto-complete from empty backlog alone.  
    - On success stop: ensure Status `complete` if still active, then break.  
-5. Status `complete` (backlog empty + green, or until) → break.  
+5. Status `complete` (until satisfied, or once-mode rule-4 empty-backlog complete with
+   current-cycle PASS) → break.  
 6. Else continue S8 (another improve-loop cycle).
 
 **`max_cycles` vs `cycle_index`:** Driver `cycle_index` starts at 0; before each cycle if

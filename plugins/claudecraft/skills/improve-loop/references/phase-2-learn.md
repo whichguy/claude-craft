@@ -57,8 +57,14 @@ Use this explicit matrix:
 3. Then the normal PASS/FAIL rows above — for non-empty lands evaluate **P2/YAGNI Notes row
    before** the default material row (table order is load-bearing).
 4. Separately, the empty-backlog lightweight path (Phase 0 step 5) holds *both* stall counters
-   and the signature; for non-material streak treat like non-material **+1** only if STATUS
-   PASS after any completion-suite (else hold).
+   and the signature. For **non-material streak**:
+   - If header/Driver `until` matches the **default P0/P1×2 form** (continuous no-criteria
+     stop): treat a lightweight cycle with Test result PASS (or confirmation-suite PASS in
+     Phase 3 that does **not** complete) as non-material **+1**. This is what accumulates
+     the two consecutive clean surveys; rule 4 is suppressed so completion is only via
+     streak ≥ 2 in Phase 3 rule 3.
+   - Otherwise (once mode / custom until): non-material **+1** only if STATUS PASS after
+     any completion-suite (else hold) — once-mode still completes via Phase 3 rule 4.
 
 Derive an error signature deterministically. Prefer the first failing test node id or
 file+line greppable from `TEST_OUTPUT_TAIL`, using language-agnostic lines matching

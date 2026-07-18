@@ -169,25 +169,53 @@ turn, leave unexpected paths unstaged so the next invocation's Phase 0 dirty-tre
 stops. Never fold advisor-side dirt into the cycle commit.
 
 Immediately after surgical apply or deliberate non-apply, and without a subagent, use the
-counters Phase 2 already wrote to update Status *in this exact order*:
+counters Phase 2 already wrote to update Status *in this exact order* (canonical table:
+`contracts/goal.md` — terminal status → same-error → no-progress → caps → until):
 
 1. `consecutive-same-error >= 3` → `stopped (same-error ×3)`
 2. `consecutive-no-progress >= 3` → `stopped (no-progress ×3)`
-3. **Until P0/P1×2 (disk):** if header/Driver `until` is **non-empty and not `none`** and
-   matches the default form
+3. **Until P0/P1×2 (disk) — default form only:** if header/Driver `until` is **non-empty and
+   not `none`** and matches the default form
    `no material P0/P1 for 2 consecutive cycles (green tests)` (case-insensitive substring
-   `P0/P1` + `2` consecutive, or the full default string) **and**
-   `consecutive-non-material-cycles >= 2` **and** this cycle's suite is green (or the last
-   non-material cycle was PASS) → set Status `complete` (until satisfied). Do **not** invent
-   until in chat; only honor disk. If `until` is `none`/absent (typical **once** mode), skip
-   this rule. User-specified **custom** until strings are **not** auto-evaluated here —
-   the outer host (improve S8 per caps.md, **or** host goal per `contracts/goal.md`)
-   must judge them against disk after each cycle; improve-loop only auto-completes on
-   this default until form.
+   `P0/P1` + `2` consecutive, or the full default string) **and** zero unchecked **P0/P1**
+   after replan **and** `consecutive-non-material-cycles >= 2`:
+   - **this cycle's suite is green (current-cycle PASS)** → set Status `complete` (until
+     satisfied). Stop reason `until: no-P0/P1×2`.
+   - **no suite ran this cycle** (lightweight residual, carried PASS, cold resume) → leave
+     Status **`active`** (Confirm path — **not** complete). Notes:
+     `confirm: verification cycle required`. Next cycle Phase 1 **must** run the recorded
+     suite despite empty backlog; re-evaluate. A consecutive confirm where the suite is
+     *still* absent increments `consecutive-no-progress` (no-progress×3 bounds the loop).
+     Do **not** complete on "the last non-material cycle was PASS" alone.
+   - **this cycle's suite FAIL** → leave Status `active`; seed regression P0/P1 as needed
+     (not complete).
+
+   Do **not** invent until in chat; only honor disk. If `until` is `none`/absent (typical
+   **once** mode), skip this rule. User-specified **custom** until strings are **not**
+   auto-evaluated here — the outer host (improve S8 per caps.md, **or** host goal per
+   `contracts/goal.md`) must judge them against disk after each cycle and may only complete
+   when the criterion is met **and** a current-cycle suite PASS exists. improve-loop only
+   auto-completes on this default until form under the conditions above.
 4. Backlog has zero unchecked **P0/P1** items after replan (P2-only optional bullets may remain
    unchecked without blocking) → `complete`, **but gate it on a green
    suite** — a "tested improvement" loop must never sign off, or record a green result,
-   without a green suite. Three sub-cases, by what happened *this* cycle:
+   without a green suite.
+
+   **Suppress rule 4 when default until is active.** If header/Driver `until` matches the
+   default P0/P1×2 form (same match as rule 3 above), **do not** set Status `complete` here —
+   leave Status `active` even when the backlog is empty. Empty-backlog / last-item-checked
+   cycles must keep running so Phase 2 can accumulate `consecutive-non-material-cycles`;
+   only rule 3 (zero open P0/P1 + streak ≥ 2 + **current-cycle** green, or Confirm) completes
+   under the default continuous criteria. Still run confirmation-suite sub-cases when useful
+   for evidence, but a PASS must **not** flip Status to `complete` while default until is on
+   disk and streak is below 2.
+
+   **Also suppress rule 4 for custom non-`none` until.** Empty-backlog complete under a
+   custom until is outer-host only — never auto-complete here just because the backlog is
+   empty. Custom until is an authoritative product decision evaluated by S8/goal host.
+
+   When rule 4 is **not** suppressed (`until` is `none`/absent only — typical once mode),
+   three sub-cases, by what happened *this* cycle:
    - **(a) A normal PASS cycle that just checked off its last item** (the suite already ran
      and PASSED this cycle, with non-empty `CHANGED_PATHS`): that green run is the
      confirmation → set `complete`.
