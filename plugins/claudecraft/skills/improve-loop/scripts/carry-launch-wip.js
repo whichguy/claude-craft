@@ -481,13 +481,21 @@ function restoreWipToLaunch(workspace, launch, opts = {}) {
 }
 
 /**
- * Advisory isolation teardown — never force-destroy WIP.
+ * Isolation teardown after product land (FF already done by caller).
+ *
+ * Mental model (two loops):
+ *   - Product loop: tests + commits + FF — already finished before this runs.
+ *   - Housekeeping: put borrowed launch WIP back on launch, then delete the
+ *     disposable worktree tray. This is NOT product failure recovery.
  *
  * Order:
- *   1. restore non-isolation worktree WIP onto launch (best-effort, keep workspace copy)
- *   2. soft `git worktree remove` (NO --force, NO fs.rmSync)
- *   3. soft `git branch -d` only (NO -D)
- *   4. optional pointer clear (caller decides)
+ *   1. restore non-isolation worktree WIP onto launch (best-effort copy/apply)
+ *   2. **always** remove the worktree — force allowed after restore was attempted
+ *      (copy-out leaves the tray dirty; soft-remove would orphan forever)
+ *   3. soft `git branch -d` only (NO -D) once the worktree is gone
+ *
+ * Policy (skip-exists / ambient race): launch wins; force-remove still proceeds;
+ * notes record what was skipped. Hard keep only if remove itself fails (lock).
  *
  * @param {string} launch
  * @param {{ worktree?: string|null, campaign?: string|null, notes?: string[] }} opts
@@ -502,100 +510,55 @@ function advisoryTeardownIsolation(launch, opts = {}) {
   let worktree_kept = false;
 
   if (worktree && fs.existsSync(worktree)) {
+    // Step 1: give borrowed files back to launch (not a product "fix").
     try {
       restoreWipToLaunch(worktree, launch, { notes });
     } catch (e) {
       notes.push('restore-wip-unexpected: ' + errMsg(e).slice(0, 120));
     }
 
-    // Isolation + untracked litter is safe to drop so soft-remove can succeed.
-    // Never touch ambient/code paths here — those were restored (or kept).
+    // Step 2: tray is disposable after restore attempt — always remove.
+    // Force is required because restore is copy-out (worktree stays dirty with
+    // carried WIP / ambient). Soft-remove-without-force was the orphan farm.
     try {
-      const {
-        porcelain,
-        classifyLaunchDirt,
-        isIsolationDirt,
-        cleanUntrackedLitter,
-      } = require('./lib-paths.js');
-      const litterClean = cleanUntrackedLitter(worktree);
-      for (const n of litterClean.notes || []) notes.push(n);
-      const classified = classifyLaunchDirt(porcelain(worktree));
-      // Drop isolation plumbing; if only ambient/litter remain after restore,
-      // note orphan-safe-to-prune (ambient may reappear from race).
-      for (const p of classified.isolation) {
-        if (!isIsolationDirt(p)) continue;
-        try {
-          fs.rmSync(path.join(worktree, p), { recursive: true, force: true });
-        } catch {
-          /* leave; soft-remove may still keep tree */
-        }
-      }
-      if (classified.isolation.length) {
-        notes.push('teardown-advisory: isolation dirt cleaned for soft-remove');
-      }
-      // Retry soft-remove when no product code dirt remains.
-      if (classified.code.length === 0) {
-        notes.push('teardown-advisory: worktree has no product code dirt');
-      }
-    } catch (e) {
-      notes.push(
-        'teardown-advisory: isolation-clean skip: ' + errMsg(e).slice(0, 80)
-      );
-    }
-
-    // Soft remove only — never --force, never recursive rm of the tree.
-    try {
-      git(launch, ['worktree', 'remove', worktree]);
+      git(launch, ['worktree', 'remove', '--force', worktree]);
       worktree_removed = true;
-      notes.push('teardown-advisory: worktree soft-removed');
+      notes.push('teardown: worktree removed (force after restore)');
     } catch (e) {
-      // One retry after re-check: sometimes restore left only ambient that launch already has.
+      // Retry once without relying on porcelain clean — still force.
       try {
-        const { porcelain, classifyLaunchDirt, cleanUntrackedLitter } =
-          require('./lib-paths.js');
-        cleanUntrackedLitter(worktree);
-        const c2 = classifyLaunchDirt(porcelain(worktree));
-        if (c2.code.length === 0) {
-          // Still may refuse if ambient dirty — soft remove without force won't clear.
-          git(launch, ['worktree', 'remove', worktree]);
-          worktree_removed = true;
-          notes.push('teardown-advisory: worktree soft-removed (retry)');
-        } else {
-          throw e;
-        }
+        git(launch, ['worktree', 'remove', '--force', worktree]);
+        worktree_removed = true;
+        notes.push('teardown: worktree removed (force retry)');
       } catch (e2) {
         worktree_kept = true;
         worktree_removed = false;
         notes.push(
-          'teardown-advisory: worktree kept (soft-remove refused — dirt or lock): ' +
-            worktree
+          'teardown-incomplete: worktree remove failed (lock?): ' + worktree
         );
+        notes.push('teardown-detail: ' + errMsg(e2).slice(0, 160));
         notes.push(
-          'teardown-advisory-detail: ' + errMsg(e2).slice(0, 160)
-        );
-        notes.push(
-          'orphan-worktree-safe-to-prune: inspect then: git -C ' +
+          'operator: git -C ' +
             launch +
-            ' worktree remove ' +
-            worktree +
-            '  # or worktree prune after manual clean; never --force from improve-loop'
+            ' worktree remove --force ' +
+            worktree
         );
       }
     }
   } else {
     worktree_removed = !worktree || !fs.existsSync(worktree);
-    if (worktree_removed) notes.push('teardown-advisory: worktree already gone');
+    if (worktree_removed) notes.push('teardown: worktree already gone');
   }
 
   if (campaign) {
     try {
       git(launch, ['branch', '-d', campaign]);
       branch_deleted = true;
-      notes.push('teardown-advisory: branch soft-deleted (-d)');
+      notes.push('teardown: branch soft-deleted (-d)');
     } catch {
       branch_deleted = false;
       notes.push(
-        'teardown-advisory: branch kept (not fully merged or -d refused): ' +
+        'teardown: branch kept (not fully merged, still checked out, or -d refused): ' +
           campaign
       );
     }

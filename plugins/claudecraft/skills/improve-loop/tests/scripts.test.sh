@@ -335,8 +335,10 @@ assert "different target notes discard-stale-different-target" grep -q 'discard-
 assert "different target cold-start mode" grep -qE '"mode": "(discard-stale-cold-start|cold-start)"' "$OUT6d"
 WS6d="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT6d")"
 assert "different target new workspace" test "$WS6d" != "$WS6"
-# carried product WIP should have been restored to launch (best-effort) so not lost
-assert "different target restored extra.c to launch or kept somewhere" bash -c "test -f \"$REPO6/extra.c\" || test -f \"$WS6/extra.c\""
+# Prior worktree force-removed after restore; WIP either on launch or re-carried into the
+# new worktree (enter cleans launch after carry). Old WS6 must not be the only copy.
+assert "different target WIP not lost" bash -c "test -f \"$REPO6/extra.c\" || test -f \"$WS6d/extra.c\""
+assert "different target old worktree gone" bash -c "test ! -d \"$WS6\""
 
 # reintegrate_blocked → merge-back-only mode
 REPO7="$TMP/repo7"
@@ -567,7 +569,7 @@ assert "merge-back worktree_removed true" grep -q '"worktree_removed": true' "$O
 assert "merge-back pointer_cleared true" grep -q '"pointer_cleared": true' "$OUT_MB_AMB"
 assert "ambient landed on launch after FF" grep -q changed "$REPO_AMB/cron/jobs.json"
 
-# --- merge-back advisory teardown: uncommitted carried WIP must survive (never force-destroy) ---
+# --- teardown: carried WIP restored to launch, then worktree always removed ---
 REPO_ADV="$TMP/repo-advisory-teardown"
 mkdir -p "$REPO_ADV"
 git -C "$REPO_ADV" init -q -b main
@@ -584,12 +586,11 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_ADV" --target "advisory teardown
 WS_ADV="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT_ADV_E")"
 assert "advisory: WIP carried into workspace" grep -q only-copy-wip "$WS_ADV/important.txt"
 assert "advisory: launch cleaned after enter" bash -c "! grep -q only-copy-wip \"$REPO_ADV/important.txt\""
-# Campaign product commit only (leave carried WIP uncommitted — the failure mode we fix)
+# Campaign product commit only (carried WIP stays uncommitted — restored at teardown)
 echo campaign >"$WS_ADV/README"
 git -C "$WS_ADV" add README
 [[ -f "$WS_ADV/.gitignore" ]] && git -C "$WS_ADV" add .gitignore || true
 git -C "$WS_ADV" commit -q -m "improve-loop: iteration 1 — campaign only"
-# important.txt stays dirty in worktree
 assert "advisory: WIP still dirty in worktree" grep -q only-copy-wip "$WS_ADV/important.txt"
 OUT_ADV_MB="$TMP/mergeback-advisory.json"
 set +e
@@ -599,11 +600,45 @@ set -e
 assert "advisory merge-back exit 0" test "$MB_ADV_EC" -eq 0
 assert "advisory merge-back ok-ish" grep -qE '"merge_back": "ok"|"merge_back": "ok_teardown_advisory"' "$OUT_ADV_MB"
 assert "advisory pointer cleared" grep -q '"pointer_cleared": true' "$OUT_ADV_MB"
-# Critical: only-copy WIP must be on launch after merge-back (restored, not destroyed)
+# Borrowed WIP must land on launch; tray must be gone (force after restore)
 assert "advisory WIP restored to launch" grep -q only-copy-wip "$REPO_ADV/important.txt"
-# Must not force-remove when dirty would lose data — either soft-removed after restore, or kept
-# (both ok). Never leave launch without the WIP.
-assert "advisory never force-lost WIP" grep -q only-copy-wip "$REPO_ADV/important.txt"
+assert "advisory never lost WIP on launch" grep -q only-copy-wip "$REPO_ADV/important.txt"
+assert "advisory worktree removed" grep -q '"worktree_removed": true' "$OUT_ADV_MB"
+assert "advisory branch soft-deleted" grep -q '"branch_deleted": true' "$OUT_ADV_MB"
+assert "advisory worktree path gone" bash -c "test ! -d \"$WS_ADV\""
+
+# --- skip-exists: launch wins; force-remove still proceeds ---
+# Worktree has unique untracked content; launch already has dest → restore skips.
+# Policy: do not keep orphan tray; launch bytes preserved; worktree gone.
+REPO_KEEP="$TMP/repo-keep-unrestored"
+mkdir -p "$REPO_KEEP"
+git -C "$REPO_KEEP" init -q -b main
+git -C "$REPO_KEEP" config user.email "test@example.com"
+git -C "$REPO_KEEP" config user.name "Test"
+echo base >"$REPO_KEEP/README"
+git -C "$REPO_KEEP" add README
+git -C "$REPO_KEEP" commit -q -m init
+BR_KEEP="improve/keep-unrestored-test"
+WS_KEEP="$REPO_KEEP/.worktrees/keep-unrestored"
+git -C "$REPO_KEEP" worktree add -b "$BR_KEEP" "$WS_KEEP" -q
+echo unique-only-on-wt >"$WS_KEEP/secret-wip.txt"
+echo launch-already-has >"$REPO_KEEP/secret-wip.txt"
+OUT_KEEP_TD="$TMP/teardown-keep.json"
+node -e "
+const {advisoryTeardownIsolation}=require(process.argv[1]);
+const notes=[];
+const r=advisoryTeardownIsolation(process.argv[2],{
+  worktree: process.argv[3],
+  campaign: process.argv[4],
+  notes,
+});
+console.log(JSON.stringify({...r, notes}, null, 2));
+" "$SCRIPTS/carry-launch-wip.js" "$REPO_KEEP" "$WS_KEEP" "$BR_KEEP" >"$OUT_KEEP_TD"
+assert "skip-exists worktree removed" grep -q '"worktree_removed": true' "$OUT_KEEP_TD"
+assert "skip-exists worktree_kept false" grep -q '"worktree_kept": false' "$OUT_KEEP_TD"
+assert "skip-exists launch not overwritten" grep -q launch-already-has "$REPO_KEEP/secret-wip.txt"
+assert "skip-exists note recorded" grep -q 'restore-wip-skip-exists:secret-wip.txt' "$OUT_KEEP_TD"
+assert "skip-exists worktree path gone" bash -c "test ! -d \"$WS_KEEP\""
 
 # Ambient + real code dirt → still block merge-back
 REPO_MIX="$TMP/repo-mix"

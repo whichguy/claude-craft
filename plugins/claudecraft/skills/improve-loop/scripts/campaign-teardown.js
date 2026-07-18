@@ -5,9 +5,9 @@
  * Use on fail/block exit so the next /improve does not resume dirt.
  * Does NOT merge into launch. Prefer merge-back.js after terminal land.
  *
- * Teardown is lenient / advisory:
+ * Teardown (same housekeeping as merge-back, no FF):
  *   - restore non-isolation worktree WIP onto launch first (best-effort)
- *   - soft worktree remove only (never --force, never fs.rmSync of the tree)
+ *   - always worktree remove --force after restore attempt
  *   - soft branch -d only (never -D)
  *   - always clear pointer best-effort so next /improve can cold-start
  *

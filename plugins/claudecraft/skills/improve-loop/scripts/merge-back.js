@@ -15,11 +15,12 @@
  *     → non-blocking; untracked litter is auto-cleaned before classify
  *   - code (everything else) → blocks with exit 3
  *
- * Teardown is **advisory / lenient** (never destructive of WIP):
- *   - restore non-isolation worktree WIP onto launch (best-effort)
- *   - soft `git worktree remove` only — never `--force`, never `fs.rmSync`
+ * Teardown (housekeeping after product FF — not product recovery):
+ *   - restore borrowed non-isolation WIP onto launch (best-effort)
+ *   - **always** `git worktree remove --force` after restore was attempted
+ *     (worktree is a disposable tray; copy-out leaves it dirty — soft-remove orphans)
  *   - soft `git branch -d` only — never `-D`
- *   - FF success still returns ok even when worktree/branch are kept
+ *   - worktree_kept only if remove fails (lock); FF still counts as land
  *
  * Exit codes:
  *   0 ok (FF + advisory teardown) or skipped (no launch_branch) with reintegrate_blocked set

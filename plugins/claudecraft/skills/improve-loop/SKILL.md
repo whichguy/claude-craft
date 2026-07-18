@@ -1091,8 +1091,8 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    `--resume` while a post-carry pointer is active **for that same target**.
 
    **Different target:** if the live pointer's `target` (normalized) differs from this
-   invoke's `--target`, L3 **does not** exit 10 — it runs advisory discard-stale
-   (restore WIP to launch, soft-remove) then cold-starts, with notes
+   invoke's `--target`, L3 **does not** exit 10 — it runs discard-stale (restore WIP to
+   launch, then force-remove worktree) then cold-starts, with notes
    `discard-stale-different-target:<old>→<new>`. Catalog skill-by-skill `/improve` must
    not require a manual teardown between targets.
 
@@ -2016,13 +2016,15 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   `.worktrees/*`. **Never freehand-stash** launch dirt to force merge — L3 ignores ambient
   prefixes; real code dirt requires operator commit/discard.
 
-  **Teardown is advisory / lenient (non-negotiable):** merge-back and campaign-teardown
-  **must not** force-destroy WIP. They restore non-isolation worktree dirt onto launch
-  best-effort, then soft-remove (`git worktree remove` **without** `--force`, `git branch
-  -d` only — never `-D` / never `fs.rmSync` of the tree). If soft-remove refuses, **keep**
-  the worktree and report `teardown-advisory` / `worktree_kept` notes — FF success still
-  counts as landed. **Never** call merge-back unless this cycle's Phase 4 commit landed
-  (`PHASE4_COMMIT_OK=true`).
+  **Teardown is housekeeping after product land (not product recovery):** merge-back and
+  campaign-teardown (1) **restore** borrowed non-isolation WIP onto launch best-effort
+  ("give mail/keys back to the counter"), then (2) **always remove the worktree** with
+  `git worktree remove --force` (the worktree is a disposable tray; restore is copy-out so
+  it stays dirty — soft-remove without force was the orphan farm), then (3) `git branch -d`
+  only — never `-D`. Skip-exists / ambient races: **launch wins**; force-remove still runs;
+  notes record skips. `worktree_kept` only if remove fails (e.g. lock) — that is
+  **teardown incomplete**, not a soft success. **FF success is product land** regardless.
+  **Never** call merge-back unless this cycle's Phase 4 commit landed (`PHASE4_COMMIT_OK=true`).
 
   Emit a **Merge-back card** (mandatory after the L3 call, success or fail):
 
@@ -2034,8 +2036,8 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   | **Result** | ok \| ok_teardown_advisory \| blocked \| skipped_detached \| teardown_partial |
   | **FF into** | `<launch_branch>` · campaign `<campaign_branch>` |
   | **SHAs** | `<short tip after FF or —>` |
-  | **Worktree removed** | yes \| no (soft only — never force) |
-  | **Worktree kept** | yes \| no · path if kept (advisory — WIP restored to launch when possible) |
+  | **Worktree removed** | yes (expected) \| no only if remove failed |
+  | **Worktree kept** | no (expected) \| yes = **teardown incomplete** (lock?) — product already FF'd |
   | **Branch deleted** | yes \| no (`-d` only) |
   | **Pointer cleared** | yes \| no |
   | **Ambient ignored** | <paths or _(none)_> |
@@ -2043,7 +2045,7 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   | **Blocking dirt** | <paths or _(none)_> |
   | **Error** | <one line or —> |
   | **Next if blocked** | clean/commit blocking paths · re-run `merge-back.js` / `/improve` merge-back-only |
-  | **Next if worktree kept** | inspect kept path · WIP should already be restored on launch · when notes include `orphan-worktree-safe-to-prune`, use that copy-paste `git worktree remove <path>` (or `worktree prune` after manual clean) — **never** `--force` from the skill |
+  | **Next if worktree kept** | product already landed — run operator `git worktree remove --force <path>` from notes |
   ```
 
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
