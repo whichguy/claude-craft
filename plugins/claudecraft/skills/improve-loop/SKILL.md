@@ -38,8 +38,10 @@ loop iteration**. Cap: `MAX_CYCLES` default **8** (env `IMPROVE_LOOP_MAX_CYCLES`
 
 **Default complete rule (P0/P1 residual discipline):** Plan from git digest; classify open
 work as **P0/P1**; complete **only** after **two consecutive** cycles with **zero open
-P0/P1** (plus green suite). Empty backlog after one cycle is **not** enough to complete.
-See [P0/P1 residual discipline](#p0p1-residual-discipline-default).
+P0/P1 after replan** (plus green suite). Empty backlog after one cycle is **not** enough
+to complete. The cycle that **finishes the last P1** and replans empty still counts as
+streak **1** (Status stays `active`); the next cycle is residual-only and must reach
+streak **2**. See [P0/P1 residual discipline](#p0p1-residual-discipline-default).
 
 **Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver. **Do not** stop
 after the first `active` cycle waiting for the user when mode is autonomous.
@@ -49,11 +51,13 @@ campaign edits live in **one ephemeral worktree** on `improve/<slug>` under
 `LAUNCH/.worktrees/`. Launch is read-only mid-run. Merge-back once at end (terminal land).
 
 **Self-contained cycles (product default):** Each L2 cycle is self-contained. **Git commit
-bodies are the durable ledger** (Thesis/Outcome/Notes/`Next backlog`/`Next deferred`). There
-is **no cross-invoke resume** by default: entry **discards stale** pointer/worktree, then
-cold-starts. In-session multi-cycle reuses the **same invoke’s** worktree only. Opt-in crash
-recovery: `--resume` on `worktree-enter` / invocation. Optional ephemeral `IMPROVE_LOOP.md`
-during a run for advisors — never the recovery surface.
+bodies are the durable ledger and learnings store** (Thesis / Outcome / Test evidence /
+What landed / Advisor consolidation / Notes / open-only `Next backlog` / `Next deferred` /
+stop state). Phase 0 digests those fields for anti-reseed and replan. There is **no
+cross-invoke resume** by default: entry **discards stale** pointer/worktree, then cold-starts.
+In-session multi-cycle reuses the **same invoke’s** worktree only. Opt-in crash recovery:
+`--resume` on `worktree-enter` / invocation. Optional ephemeral `IMPROVE_LOOP.md` during a
+run for advisors — never the recovery surface.
 
 **Package paths** (resolve relative to this skill directory):
 
@@ -126,52 +130,100 @@ Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
 Applies to **every** `/improve` target (code, skill, docs). Goal: plan improvements from
 evidence, do material work, and only sign off after a second independent residual pass.
 
-### Classification
+### Backlog = open work only (pure eval context — non-negotiable)
 
-Every **open material** backlog item must be tagged:
+`## Backlog` is the **work queue**, not a history log. Finished items **must not** stay in
+the live backlog as `- [x] …` peers — that pollutes replan/advisor context. Historical
+knowledge (what improved, why, what failed) lives in **git commit bodies** and the Phase 0
+**prior-learnings digest**.
+
+| Form | Meaning | Phase 1 execute? | Residual / open-P0/P1 count? |
+|---|---|---|---|
+| `- [ ] P0:` / `- [ ] P1:` | **Open** — still material | yes (selectable) | counts as open |
+| `- [x] …` in Backlog | **Legacy / invalid** — strip on sight (do not keep) | never | does not count |
 
 ```text
-- [ ] P0: <item> — <why this is material>
-- [ ] P1: <item> — <why this is material>
+- [ ] P1: <item> — <why this is material>     ← only form allowed in live ## Backlog
 ```
 
-Checked items may keep their tag: `- [x] P1: … — done <date> …`.
+**Complete-item rule (Phase 2 — delete from work queue):** when STATUS is PASS, Outcome is
+`confirmed`, and `CHANGED_PATHS` is non-empty, the orchestrator **removes** the selected
+open line from `## Backlog` entirely (do not flip to `[x]` and leave it). Record the finish
+in the Log entry (Thesis / Outcome / Notes) so Phase 4’s commit body banks the learning.
+Leave the line **open** (`[ ]`) on FAIL, `disproven`, `blocked`, or `partial` so replan can
+refine remaining work. Deleting only on confirmed+landed paths prevents re-select this cycle;
+anti-reseed across cycles is **git digest**, not a done checkbox.
 
-**Deferred (P2) — consider later, not residual blockers.** Park non-material follow-ups as:
+**Done memory = git commit metadata (mandatory, not backlog `[x]`).** Every improve commit
+body already carries the durable learnings surface. Phase 0 step 7 **must** pull and use:
+
+| Commit-body field | Use when evaluating / seeding / replanning |
+|---|---|
+| **Thesis** | What was tried and why we thought it would help |
+| **Outcome** | `confirmed` / `disproven` / `partial` / `blocked` + disproof evidence |
+| **Test evidence** | STATUS + signature / suite summary |
+| **What landed** | paths or `no code landed` |
+| **Advisor consolidation** | agreements, risks, chosen direction |
+| **Notes for next cycle** | forward-looking constraints |
+| **Next backlog** | **open** P0/P1 only (or empty + streak) — work queue snapshot |
+| **Next deferred** | open P2 consider-later list |
+| **Stop-condition state** | counters / Status |
+
+Build an in-memory **COMPLETED_SET** (semantic short lines) from iterations whose most-recent
+Outcome was `confirmed` (and optionally `partial` with non-empty What landed), plus a
+**DISPROVEN_SET** from most-recent `disproven` theses. Advisors and seed/replan receive both
+sets **alongside** the open Backlog — never by stuffing finished work back into `## Backlog`.
+
+**Anti-reseed rule (residual + cold-start + replan):** must **not** propose open P0/P1 that
+semantically restates work already in **COMPLETED_SET** or a most-recent **disproven** thesis
+without a stated re-open reason. Prefer new gaps from target inspection; if none, leave open
+P0/P1 empty (residual path). Notes on drop: `replan re-opened completed work — dropped` or
+the existing disproven-thesis Notes line.
+
+**Material** = open (`- [ ]`) Backlog lines matching `P0:` or `P1:` only.  
+Replan candidates with open Backlog items lacking P0/P1 tags are **invalid** — rewrite or
+drop with Notes `replan item missing P0/P1 tag — rewritten/dropped`. Do **not** put `P2:`
+lines in `## Backlog`. Do **not** put `- [x]` lines in `## Backlog` (strip with Notes
+`legacy [x] stripped from Backlog — memory is git digest`).
+
+**Deferred (P2) — consider later, not residual blockers.** Open-only under
+`## Deferred (P2)` / `Next deferred:` (same purity rule — drop finished deferred; history is
+git + Notes):
 
 ```text
 - [ ] P2: <item> — <why deferred / not material this campaign>
 ```
 
-in `## Deferred (P2)` (ledger) and `Next deferred:` (commit body). Unchecked `P2:` lines are
-**not** material, are **never** selected for Phase 1 execute, and **do not** reset or block
-`consecutive-non-material-cycles`. Cap ~8–12 open deferred lines; dedupe/drop stale with a
-Notes line. One-off observations that are not “consider later” may stay in Log Notes only.
+Unchecked `P2:` lines are **not** material, are **never** selected for Phase 1 execute, and
+**do not** reset or block `consecutive-non-material-cycles`. Cap ~8–12 open deferred lines;
+dedupe/drop stale with a Notes line. One-off observations that are not “consider later” may
+stay in Log Notes only.
 
-**Material** = unchecked lines matching `P0:` or `P1:` after the checkbox (Backlog only).  
-Replan candidates with open **Backlog** items lacking P0/P1 tags are **invalid** — rewrite or
-drop with a Notes line `replan item missing P0/P1 tag — rewritten/dropped`. Do **not** put
-`P2:` lines in `## Backlog`.
+### Planning (every Phase 3) — live open queue **and** git history (mandatory)
 
-### Planning (every Phase 3) — ledger **and** git history (mandatory)
+Planning always uses **both** surfaces when available — open queue for “what next?”, git
+for “what we already learned”:
 
-Planning always uses **both** surfaces when available:
-
-1. **Git prior-learnings digest** (Phase 0 step 7): last 15 improve commit bodies — Thesis,
-   Outcome, evidence, Notes, **`Next backlog:`**, and **`Next deferred:`** / archived
-   `## Deferred (P2)`.
-2. **Live ledger** when `IMPROVE_LOOP.md` exists: full Log + `## Backlog` + `## Deferred (P2)`
-   + stop counters (advisors receive the path; orchestrator reads both sections).
-3. Advisors / native-replanner produce **two bodies** (not backlog-only):
-   - **Backlog body** — open items only `P0:` / `P1:` (material; residual streak).
-   - **Deferred body** — open items `P2:` under Deferred (or `Next deferred: (none)`).
-4. Prefer concrete P0/P1 from target inspection + digest over vague residual-only seeds when
-   material gaps are visible.
+1. **Git prior-learnings digest** (Phase 0 step 7): last 15 improve **commit bodies** —
+   full Thesis / Outcome / Test evidence / What landed / Advisor consolidation / Notes /
+   **`Next backlog:`** (**open** P0/P1 only) / **`Next deferred:`** / stop state. Explicitly
+   flag `disproven` outcomes and build **COMPLETED_SET** + **DISPROVEN_SET** from those
+   fields (not from backlog `[x]` lines).
+2. **Live ledger** when `IMPROVE_LOOP.md` exists: Log + **open** `## Backlog` + open
+   `## Deferred (P2)` + stop counters (advisors get the path; orchestrator reads sections).
+3. Advisors / native-replanner produce **two bodies** (not whole-file rewrites):
+   - **Backlog body** — **open only** `- [ ] P0:` / `- [ ] P1:` (material; residual streak).
+     **Never** emit `- [x]` in Backlog. Do **not** re-propose COMPLETED_SET / DISPROVEN_SET
+     items without re-open rationale.
+   - **Deferred body** — open `- [ ] P2:` only (or `Next deferred: (none)`).
+4. Prefer concrete P0/P1 from target inspection + digest **gaps** over vague residual-only
+   seeds — **excluding** semantic overlap with COMPLETED_SET / unexcused DISPROVEN_SET.
 5. **Do not auto-promote** Deferred → P0/P1. Promote only when residual survey / advisors
    judge an item newly material; Notes line `promoted P2→P1: <short>`.
-6. Disproven-thesis guard unchanged (still applies to open P0/P1 items only).
-7. Cold-start with no live ledger: seed P0/P1 from target + digest; **carry forward** prior
-   `Next deferred:` from digest (dedupe). Empty deferred is fine.
+6. Disproven-thesis guard applies to open P0/P1 proposals (digest DISPROVEN_SET).
+7. Cold-start with no live ledger: seed **1–3 open** P0/P1 from target + digest, **minus**
+   COMPLETED_SET / unexcused DISPROVEN_SET. **Carry forward** prior open `Next deferred:`
+   only (dedupe). **Do not** seed done `[x]` lines into Backlog. Empty deferred is fine.
 
 ### Residual streak
 
@@ -190,6 +242,8 @@ Update **after Phase 3 replan** (before Phase 4), independent of the Phase 2 no-
 
 A cycle that lands the last P1 and then replans empty still **+1**s the streak (that cycle
 counts as non-material for residual purposes). Status stays **`active`** until streak ≥ 2.
+Operator-facing phrasing: residual ×2 is **two consecutive post-replan empty P0/P1 cycles**,
+not necessarily two pure residual-only cycles after all work — the finishing cycle is streak 1.
 
 Recover streak from the latest improve commit body when ephemeral state is missing.
 
@@ -211,17 +265,20 @@ completion-gate rules).
 
 ### Seed (cold-start)
 
-Seed **1–3 P0/P1-tagged** items from digest + target. Prefer concrete material items. If
-none are obvious, seed at least:
+Seed **1–3 open (`[ ]`) P0/P1-tagged** items from digest + target. Prefer concrete material
+gaps that are **not** semantic duplicates of **COMPLETED_SET** / unexcused **DISPROVEN_SET**
+built from prior improve **commit bodies** (Thesis / Outcome / What landed / Notes). If none
+are obvious, seed at least:
 
 ```text
 - [ ] P1: Residual survey — classify any remaining material P0/P1 for <target>
 ```
 
-**Also seed Deferred (P2)** from the digest’s union of prior `Next deferred:` / archived
-Deferred sections (dedupe; cap 8–12). Do not invent P2s just to fill the section — empty
-is fine. Never enter Phase 1 with an empty open **P0/P1** list on a fresh cold-start
-(Deferred alone does not satisfy that rule).
+**Do not** seed `- [x]` done lines into `## Backlog` — finished work is remembered via the
+git digest, not as backlog clutter. **Also seed Deferred (P2)** from the digest’s union of
+prior **open** `Next deferred:` / archived open Deferred (dedupe; cap 8–12). Do not invent
+P2s just to fill the section — empty is fine. Never enter Phase 1 with an empty open
+**P0/P1** list on a fresh cold-start (Deferred alone does not satisfy that rule).
 
 ### Caps
 
@@ -286,6 +343,83 @@ optional; keep labels stable so grepping logs works).
 visible while it runs — goal at kickoff, discoveries per cycle, summary at exit. Thin
 progress lines alone are not enough.
 
+**Reasoning trail (non-negotiable):** while the campaign runs, also surface **decision
+logic** — not only phase banners. Operators must be able to answer, from chat alone:
+
+1. **What is the skill considering?** (inputs, candidates, constraints under review)
+2. **What does it evaluate as true?** (facts/gates that just resolved — counts, dirt, PASS/FAIL, streak)
+3. **What is it about to do?** (next concrete action before tool work)
+4. **When a unit completes, what did it do?** (short trail of decisions that unit made)
+
+Silent multi-tool stretches without a reasoning beat are a contract miss. Keep beats short
+(2–6 bullets); never dump full suite logs or advisor transcripts into the trail.
+
+### Reasoning trail (live insight — mandatory)
+
+Emit **Reasoning beats** at every **decision gate** (before acting on the gate, and once
+after key evaluations). Use stable labels so operators can skim:
+
+```text
+· considering · <what options / evidence / rules are in play>
+· evaluates   · <predicate> → true|false · <one-line evidence>
+· about to    · <next action in plain language>
+· decided     · <choice> · because <one line>
+```
+
+**Minimum gates (must emit at least one beat each):**
+
+| Gate | considering | evaluates (examples) | about to |
+|---|---|---|---|
+| L1 entry | target → path → repo; mode autonomous\|once | TARGET_REPO known; sticky on destination | shell-probe / worktree-enter |
+| Phase 0 enter | cold-start vs resume vs discard-stale | mode = …; launch code-dirt = none\|paths; ambient ignored = … | create/reuse WORKSPACE |
+| Phase 0 residual branch | open P0/P1 vs residual-only | open count = k; streak = m | execute item **or** skip Phase 1 execute |
+| Phase 1 select | open P0/P1 candidates; COMPLETED_SET / DISPROVEN_SET from git | selected = …; skipped reseed of completed/disproven = … | implement / investigate |
+| Phase 1 post-test | STATUS + CHANGED_PATHS + suggested Outcome | PASS\|FAIL; paths empty? → reconcile Outcome | delete open line **or** leave open **or** revert |
+| Phase 2 counters | STATUS × Outcome matrix row | no-progress / same-error / non-material after update | append Log; **remove** completed item from Backlog |
+| Phase 3 replan | digest + ledger + advisors usable K/M | Round 2 yes\|skip; open P0/P1 after = k; streak → m | surgical Backlog/Deferred apply |
+| Phase 3 complete gate | residual ×2 + suite green | streak ≥ 2? open = 0? suite gate a\|b\|c | set Status complete\|active\|stopped |
+| Phase 4 | ledger-only vs code paths; secret scan | code-dirty veto? secret? | commit **or** refuse + report |
+| Phase 5 / L1 | terminal+landed? autonomous continue? | merge-back needed? cycle_count vs MAX | merge-back **or** next cycle **or** campaign report |
+
+**Rules for beats:**
+
+- Prefer **evaluates** lines for hard facts the skill already computed (open P0/P1 count,
+  streak, STATUS, dirt lists, advisor usable K/M). Do not invent soft confidence.
+- **about to** always precedes the consequential tool action (test run, commit, merge-back,
+  starting cycle K+1).
+- On hard stop / veto, emit `· evaluates · <gate> → true · <reason code>` then
+  `· decided · STOP · because …` **before** the STOP phase banner (or immediately with it).
+- Do **not** replace phase banners, mid-cycle beats, or discovery cards — the trail
+  **layers on** them. Banners say *where*; the trail says *why / what’s next*.
+
+**Per-cycle Decision trail** (end of every L2 cycle — part of the cycle discovery card
+below, or immediately after it if the card is already long):
+
+```markdown
+**Decision trail (this cycle)**
+1. considered: …
+2. evaluated true: … → acted: …
+3. evaluated true: … → acted: …
+4. completed as: <Result> · next: <continue cycle K+1 | campaign report | operator action>
+```
+
+3–6 numbered steps max. Cover select → test/outcome → replan/streak → commit/Status.
+Omit steps that never ran (e.g. residual-only skips execute).
+
+**Campaign “what we did”** (inside Campaign report Summary — mandatory):
+
+```markdown
+**What this campaign did (arc)**
+1. Kickoff: goal was …; seeded open P0/P1 …; mode …
+2. Cycle 1: tried … → outcome … → landed …
+3. Cycle 2: …
+…
+N. Exit: Result … because … (residual×2 | open remain | cap | block | once)
+```
+
+This is the completion answer to “what has it been doing?” — chronological, decision-shaped,
+not a second full discovery dump.
+
 ### Live phase banner (every phase entry)
 
 When entering a phase (or a Phase 0 short-circuit branch), print **one** short line first:
@@ -318,6 +452,8 @@ Reason codes (use these strings when they apply): `shell unavailable`,
 `ambiguous target repo`, `no test command`, `legacy tracked ledger`,
 `launch code-dirty`, `worktree code-dirty`, `code-dirty veto`, `secret veto`,
 `commit failed`, `reintegrate_blocked`, `scope violation`, `symlink broken`.
+(`launch code-dirty` = **blocking product paths only** — ambient prefixes do not use this
+code; they are ignored with a kickoff/merge-back note.)
 
 ### Kickoff card (once Phase 0 has resolved WORKSPACE — or on early STOP)
 
@@ -332,10 +468,11 @@ operator knows what success looks like before any cycle runs.
 |---|---|
 | **Goal** | <1–3 sentences: what this campaign will improve and why it was opened> |
 | **Target** | <plain-language target from the user invoke> |
-| **Done when** | Status `complete` after **2 consecutive** cycles with zero open P0/P1 + green suite · or `stopped` / blocked / max-cycles |
+| **Done when** | Status `complete` after **2 consecutive** post-replan empty P0/P1 cycles + green suite · or `stopped` / blocked / max-cycles |
 | **Driver** | autonomous (loop until done) \| once (single cycle) |
 | **Cycle budget** | max **MAX_CYCLES** L2 cycles this invoke (env `IMPROVE_LOOP_MAX_CYCLES`, default 8) |
 | **Material rule** | open work must be P0/P1; residual-only passes count toward the ×2 complete streak |
+| **Residual rule** | complete after **2 consecutive** post-replan empty P0/P1 cycles (the cycle that finishes the last P1 counts as streak **1**; next residual-only must reach streak **2**) |
 
 #### Setup
 | | |
@@ -350,6 +487,7 @@ operator knows what success looks like before any cycle runs.
 | **Test command** | `<cmd>` |
 | **Seed backlog** | open P0/P1 count · next: <short item or _(empty)_> |
 | **Deferred carried** | open P2 count from digest/seed · _(none)_ if empty |
+| **Launch ambient dirt** | none \| ignored `<paths>` (prefixes `IMPROVE_LOOP_AMBIENT_PREFIXES`, default `cron/,wiki/`) — never freehand-stash |
 | **Session cwd (home)** | `<ORIGINAL_CWD>` |
 | **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE; not Grok session if different) |
 | **Outer host goal** | yes \| no (optional observability only) |
@@ -360,13 +498,22 @@ only the fields you know; put the STOP reason in a final **Blocker** row under S
 
 ### Mid-cycle beats (concise, during the cycle)
 
-While a cycle is in flight (not a substitute for the discovery card below):
+While a cycle is in flight (not a substitute for the discovery card below). Pair each
+status beat with a **reasoning beat** (considering / evaluates / about to) at the same gate:
 
 - **Phase 1 select:** one line: item + why (or `empty-backlog · residual-only / no Phase 1 execute`).
+  Plus: `· considering · open candidates …` / `· evaluates · open P0/P1 = k · residual_only = …` /
+  `· about to · execute | skip Phase 1 execute`.
 - **After test:** `Test · PASS|FAIL` + ≤2-line summary (or first error signature).
+  Plus: `· evaluates · STATUS · CHANGED_PATHS empty|n · Outcome → …` /
+  `· about to · delete completed item from Backlog | leave open | revert`.
 - **Phase 3:** `Advisors · usable K/M` + `Round 2 · yes|skipped (<why>)` + one-line
   replan direction (or `Backlog unchanged`).
+  Plus: `· evaluates · open after replan = k · streak m→m'` /
+  `· about to · set Status active|complete|stopped · reason`.
 - **Phase 4:** `Commit · yes <short-sha> · subject` **or** `Commit · no — <reason>`.
+  Plus: `· considering · ledger-only vs code paths` / `· evaluates · veto/secret?` /
+  `· about to · commit | refuse`.
 
 Do not paste full suite logs into chat; keep tails for the ledger only.
 
@@ -389,6 +536,8 @@ prefer bullets over essays; 3–7 discovery bullets max.
 | **What landed** | <paths or _no code_ / ledger-only> |
 | **Commit** | `yes` `<short-sha>` · `improve-loop: iteration N — …` **or** `no — <reason>` |
 | **Open P0/P1** | <k after replan> · non-material streak `<m>` |
+| **Residual meter** | streak **m/2** · open P0/P1 **k** · execute **yes\|no** · residual_only **yes\|no** |
+| **Why not complete** | _(omit if complete)_ need residual cycle 2/2 · open P0/P1 remain · suite gate · … |
 | **Stop counters** | no-progress=<i> · same-error=<j> · sig=`<none\|…>` |
 | **Advisors** | <who responded / native-only / skipped> |
 
@@ -398,13 +547,20 @@ prefer bullets over essays; 3–7 discovery bullets max.
 - <…>
 
 **Backlog delta**
-- Checked off: <items or —>
+- Completed & removed from queue: <items or —> (learning banked in commit Thesis/Outcome)
 - Newly opened / rewritten P0/P1: <items or —>
 - Still open (next up): <short list or _(empty — residual streak m)_>
+- Anti-reseed from git: blocked re-open of COMPLETED_SET / DISPROVEN_SET · <n or —>
 
 **Deferred (P2)**
 - Open deferred: <n> · <one-line list or _(none)_>
 - Delta this cycle: added / dropped / promoted-to-P1 (or —)
+
+**Decision trail (this cycle)**
+1. considered: …
+2. evaluated true: … → acted: …
+3. evaluated true: … → acted: …
+4. completed as: <Result> · next: <continue | report | operator action>
 
 **Next**
 - autonomous + active → L1 starts cycle **K+1/MAX** now (do not wait for user)
@@ -414,10 +570,10 @@ prefer bullets over essays; 3–7 discovery bullets max.
 ```
 
 Also emit a **one-line progress line** (and best-effort `update_goal(message: …)` if a host
-goal is Active) so logs stay greppable:
+goal is Active) so logs stay greppable — **mandatory every cycle**, including residual-only:
 
 ```text
-improve cycle K/MAX · iter N · <active|complete|stopped|blocked> · open P0/P1 <k> · non-material=<m> · deferred=<n> · commit <short-sha|none> · <continuing|done>
+improve cycle K/MAX · iter N · <active|complete|stopped|blocked> · open P0/P1 <k> · non-material=<m>/2 · residual_only=<yes|no> · deferred=<n> · commit <short-sha|none> · <continuing|done>
 ```
 
 Only L1/Phase 5 may call `update_goal(completed: true, …)` (terminal + landed, goal Active).
@@ -464,13 +620,20 @@ If a cycle had no commit, put `—` in Commit.)
 |---|---|
 | **Commits** | `<sha>` · <subject> (one line each, or _none_) |
 | **Paths** | <union of paths or ledger-only / no code> |
-| **Merge-back** | ok → <branch> \| blocked · `<cmd>` \| n/a |
+| **Merge-back** | ok → <branch> \| blocked · first error · retry? \| n/a |
 | **Workspace** | removed \| kept at `<path>` |
 | **Pointer** | cleared \| active \| reintegrate_blocked |
+| **Ambient dirt** | ignored at merge: <paths or _(none)_> |
 
 #### Summary
 **Outcome in plain language:** <2–5 sentences: did we hit the goal? what changed for the
 target? what remains? why did we stop (complete vs residual×2 vs cap vs block)?>
+
+**What this campaign did (arc)** — chronological decision trail for the whole invoke:
+1. Kickoff: …
+2. Cycle 1: …
+3. …
+N. Exit: Result … because …
 
 **Learnings** (3–8 bullets from this run’s commit bodies / Log Notes; **always call out
 any `disproven` theses**):
@@ -584,8 +747,9 @@ instead of migrate (see Phase 0 step 1a.3). Default for Status `active` is **mig
 
 Shared family rules (both skills):
 
-1. **Git history–aware planning** — digest prior loop commits **and** the live Log/ledger
-   before inventing work (both when available).
+1. **Git history–aware planning** — digest prior loop **commit bodies** (Thesis / Outcome /
+   What landed / Notes / open Next backlog — *why* things improved or failed) **and** the
+   live open Log/ledger before inventing work (both when available).
 2. **Material vs non-material** — only material work blocks complete; minor / prompt-depth /
    “consider later” goes to a structured **Deferred (P2)** list (and Notes), not open P0/P1.
 3. **Two consecutive non-material passes** before `complete` (not one empty residual).
@@ -654,15 +818,30 @@ Fail fast in Phase 0. Do not half-run a cycle.
   (or any other external implementer).** The orchestrator implements natively (or via a
   generic agent) by default. Optional implementers are never required for the cycle to
   proceed.
+- **Launch ambient dirt (L3 — do not freehand-stash).** Agent home-dir checkouts (e.g.
+  `~/.hermes`) often have always-dirty runtime paths under `cron/` and `wiki/`. L3
+  `worktree-enter` / `merge-back` classify launch porcelain into:
+  - **isolation** — `.gitignore`, `IMPROVE_LOOP.md`, `.worktrees/` (non-blocking)
+  - **ambient** — paths under prefixes from env `IMPROVE_LOOP_AMBIENT_PREFIXES`
+    (default when unset: `cron/,wiki/`; set to empty or `-` for strict no ambient)
+  - **code** — everything else (blocking)
+
+  Ambient and isolation dirt **must not** block enter or merge-back; L3 records them in
+  notes / JSON (`ignored_ambient`, `ignored-ambient-dirt:…`). **Real code dirt** still
+  hard-stops with reason `launch code-dirty` and lists blocking paths plus an ambient-prefix
+  hint. **Do not** `git stash` launch dirt to force the campaign — that bypasses the
+  written contract. Operator fix for code dirt: commit, discard, or move WIP off launch.
 
 ## Durable state: git commits (self-contained cycles)
 
 **Git is the only durable ledger.** Each cycle’s Phase 4 commit body carries Thesis, Outcome,
-test evidence, advisor consolidation, Notes, stop-condition state (including
-**consecutive-non-material-cycles**), **`Next backlog:`** P0/P1 checklist lines (or
-`Next backlog: (empty) — consecutive-non-material-cycles: N`), and **`Next deferred:`** P2
-checklist lines (or `Next deferred: (none)`). Deferred is metadata only — no product code
-required. The next cycle rebuilds continuity from:
+test evidence, What landed, advisor consolidation, Notes, stop-condition state (including
+**consecutive-non-material-cycles**), **`Next backlog:`** **open-only** `- [ ] P0/P1:` lines
+(or empty + streak — **no** done `[x]` lines in the work queue), and **`Next deferred:`**
+open P2 lines (or `Next deferred: (none)`). Finished work and *why* it was an improvement
+are recovered from **Thesis / Outcome / What landed / Notes** of prior improve commits — not
+from backlog checkboxes. Deferred is metadata only — no product code required. The next
+cycle rebuilds continuity from:
 
 ```bash
 git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%n%b%n---"
@@ -697,13 +876,13 @@ complete commit on `main` tip must **not** prevent a new campaign from seeding (
 - **worktree_path:** <WORKSPACE>
 
 ## Backlog
-- [x] P1: <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)
+<!-- open P0/P1 only — completed items are deleted; memory is git commit bodies -->
 - [ ] P0: <item> — <why material>
 - [ ] P1: <item> — <why material>
 
 ## Deferred (P2)
+<!-- open P2 only -->
 - [ ] P2: <item> — <why deferred / not material this campaign>
-- [x] P2: <item> — done/dropped <date> — <reason>
 
 ## Stop-condition tracking
 - consecutive-no-progress: 0
@@ -938,13 +1117,21 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
      and `—`.)
    - Separately run `git -C "$WORKSPACE" log --oneline -20` for recent history and pass
      it as a pointer for general context.
-   - From the 15 bodies, extract a compact, in-memory digest: per iteration, its `Thesis`,
-     `Outcome` (explicitly flag any `disproven`), a one-line test-evidence summary,
-     `Notes for next cycle`, **`Next backlog:`** open P0/P1 (if present), and **`Next
-     deferred:`** / any archived `## Deferred (P2)` block (if present).
-   - **Union open Deferred** across the newest-first deferred blocks (dedupe semantically)
-     so cold-start and residual surveys can **carry forward** prior P2s without re-inventing
-     them. Do not auto-promote those into Backlog P0/P1.
+   - From the 15 bodies, extract a compact, in-memory digest: per iteration, its **Thesis**,
+     **Outcome** (explicitly flag any `disproven` and any `confirmed` success with *why*),
+     **Test evidence** (STATUS + signature summary), **What landed** (paths / no code),
+     **Advisor consolidation** (if present), **Notes for next cycle**, open-only
+     **`Next backlog:`** P0/P1 lines (ignore legacy `[x]` if present in old commits — treat
+     them as COMPLETED_SET candidates, not work-queue lines), and **`Next deferred:`** /
+     any archived open `## Deferred (P2)` block.
+   - **Build COMPLETED_SET** (semantic short lines) from iterations whose most-recent
+     Outcome was `confirmed` (Thesis + What landed + one-line why), and from legacy
+     `- [x]` Next-backlog lines if any appear in older bodies. **Build DISPROVEN_SET**
+     from most-recent `disproven` theses (with disproof evidence). These sets are the
+     anti-reseed memory — **not** live Backlog `[x]` lines.
+   - **Union open Deferred** across newest-first deferred blocks (dedupe semantically) so
+     cold-start and residual surveys can **carry forward** prior open P2s. Do not
+     auto-promote those into Backlog P0/P1.
    - **Supplement, don't prefer-git.** Use the git body as the primary source, but for any
      field absent or clearly incomplete in the body — notably commits written before the
      Phase 4 enumerated-body rule, whose bodies are thin prose while the `IMPROVE_LOOP.md`
@@ -967,14 +1154,14 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
 
 ### Phase 1 — Execute
 
-Select the next unchecked **Backlog** item (`P0:` / `P1:` only). **Never** select a
-`## Deferred (P2)` / `P2:` line for execute. As a backstop, before selecting, skip any
-unchecked Backlog item that re-asserts a prior disproven thesis **unless** the item's
-Backlog-line rationale explicitly re-opens it with a stated reason (per Phase 3's
-reason-in-rationale rule). This catches a disproven re-attempt that survived into the
-Backlog despite Phase 3's guard. It reads the same disproven-theses list carried from
-Phase 0 step 7 (a thesis is "disproven" only if its most-recent recorded outcome was
-`disproven`) and judges semantically, not by substring match.
+Select the next **open** (`- [ ]`) **Backlog** item (`P0:` / `P1:` only). If any legacy
+`- [x]` line still appears in Backlog, strip it first (memory is git digest) and do not
+select it. **Never** select a `## Deferred (P2)` / `P2:` line for execute. As a backstop,
+before selecting, skip any open Backlog item that re-asserts **COMPLETED_SET** work or a
+prior **disproven** thesis **unless** the item's rationale explicitly re-opens it with a
+stated reason (per Phase 3). This catches reseed that survived replan. It reads
+COMPLETED_SET / DISPROVEN_SET from Phase 0 step 7 (git commit-body metadata) and judges
+semantically, not by substring match.
 
 **Implementation is native by default — this skill does not depend on `codex-worker`.**
 Execute the selected item in WORKSPACE using whichever of these is available, in order:
@@ -1037,10 +1224,10 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   STATUS is PASS but `CHANGED_PATHS` is **empty** (the executor landed no code — an
   already-green suite, or an investigation item that touched nothing), a green run does not
   prove a fix, so reconcile `OUTCOME` to `partial`, never `confirmed`. Phase 2 then neither
-  checks the item off nor counts the no-op as progress (see the empty-`CHANGED_PATHS` matrix
-  row). This is deliberate policy for pure "confirm X is already correct" investigation
-  items: they legitimately land zero paths, stay `partial`/unchecked, and must not be
-  re-`confirmed` into a check-off on a later cycle.
+  deletes the item from the queue nor counts the no-op as progress (see the empty-
+  `CHANGED_PATHS` matrix row). This is deliberate policy for pure "confirm X is already
+  correct" investigation items: they legitimately land zero paths, stay `partial`/open, and
+  must not be treated as completed on a later cycle.
 
 - **Record this turn's test artifacts — shared rule, applied after *every* orchestrator suite
   run this turn** (here in Phase 1, and again in Phase 3 sub-cases (b) and (c)). Around each
@@ -1089,16 +1276,15 @@ by asking an LLM to freehand-edit them. The empty-backlog path holds counters ex
 specified and does not apply the PASS/partial reset row.
 
 If STATUS was PASS, Outcome was `confirmed`, **and `CHANGED_PATHS` was non-empty** (real
-code actually landed this cycle), also mark the Backlog item Phase 1 selected as done:
-change its `- [ ]` line to
-``- [x] <item text> — done <date> (commit: `git log --grep="improve-loop: iteration N —"`)``,
-using this cycle's own `N`. Without this step, Phase 1's "select the next unchecked item"
-rule could re-select and re-execute work already implemented and committed in a prior
-cycle. Leave the item **unchecked** on FAIL, `disproven`, `blocked`, or `partial` — for
-`partial`, progress landed but the item is not fully done, so it stays open for the
-Phase 3 panel to refine (the panel may rewrite an unchecked item to reflect what remains)
-or for a later cycle to finish; checking a `partial` item off as done risks a premature
-`complete` that would end the whole loop before the work actually is.
+code actually landed this cycle), **remove** the selected open line from `## Backlog`
+entirely (open-only work queue — do **not** flip to `[x]` and leave it). Capture Thesis /
+Outcome / What landed / Notes on the Log entry so Phase 4 banks the learning in the
+**commit body** (that is the durable done memory). Without the delete, Phase 1 could
+re-select the same open line later this campaign; without the commit-body fields, the next
+invoke would lose *why* it was improved. Leave the line **open** (`[ ]`) on FAIL,
+`disproven`, `blocked`, or `partial` — for `partial`, progress landed but the item is not
+fully done, so it stays for the Phase 3 panel to refine (rewrite remaining work) or a later
+cycle to finish. Never delete a `partial` item as if complete.
 
 Use this explicit matrix:
 
@@ -1200,34 +1386,35 @@ ask (not an error stack, not an empty string).
 Launch every configured advisor **in parallel — put all the Agent calls in a single
 message** so they run concurrently — as a fresh dispatch (never continue a prior cycle's
 advisor). Give each the target description; the path to `IMPROVE_LOOP.md` (**live ledger** —
-Backlog, **Deferred (P2)**, Log, counters for this run); the **prior-learnings digest** built
-in Phase 0 step 7 (last 15 iterations' Thesis/Outcome/evidence/Notes/**Next backlog**/
-**Next deferred** from git history, disproven theses highlighted), plus a pointer to general
-non-improve-loop history (`git log --oneline -20`); and this cycle's Phase 1 report, or the
-lightweight empty-backlog Thesis/Outcome. Planning **must** use both ledger and history.
+**open** Backlog, **open Deferred (P2)**, Log, counters for this run); the
+**prior-learnings digest** built in Phase 0 step 7 from **git commit bodies** (last 15
+iterations' Thesis / Outcome / Test evidence / What landed / Advisor consolidation /
+Notes / open **Next backlog** / **Next deferred**, plus **COMPLETED_SET** and
+**DISPROVEN_SET**), plus a pointer to general non-improve-loop history
+(`git log --oneline -20`); and this cycle's Phase 1 report, or the lightweight empty-backlog
+Thesis/Outcome. Planning **must** use both the open work queue and git learnings metadata.
 Pass pointers and paths rather than inlining all content; each advisor has repository access.
 Ask independently:
 
-> Does the recent work—and the Backlog's overall direction—still serve the stated purpose?
-> What do you recommend next as **material P0/P1**? What belongs only in **Deferred (P2)**
-> (consider later, not residual blockers)? What risks or concerns exist? Review the
-> learnings and prior deferred list from the digest. Do not recommend re-attempting a thesis
-> whose most-recent recorded outcome was disproven, unless you give a concrete reason the
-> prior disproof does not hold (new evidence, changed conditions, or the prior disproof was
-> flawed). Do not auto-promote Deferred to P0/P1 without stating why it is now material.
+> Does the recent work—and the open Backlog's direction—still serve the stated purpose?
+> What do you recommend next as **material open P0/P1**? What belongs only in **Deferred
+> (P2)** (consider later)? What risks or concerns exist? Review the **git commit-body
+> learnings** in the digest (Thesis, Outcome, What landed, Notes — why something improved
+> or was disproven). Do **not** re-propose work in COMPLETED_SET or a most-recent disproven
+> thesis unless you give a concrete re-open reason (new evidence, changed conditions, or
+> flawed prior disproof). Do not auto-promote Deferred to P0/P1 without stating why it is
+> now material. Propose **open checklist lines only** (`- [ ] P0/P1` / `- [ ] P2`) — never
+> `- [x]` done lines in Backlog or Deferred.
 
 The **native-replanner fallback** (Consolidation 1, below) receives the same inputs as Round
-1, so it gets the digest **and** ledger automatically; the disproven-thesis guard below
-applies to its Backlog candidate identically.
+1, so it gets the digest **and** ledger automatically; COMPLETED_SET / DISPROVEN_SET guards
+below apply to its Backlog candidate identically.
 
-Prefer a structured response with recommended next Backlog bullets **and** Deferred (P2)
-bullets, but accept free prose. Tell every advisor explicitly: any already-`[x]`-checked
-Backlog item, including the one just completed this cycle, must be preserved verbatim in a
-proposed Backlog — never deleted or unchecked; only unchecked (`- [ ]`) items may be added,
-reprioritized, or dropped. **Every open Backlog item must be tagged `P0:` or `P1:`**; open
-deferred items use **`P2:`** under Deferred only (see residual discipline). Record per
-advisor its returned text (or failure) **and its Agent id/name** — that id is how Round 2
-resumes that exact advisor.
+Prefer a structured response with recommended next **open** Backlog bullets **and** open
+Deferred (P2) bullets, but accept free prose. **Every open Backlog item must be tagged
+`P0:` or `P1:`**; open deferred items use **`P2:`** under Deferred only. Record per advisor
+its returned text (or failure) **and its Agent id/name** — that id is how Round 2 resumes
+that exact advisor.
 
 #### Consolidation 1 — native
 
@@ -1277,19 +1464,28 @@ than merely backlog priority.
 The final product—Consolidation 2, Consolidation 1 on early exit, or native-replanner
 fallback—must be **two section bodies** (not a free-form essay or whole-file rewrite):
 
-1. **Backlog body** — checklist lines (`- [ ]` / `- [x]`); every **open** item tagged `P0:`
-   or `P1:`.
-2. **Deferred body** — checklist lines for `## Deferred (P2)`; open items tagged `P2:`; or an
-   explicit empty deferred (`(none)` / no open P2 lines). Cap ~8–12 open P2s; dedupe.
+1. **Backlog body** — **open only** `- [ ]` lines tagged `P0:` or `P1:` (empty OK when residual
+   complete path). **Never** include `- [x]` lines.
+2. **Deferred body** — **open only** `- [ ] P2:` for `## Deferred (P2)`, or explicit empty
+   (`(none)` / no open P2 lines). Cap ~8–12 open P2s; dedupe.
 
 Apply surgically and natively: replace only the `## Backlog` body through the next `## `
 heading, and only the `## Deferred (P2)` body through the next `## ` heading (create the
 Deferred heading if missing). Never ask an advisor or fallback replanner to rewrite the
 whole file; that can clobber deterministic counters and the append-only Log.
 
-**P2-in-Backlog strip (native, before surgical apply).** If any *unchecked* candidate Backlog
+**Open-only + anti-reseed strip (native, before surgical apply).** Before applying:
+
+1. Drop any candidate line matching `- [x]` / `- [X]` with Notes
+   `legacy [x] stripped from Backlog — memory is git digest`.
+2. If a proposed `- [ ]` is a semantic duplicate of **COMPLETED_SET** (from git commit
+   Thesis/Outcome/What landed) without re-open rationale: drop with Notes
+   `replan re-opened completed work — dropped`.
+3. Apply the disproven-thesis guard (below) against **DISPROVEN_SET** from git.
+
+**P2-in-Backlog strip (native, before surgical apply).** If any open candidate Backlog
 line contains `P2:`, move it into the Deferred body (or drop with rationale) and append Notes
-`P2 line removed from Backlog → Deferred`. Residual and Phase 1 only see P0/P1 in Backlog.
+`P2 line removed from Backlog → Deferred`. Residual and Phase 1 only see open P0/P1 in Backlog.
 
 **Deferred replan failure (native, parallel to Backlog).** If the Deferred body is missing,
 unparseable, or would wipe a formerly non-empty open-P2 list without explicit drop/complete
@@ -1318,25 +1514,21 @@ not to work:
   **write that reason into the surviving Backlog line's rationale phrase**, e.g.
   `- [ ] <item> — re-opened: <one-line reason prior disproof may not hold>`, so the Phase 1
   selection backstop can detect it.
-- This guard operates on **unchecked** items only, so it never conflicts with the rule that
-  `[x]` items are preserved verbatim. If the guard drops *every* proposed item, the
-  candidate is empty and the validation below fires
-  `replan output unusable; Backlog unchanged`; append a clarifying Notes line
-  `all proposed items re-asserted disproven theses; Backlog unchanged` so the cause is
-  legible (the output was filtered, not unparseable).
+- This guard operates on open (`- [ ]`) proposals only. If the guard drops *every* proposed
+  item, the candidate is empty and the validation below may fire intentional empty-backlog
+  (residual) **or** `replan output unusable; Backlog unchanged` when a wipe lacked
+  complete/stop rationale; append
+  `all proposed items re-asserted disproven theses; Backlog unchanged` when that is the
+  cause so it is legible (filtered, not unparseable).
 
-Before replacing, validate the candidate contains at least one checklist line matching
-`^- \[[ xX]\] ` (accept both `- [x]` and `- [X]`), **or** is an intentional empty-backlog
-completion: a clearly stated
-explicit `no remaining work` or zero-item complete call. Advisors and the native-replanner
-fallback may add, reprioritize, or drop *unchecked* (`- [ ]`) items freely, but must never
-delete or uncheck an already-`[x]`-checked item, including the one Phase 2 just checked
-off this cycle — the Round-1 prompt above must say so explicitly. If the candidate drops
-or unchecks a previously-checked item, restore that entry before applying the rest of the
-candidate. Separately, if it is empty, unparseable, or would wipe a formerly non-empty
-Backlog without explicit complete/stop rationale, do not apply it at all. Keep the prior
-Backlog, append `replan output unusable; Backlog unchanged` to the latest Notes, and let
-the terminal test below evaluate only counters; do not invent `complete` from a wiped list.
+Before replacing, validate the candidate is **open-only** checklist lines matching
+`^- \[ \] ` with `P0:`/`P1:`, **or** an intentional empty-backlog completion: clearly stated
+`no remaining work` / zero open items / residual complete path. Advisors and the
+native-replanner may add, reprioritize, or drop open items freely. If the candidate is
+unparseable, or would wipe a formerly non-empty open Backlog **without** explicit
+complete/stop/residual rationale, do not apply it. Keep the prior Backlog, append
+`replan output unusable; Backlog unchanged` to the latest Notes, and let the terminal test
+below evaluate only counters; do not invent `complete` from a wiped list.
 
 After the rounds and surgical apply or deliberate non-apply, re-check for code-dirtiness
 using the **shared code-dirty definition** (Phase 0 step 4; excludes `IMPROVE_LOOP.md` and
@@ -1482,18 +1674,25 @@ below). No second clear commit.
     advisor consolidation.
   - **Notes for next cycle** — the Log `Notes for next cycle` field, verbatim or closely
     paraphrased.
-  - **Next backlog** — required. Emit a block the next cycle / digest can parse; open items
-    **must** be `P0:` / `P1:`:
+  - **Next backlog** — required. **Open work queue only** — `- [ ] P0:` / `- [ ] P1:` lines
+    still open after replan. **Do not** emit `- [x]` done lines here (finished work + *why*
+    are already in Thesis / Outcome / What landed / Notes above; next cycle’s COMPLETED_SET
+    is built from those fields):
 
     ```
     Next backlog:
-    - [ ] P1: <item> — <rationale>
-    - [x] P0: <done item> — done
+    - [ ] P1: <still open> — <rationale>
     ```
 
-    Or when open P0/P1 = 0:
-    `Next backlog: (empty) — consecutive-non-material-cycles: <n>`
-    (Status `complete` only if n ≥ 2 and suite green; else still active).
+    When open P0/P1 count = 0:
+
+    ```
+    Next backlog:
+    (open: empty) — consecutive-non-material-cycles: <n>
+    ```
+
+    Equivalent short form `Next backlog: (empty) — consecutive-non-material-cycles: <n>` is
+    also fine. Status `complete` only if n ≥ 2 and suite green; else still active.
   - **Next deferred** — required on **every** cycle (including residual-only and terminal).
     Open items **must** be `P2:`. No product file changes are required to land deferred
     metadata (ledger-only / terminal archive is enough):
@@ -1563,16 +1762,17 @@ best-effort; never merge mid-campaign. Phase banners + kickoff card earlier are 
 Phase 0 ran. **Reporting (illustrative — see Status reporting):**
 
 - **Every L2 cycle (both modes):** emit a **Cycle discovery card** (goal reminder, thesis,
-  outcome, **Discovered this cycle**, backlog delta, **Deferred (P2)**) plus the greppable
-  progress line (include `deferred=<n>`).
+  outcome, **Residual meter**, **Discovered this cycle**, backlog delta, **Deferred (P2)**,
+  **Decision trail**) plus the greppable progress line (include `non-material=<m>/2`,
+  `residual_only=`, `deferred=<n>`). Mid-cycle: **Reasoning beats** at each decision gate.
 - **Autonomous mode:** after active cycles, L1 continues; full **Campaign report** (goal +
-  cycles-at-a-glance + summary) when L1 exits.
+  cycles-at-a-glance + summary + **What this campaign did (arc)**) when L1 exits.
 - **`--once` mode:** discovery/closing card at end of the single cycle; still emit
   **Campaign report** when L1 exits (even if Result is once-active).
 
 | Condition | Action |
 |---|---|
-| Terminal + landed | Merge-back; best-effort `update_goal(completed)` if goal Active; L1 exits → Campaign report |
+| Terminal + landed | Merge-back; emit **Merge-back card**; best-effort `update_goal(completed)` if goal Active; L1 exits → Campaign report |
 | Terminal + not landed | Do **not** complete host goal; L1 exits → report blocked/stopped |
 | Active after cycle, **autonomous** | Cycle discovery card + progress line; **L1 continues next L2 cycle now** (do not stop for user) |
 | Active after cycle, **`--once`** | Cycle discovery / closing card; L1 exits → Campaign report (Result once-active) |
@@ -1595,10 +1795,32 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   ```
 
   Parse JSON: `merge_back` is `ok` | `blocked` | `skipped_detached` | `teardown_partial`;
-  `suggested_cwd` is the durable path (LAUNCH). On blocked/skipped, leave WORKSPACE; print
-  the FF command from notes/error. Land is durable even if merge-back fails. Prefer the
+  `suggested_cwd` is the durable path (LAUNCH); also `worktree_removed`, `branch_deleted`,
+  `pointer_cleared`, `ignored_ambient`, `blocking_dirt`. On blocked/skipped, leave WORKSPACE;
+  print the FF command from notes/error. Land is durable even if merge-back fails. Prefer the
   script over freehand FF so teardown order (FF → remove worktree → delete branch → delete
   pointer) stays correct. **Never** leave sticky under a removed `.worktrees/*`.
+  **Never freehand-stash** launch dirt to force merge — L3 ignores ambient prefixes; real
+  code dirt requires operator commit/discard.
+
+  Emit a **Merge-back card** (mandatory after the L3 call, success or fail):
+
+  ```markdown
+  ### 🔗 Improve · merge-back
+
+  | | |
+  |---|---|
+  | **Result** | ok \| blocked \| skipped_detached \| teardown_partial |
+  | **FF into** | `<launch_branch>` · campaign `<campaign_branch>` |
+  | **SHAs** | `<short tip after FF or —>` |
+  | **Worktree removed** | yes \| no |
+  | **Branch deleted** | yes \| no |
+  | **Pointer cleared** | yes \| no |
+  | **Ambient ignored** | <paths or _(none)_> |
+  | **Blocking dirt** | <paths or _(none)_> |
+  | **Error** | <one line or —> |
+  | **Next if blocked** | clean/commit blocking paths · re-run `merge-back.js` / `/improve` merge-back-only |
+  ```
 
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
   Phases 1–4; run `merge-back.js` on the same pointer. Success clears pointer.

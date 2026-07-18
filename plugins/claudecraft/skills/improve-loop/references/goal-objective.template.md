@@ -27,9 +27,11 @@ emits a discovery card (what was tried, outcome, key discoveries, backlog delta,
 deferred P2 delta, cycle K/MAX); L1 exit emits Campaign report (goal restated,
 cycles-at-a-glance table, plain-language summary + learnings + Deferred (P2) for later).
 
-Planning each cycle uses git improve-commit history **and** the live ledger (when present).
-Non-material "consider later" items go to Deferred (P2) / Next deferred in commit bodies —
-they do not block residual×2 complete and need no product file changes.
+Planning each cycle uses git improve-commit history (Thesis / Outcome / What landed / Notes
+— learnings and anti-reseed memory) **and** the live **open-only** backlog (when present).
+Finished work is deleted from the work queue; metadata stays in commit bodies. Non-material
+"consider later" items go to Deferred (P2) / Next deferred — they do not block residual×2
+complete and need no product file changes.
 
 Done when Phase 5 / L1 reports terminal+landed (Campaign report). On active mid-campaign:
 progress + discovery cards only — do not complete the host goal.

@@ -472,6 +472,119 @@ set -e
 assert "no git root exit 4" test "$EC_NG" -eq 4
 assert "no git target_repo null" grep -q '"target_repo": null' "$OUT_NG"
 
+# porcelainPath: standard XY + tolerant single-status (observed with multi-worktree)
+assert "porcelainPath standard" node -e "
+const {porcelainPath}=require('$SCRIPTS/lib-paths.js');
+process.exit(porcelainPath(' M cron/jobs.json')==='cron/jobs.json'?0:1)
+"
+assert "porcelainPath single-status tolerant" node -e "
+const {porcelainPath}=require('$SCRIPTS/lib-paths.js');
+process.exit(porcelainPath('M cron/jobs.json')==='cron/jobs.json'?0:1)
+"
+assert "porcelainPath untracked" node -e "
+const {porcelainPath}=require('$SCRIPTS/lib-paths.js');
+process.exit(porcelainPath('?? .worktrees/')==='.worktrees/'?0:1)
+"
+
+# --- Ambient launch dirt: non-blocking for merge-back / enter notes ---
+# Default ambient prefixes: cron/, wiki/ (override via IMPROVE_LOOP_AMBIENT_PREFIXES)
+REPO_AMB="$TMP/repo-ambient"
+mkdir -p "$REPO_AMB/cron" "$REPO_AMB/wiki"
+git -C "$REPO_AMB" init -q -b main
+git -C "$REPO_AMB" config user.email "test@example.com"
+git -C "$REPO_AMB" config user.name "Test"
+echo x >"$REPO_AMB/README"
+echo '{}' >"$REPO_AMB/cron/jobs.json"
+echo 'log' >"$REPO_AMB/wiki/log.md"
+git -C "$REPO_AMB" add README cron/jobs.json wiki/log.md
+git -C "$REPO_AMB" commit -q -m init
+# dirty ambient only
+echo changed >"$REPO_AMB/cron/jobs.json"
+echo more >>"$REPO_AMB/wiki/log.md"
+OUT_AMB="$TMP/enter-ambient.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_AMB" --target "ambient dirty" --test-command "true" >"$OUT_AMB"
+assert "ambient dirty still cold-starts" grep -qE '"mode": "cold-start"|"mode": "discard-stale-cold-start"' "$OUT_AMB"
+assert "ambient dirty noted on enter" grep -q 'ignored-ambient-dirt:' "$OUT_AMB"
+WS_AMB="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT_AMB")"
+echo y >>"$WS_AMB/README"
+git -C "$WS_AMB" add README
+# ensure .gitignore staged if new
+[[ -f "$WS_AMB/.gitignore" ]] && git -C "$WS_AMB" add .gitignore || true
+git -C "$WS_AMB" commit -q -m "improve-loop: iteration 1 — ambient merge path"
+OUT_MB_AMB="$TMP/mergeback-ambient.json"
+set +e
+node "$SCRIPTS/merge-back.js" --repo "$REPO_AMB" >"$OUT_MB_AMB" 2>"$TMP/mergeback-ambient.err"
+MB_AMB_EC=$?
+set -e
+assert "merge-back ignores ambient dirt exit 0" test "$MB_AMB_EC" -eq 0
+assert "merge-back ok with ambient" grep -q '"merge_back": "ok"' "$OUT_MB_AMB"
+assert "merge-back lists ignored ambient" grep -q 'ignored-ambient-dirt\|cron/jobs' "$OUT_MB_AMB"
+assert "merge-back worktree_removed true" grep -q '"worktree_removed": true' "$OUT_MB_AMB"
+assert "merge-back pointer_cleared true" grep -q '"pointer_cleared": true' "$OUT_MB_AMB"
+assert "launch still has ambient dirt after FF" bash -c "git -C \"$REPO_AMB\" status --porcelain | grep -q cron/jobs"
+
+# Ambient + real code dirt → still block merge-back
+REPO_MIX="$TMP/repo-mix"
+mkdir -p "$REPO_MIX/cron"
+git -C "$REPO_MIX" init -q -b main
+git -C "$REPO_MIX" config user.email "test@example.com"
+git -C "$REPO_MIX" config user.name "Test"
+echo x >"$REPO_MIX/README"
+echo '{}' >"$REPO_MIX/cron/jobs.json"
+git -C "$REPO_MIX" add README cron/jobs.json
+git -C "$REPO_MIX" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_MIX" --target "mix dirt" --test-command "true" >/dev/null
+WS_MIX="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_MIX")"
+echo y >>"$WS_MIX/README"
+git -C "$WS_MIX" add README
+[[ -f "$WS_MIX/.gitignore" ]] && git -C "$WS_MIX" add .gitignore || true
+git -C "$WS_MIX" commit -q -m "improve-loop: iteration 1 — mix"
+echo ambient >"$REPO_MIX/cron/jobs.json"
+echo code >"$REPO_MIX/extra.c"
+OUT_MB_MIX="$TMP/mergeback-mix.json"
+set +e
+node "$SCRIPTS/merge-back.js" --repo "$REPO_MIX" >"$OUT_MB_MIX" 2>"$TMP/mergeback-mix.err"
+MB_MIX_EC=$?
+set -e
+assert "merge-back blocks code dirt exit 3" test "$MB_MIX_EC" -eq 3
+assert "merge-back blocked mode" grep -q '"merge_back": "blocked"' "$OUT_MB_MIX"
+assert "merge-back error lists extra.c" grep -q 'extra.c' "$OUT_MB_MIX"
+
+# Empty ambient prefixes → cron dirt blocks (strict)
+REPO_STRICT="$TMP/repo-strict"
+mkdir -p "$REPO_STRICT/cron"
+git -C "$REPO_STRICT" init -q -b main
+git -C "$REPO_STRICT" config user.email "test@example.com"
+git -C "$REPO_STRICT" config user.name "Test"
+echo x >"$REPO_STRICT/README"
+echo '{}' >"$REPO_STRICT/cron/jobs.json"
+git -C "$REPO_STRICT" add README cron/jobs.json
+git -C "$REPO_STRICT" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_STRICT" --target "strict" --test-command "true" >/dev/null
+WS_ST="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_STRICT")"
+echo y >>"$WS_ST/README"
+git -C "$WS_ST" add README
+[[ -f "$WS_ST/.gitignore" ]] && git -C "$WS_ST" add .gitignore || true
+git -C "$WS_ST" commit -q -m "improve-loop: iteration 1 — strict"
+echo amb >"$REPO_STRICT/cron/jobs.json"
+OUT_MB_ST="$TMP/mergeback-strict.json"
+set +e
+IMPROVE_LOOP_AMBIENT_PREFIXES=- node "$SCRIPTS/merge-back.js" --repo "$REPO_STRICT" >"$OUT_MB_ST" 2>/dev/null
+MB_ST_EC=$?
+set -e
+assert "strict ambient empty blocks cron exit 3" test "$MB_ST_EC" -eq 3
+assert "strict blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_ST"
+
 echo "---"
 echo "passed=$pass failed=$fail"
 [[ "$fail" -eq 0 ]]

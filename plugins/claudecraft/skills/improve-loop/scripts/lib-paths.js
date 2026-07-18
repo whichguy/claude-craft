@@ -123,17 +123,92 @@ function isUnder(child, parent) {
   return c === p || c.startsWith(p + path.sep);
 }
 
+/**
+ * Parse one `git status --porcelain` line to a path.
+ * Standard form is `XY PATH` (two status chars + space). Some git/worktree
+ * combinations have been observed to emit a single status char + space
+ * (`M path`); tolerate that so ambient filters see `cron/...` not `ron/...`.
+ */
+function porcelainPath(line) {
+  const s = String(line || '');
+  let rest;
+  if (s.length >= 3 && s[2] === ' ') {
+    rest = s.slice(3); // XY PATH
+  } else if (s.length >= 2 && s[1] === ' ') {
+    rest = s.slice(2); // X PATH (tolerant)
+  } else {
+    rest = s;
+  }
+  if (rest.includes(' -> ')) {
+    rest = rest.split(' -> ').pop();
+  }
+  // unquote C-style quoted paths
+  if (rest.startsWith('"') && rest.endsWith('"')) {
+    rest = rest.slice(1, -1);
+  }
+  return rest;
+}
+
 function porcelain(repo) {
   const out = git(repo, ['status', '--porcelain']);
   if (!out) return [];
-  return out.split('\n').filter(Boolean).map((line) => {
-    // XY PATH or XY ORIG -> NEW
-    const rest = line.slice(3);
-    if (rest.includes(' -> ')) {
-      return rest.split(' -> ').pop();
-    }
-    return rest.replace(/^"/, '').replace(/"$/, '');
-  });
+  return out.split('\n').filter(Boolean).map(porcelainPath);
+}
+
+/**
+ * Ambient launch-dirt prefixes (runtime noise that must not block enter/merge-back).
+ *
+ * Env IMPROVE_LOOP_AMBIENT_PREFIXES:
+ *   unset     → defaults cron/, wiki/ (agent home-dir data repos like ~/.hermes)
+ *   "" or "-" → no ambient prefixes (strict: only isolation dirt is non-blocking)
+ *   "a/,b/"   → use that comma-separated list (trailing / optional)
+ */
+function ambientPrefixes() {
+  if (!Object.prototype.hasOwnProperty.call(process.env, 'IMPROVE_LOOP_AMBIENT_PREFIXES')) {
+    return ['cron/', 'wiki/'];
+  }
+  const raw = String(process.env.IMPROVE_LOOP_AMBIENT_PREFIXES || '').trim();
+  if (raw === '' || raw === '-') return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((p) => (p.endsWith('/') ? p : p + '/'));
+}
+
+function isIsolationDirt(p) {
+  const n = String(p || '').replace(/^\.\//, '');
+  return (
+    n === 'IMPROVE_LOOP.md' ||
+    n === '.gitignore' ||
+    n === '.worktrees' ||
+    n.startsWith('.worktrees/')
+  );
+}
+
+function isAmbientDirt(p, prefixes) {
+  const n = String(p || '').replace(/^\.\//, '');
+  const prefs = prefixes || ambientPrefixes();
+  return prefs.some(
+    (pre) => n === pre.slice(0, -1) || n.startsWith(pre)
+  );
+}
+
+/**
+ * Classify launch porcelain paths into code (blocks), ambient (runtime, non-blocking),
+ * and isolation (campaign plumbing, non-blocking).
+ */
+function classifyLaunchDirt(paths) {
+  const prefixes = ambientPrefixes();
+  const isolation = [];
+  const ambient = [];
+  const code = [];
+  for (const p of paths || []) {
+    if (isIsolationDirt(p)) isolation.push(p);
+    else if (isAmbientDirt(p, prefixes)) ambient.push(p);
+    else code.push(p);
+  }
+  return { code, ambient, isolation, ambient_prefixes: prefixes };
 }
 
 function isTracked(repo, filePath) {
@@ -157,7 +232,12 @@ module.exports = {
   stampSlug,
   ensureWorktreesGitignore,
   isUnder,
+  porcelainPath,
   porcelain,
+  ambientPrefixes,
+  isIsolationDirt,
+  isAmbientDirt,
+  classifyLaunchDirt,
   isTracked,
   randomHex,
 };

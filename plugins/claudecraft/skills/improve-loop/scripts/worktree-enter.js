@@ -45,6 +45,7 @@ const {
   ensureWorktreesGitignore,
   isUnder,
   porcelain,
+  classifyLaunchDirt,
   isTracked,
   errMsg,
   randomHex,
@@ -153,9 +154,18 @@ function launchBranch(launch) {
   }
 }
 
+/**
+ * Paths that block enter/migrate (real product dirt). Ambient runtime prefixes and
+ * isolation plumbing (.gitignore, IMPROVE_LOOP.md, .worktrees/) are non-blocking.
+ * Returns { code, ambient, isolation } for messaging.
+ */
+function classifyLaunch(launch) {
+  return classifyLaunchDirt(porcelain(launch));
+}
+
+/** @deprecated-shape helper: code paths only (blocking). */
 function codeDirtyLaunch(launch) {
-  const paths = porcelain(launch);
-  return paths.filter((p) => p !== 'IMPROVE_LOOP.md' && p !== '.gitignore');
+  return classifyLaunch(launch).code;
 }
 
 function coldStart(launch, commonGitDir, target, testCommand, notes) {
@@ -349,11 +359,21 @@ if (!mode && wantResume) {
 if (!mode) {
   const launchLedger = path.join(launch, 'IMPROVE_LOOP.md');
   if (fs.existsSync(launchLedger)) {
-    const dirty = codeDirtyLaunch(launch);
-    if (dirty.length) {
+    const classified = classifyLaunch(launch);
+    if (classified.ambient.length) {
+      notes.push('ignored-ambient-dirt:' + classified.ambient.slice(0, 12).join(','));
+    }
+    if (classified.code.length) {
+      const ambHint =
+        classified.ambient_prefixes.length > 0
+          ? ' (ambient prefixes non-blocking: ' +
+            classified.ambient_prefixes.join(',') +
+            '; override via IMPROVE_LOOP_AMBIENT_PREFIXES)'
+          : ' (set IMPROVE_LOOP_AMBIENT_PREFIXES=cron/,wiki/ to ignore runtime paths)';
       console.error(
         'worktree-enter: launch code-dirty; cannot migrate/discard over: ' +
-          dirty.slice(0, 8).join(', ')
+          classified.code.slice(0, 8).join(', ') +
+          ambHint
       );
       process.exit(4);
     }
@@ -418,6 +438,19 @@ if (!mode) {
   campaign_branch = cs.campaign_branch;
   launch_branch = cs.launch_branch;
   pointerPath = cs.pointer;
+}
+
+// Surface non-blocking ambient launch dirt for kickoff (never blocks cold-start).
+{
+  const launchClassified = classifyLaunch(launch);
+  if (
+    launchClassified.ambient.length &&
+    !notes.some((n) => String(n).startsWith('ignored-ambient-dirt:'))
+  ) {
+    notes.push(
+      'ignored-ambient-dirt:' + launchClassified.ambient.slice(0, 12).join(',')
+    );
+  }
 }
 
 // suggested_cwd: durable sticky target for host (LAUNCH), not WORKSPACE — agents should
