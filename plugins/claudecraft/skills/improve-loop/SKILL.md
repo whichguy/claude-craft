@@ -450,8 +450,8 @@ On any hard stop / veto, print immediately:
 
 Reason codes (use these strings when they apply): `shell unavailable`,
 `ambiguous target repo`, `no test command`, `legacy tracked ledger`,
-`wip carry failed`, `worktree code-dirty`, `code-dirty veto`, `secret veto`,
-`commit failed`, `reintegrate_blocked`, `scope violation`, `symlink broken`,
+`wip carry failed`, `carried-wip-discard-blocked`, `worktree code-dirty`, `code-dirty veto`,
+`secret veto`, `commit failed`, `reintegrate_blocked`, `scope violation`, `symlink broken`,
 `launch code-dirty` (merge-back / mid-campaign only — enter carries then cleans launch WIP).
 
 ### Kickoff card (once Phase 0 has resolved WORKSPACE — or on early STOP)
@@ -1004,12 +1004,20 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    Exit-code map (worktree-enter): `3` lock busy → stop; `4` reserved (legacy dirty-block;
    product dirt is now carried into WORKSPACE); `5` tracked legacy ledger → stop
    (operator `git rm`); `6` path traversal → stop; `7` worktree create/repair failed → stop;
-   `8` bare → stop; `9` launch WIP carry failed (launch left dirty; worktree torn down) → stop.
+   `8` bare → stop; `9` launch WIP carry failed (launch left dirty; worktree torn down) → stop;
+   **`10` `carried-wip-discard-blocked`** — a live pointer exists and default discard-stale would
+   destroy the **only** copy of carried launch WIP and/or non-isolation campaign dirt
+   (launch was cleaned after carry). **Worktree and pointer are kept.** Operator must
+   `--resume` the same campaign, or recover WIP from the worktree then
+   `campaign-teardown` / merge-back. **Never** re-invoke bare `worktree-enter` without
+   `--resume` while a post-carry pointer is active.
 
    If `mode == merge-back-only`: run Phase 5 merge-back only (L3 `merge-back.js`); stop.
 
-   **Default is discard-stale + cold-start** — never freehand resume. Use `--resume` only when
-   the operator asked. Random 6-hex slugs + `.worktrees/` gitignore stay required.
+   **Default is discard-stale + cold-start** — never freehand resume — **except** when
+   discard would lose carried WIP (exit **10**, fail-closed). Use `--resume` only when
+   the operator asked **or** when continuing after carry (exit 10 recovery). Random 6-hex
+   slugs + `.worktrees/` gitignore stay required.
 
    Optional status snapshot for kickoff card:
 
@@ -1118,9 +1126,20 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    For the **lightweight Phase 2** residual/empty-execute path, append an entry with
    `Committed: pending`, Thesis such as `residual survey (non-material streak k→k+1)` or
    `empty-backlog replan (no Phase 1 execute)`, Test result `PASS` (suite not re-run for
-   execute; Phase 3 may run confirmation), Outcome `partial`, Error signature `none`. Hold
-   no-progress / same-error counters *exactly* as they were (do not apply PASS/partial reset).
-   Set the header counter to `N`, then run Phase 3 normally.
+   execute; Phase 3 may run confirmation), **Outcome `partial` only** (hard — **never**
+   `confirmed` when no product land / empty `CHANGED_PATHS`; residual is bookkeeping, not a
+   proven fix), Error signature `none`. Hold no-progress / same-error counters *exactly* as
+   they were (do not apply PASS/partial reset). Set the header counter to `N`, then run
+   Phase 3 normally.
+
+   **Commit-body-only residual (no `IMPROVE_LOOP.md`):** when the campaign keeps state only in
+   git commit bodies (ephemeral ledger never written), Phase 4 may use
+   `git commit --allow-empty` **only** for residual-only / empty-execute cycles, and **only**
+   with the full enumerated body (Thesis, Outcome **`partial`**, Test evidence, What landed
+   `no code landed`, Advisor consolidation, Notes, **Next backlog** empty+streak, **Next
+   deferred** required — list or `(none)`, stop state). Prefer an ephemeral ledger when
+   advisors need a file; allow-empty is allowed, not preferred. Never ship a residual commit
+   with a subject-only / empty message body.
 
 6. For turns that will run Phases 1–3, apply the dirty-tree guard (shared **code-dirty**
    definition, step 4): if anything code-dirty is present, stop and report — do not fold
@@ -1747,7 +1766,9 @@ below). No second clear commit.
     ultimately proven or disproven.
   - **Outcome** — `confirmed` / `disproven` / `partial` / `blocked`; for `disproven`, state
     what the disproof showed (the evidence that the thesis was wrong) — this negative result
-    is a first-class learning, not an omission.
+    is a first-class learning, not an omission. **Residual / empty-execute / empty
+    `CHANGED_PATHS` bookkeeping → `partial` only** (never `confirmed` without real product
+    land).
   - **Test evidence** — STATUS plus a one- or two-line summary of the suite result; the
     `Error signature` on FAIL.
   - **What landed** — `CHANGED_PATHS`, or `no code landed` for a no-op / ledger-only cycle.
@@ -1779,9 +1800,11 @@ below). No second clear commit.
 
     Equivalent short form `Next backlog: (empty) — consecutive-non-material-cycles: <n>` is
     also fine. Status `complete` only if n ≥ 2 and suite green; else still active.
-  - **Next deferred** — required on **every** cycle (including residual-only and terminal).
-    Open items **must** be `P2:`. No product file changes are required to land deferred
-    metadata (ledger-only / terminal archive is enough):
+  - **Next deferred** — required on **every** cycle (including residual-only, empty-tree
+    allow-empty residual, and terminal). Open items **must** be `P2:`. No product file
+    changes are required to land deferred metadata (ledger-only / terminal archive /
+    commit-body-only residual is enough). Residual empty-tree commits **must still** emit
+    this field so P2s remain greppable:
 
     ```
     Next deferred:
@@ -1789,8 +1812,9 @@ below). No second clear commit.
     ```
 
     Or when none: `Next deferred: (none)`.
-    Terminal commits still include this block **and** the full ledger archive (so after
-    `IMPROVE_LOOP.md` is removed, deferred remains greppable in git history).
+    Terminal commits still include this block **and** the full ledger archive when a ledger
+    file existed (so after `IMPROVE_LOOP.md` is removed, deferred remains greppable in git
+    history).
   - **Stop-condition state** — `consecutive-no-progress` / `consecutive-same-error` /
     `consecutive-non-material-cycles` after this cycle, and any terminal `Status` set this
     cycle.

@@ -300,6 +300,24 @@ assert "extra.c carried into workspace" test -f "$WS6/extra.c"
 assert "extra.c content in workspace" grep -q dirty "$WS6/extra.c"
 assert "extra.c cleaned from launch" test ! -f "$REPO6/extra.c"
 
+# After carry: second default enter must FAIL CLOSED (exit 10) — do not destroy WIP
+OUT6b="$TMP/enter6b.json"
+set +e
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO6" --target t >"$OUT6b" 2>"$TMP/t6b.err"
+EC6b=$?
+set -e
+assert "second enter after carry exit 10" test "$EC6b" -eq 10
+assert "second enter after carry stderr blocked" grep -q 'carried-wip-discard-blocked' "$TMP/t6b.err"
+assert "second enter after carry worktree kept" test -d "$WS6"
+assert "second enter after carry WIP still in worktree" test -f "$WS6/extra.c"
+# --resume still works after carry
+OUT6r="$TMP/enter6-resume.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO6" --target t --resume >"$OUT6r"
+assert "resume after carry mode resume" grep -q '"mode": "resume"' "$OUT6r"
+WS6r="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT6r")"
+assert "resume after carry same workspace" test "$WS6" = "$WS6r"
+assert "resume after carry WIP intact" test -f "$WS6r/extra.c"
+
 # reintegrate_blocked → merge-back-only mode
 REPO7="$TMP/repo7"
 mkdir -p "$REPO7"

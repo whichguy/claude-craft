@@ -240,6 +240,11 @@ const improveRequired = [
   ['hygiene contaminated unstaged', /CONTAMINATED|left unstaged|do not stage/i],
   ['hygiene untracked junk deletes only', /untracked junk|Never.*git rm.*clean tracked|never `git rm` clean tracked/i],
   ['hygiene fail-closed Outcome partial', /CONTAMINATED[\s\S]{0,200}partial|Set Outcome to `partial`|Outcome to `partial`/i],
+  // Pilot follow-ups (carried-WIP discard + residual honesty)
+  ['carried-wip-discard-blocked exit 10', /carried-wip-discard-blocked|exit \*\*10\*\*|`10`.*carried-wip/i],
+  ['residual Outcome partial hard', /Outcome `partial` only|Outcome \*\*`partial`\*\* only|never\*\*[\s\S]{0,40}`confirmed`[\s\S]{0,80}empty `CHANGED_PATHS`|never.*confirmed.*no product land/i],
+  ['commit-body-only residual allow-empty', /Commit-body-only residual|allow-empty[\s\S]{0,80}residual|git commit --allow-empty/i],
+  ['residual Next deferred required', /Residual empty-tree commits \*\*must still\*\*|every cycle \(including residual-only, empty-tree/i],
 ];
 
 for (const [name, re] of improveRequired) {
