@@ -768,8 +768,9 @@ Shared family rules (both skills):
    the same cycle’s `CHANGED_PATHS` when warranted; no-op is fine. Skip on empty no-ops,
    `disproven`, FAIL, residual-only. Hygiene re-run FAIL reverts **hygiene only** (product
    land kept). **Hard:** never edit already-landed product paths without a pre-hygiene
-   content snapshot; if isolation is impossible, leave contaminated paths **unstaged**
-   (not in the iteration commit). Prefer new paths / deletes.
+   content snapshot; no-snapshot deletes are **untracked junk only** (never clean tracked
+   product); if isolation is impossible, leave contaminated paths **unstaged** and set
+   Outcome **`partial`**. Prefer new paths / untracked-junk deletes.
    **Not** a new phase banner or L2 step.
 
 **Sibling skill.** `grok-review-converge` implements the review/fix specialization of this
@@ -1286,14 +1287,16 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   1. Snapshot `HYGIENE_BASE := CHANGED_PATHS` (product paths before hygiene). Init
      `HYGIENE_TOUCHED := ∅` and `HYGIENE_SNAPSHOTS := {}` (path → pre-hygiene bytes).
   2. **Path class rule (hard — not optional):**
-     - **Allowed without snapshot:** create **new** paths not in `HYGIENE_BASE`, or delete
-       obsolete litter that is **not** in `HYGIENE_BASE` (`.bak`, superseded duals, dead
-       retired paths outside the product land set).
-     - **Allowed only with snapshot:** edit/delete a path already in `HYGIENE_BASE` — first
-       copy pre-hygiene content into `HYGIENE_SNAPSHOTS[path]`, then edit. Without that
-       snapshot, **do not apply** the edit (skip that path; Notes
+     - **Allowed without snapshot:** create **new** (previously non-existent) paths not in
+       `HYGIENE_BASE`; or delete **untracked** junk / known litter only (e.g. `*.bak`, `*~`,
+       `*.orig`, dual-copy leftovers that `git status` shows as `??`). **Never**
+       `git rm` / delete a **tracked, clean** path outside `HYGIENE_BASE` as “hygiene” —
+       that is out-of-scope product deletion, not post-PASS cleanup.
+     - **Allowed only with snapshot:** edit or delete a path already in `HYGIENE_BASE` —
+       first copy pre-hygiene content into `HYGIENE_SNAPSHOTS[path]`, then edit/delete.
+       Without that snapshot, **do not apply** the edit (skip that path; Notes
        `post-PASS hygiene skipped product-path edit without snapshot: <path>`).
-     Prefer new paths / deletes so FAIL isolation stays trivial.
+     Prefer new paths / untracked-junk deletes so FAIL isolation stays trivial.
   3. Apply the allowed edits/deletes under WORKSPACE. Add every created / deleted /
      content-edited path to `HYGIENE_TOUCHED`.
   4. Re-parse porcelain and **extend** `CHANGED_PATHS` with any new hygiene paths (still drop
@@ -1321,9 +1324,11 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
           hygiene never touched still land). Leave `CONTAMINATED` dirty in the worktree so
           the next Phase 0 dirty-tree guard surfaces them — do **not** fold contaminated
           content into the iteration commit.
-       4. Keep STATUS **PASS** and pre-hygiene Outcome; Notes
-          `post-PASS hygiene re-run FAIL — cannot isolate <paths>; left unstaged; product
-          Outcome kept`. Do **not** invent a full product FAIL revert.
+       4. Keep STATUS **PASS**. **Set Outcome to `partial`** whenever `CONTAMINATED` is
+          non-empty (never leave pre-hygiene `confirmed` when isolation failed — the Log must
+          not claim full land while contaminated product is unstaged). Notes
+          `post-PASS hygiene re-run FAIL — cannot isolate <paths>; left unstaged; Outcome
+          partial`. Do **not** invent a full product FAIL revert.
      Do **not** invent a second full FAIL revert of product code. Proceed to Phase 2.
 
   **If nothing material:** optional Notes

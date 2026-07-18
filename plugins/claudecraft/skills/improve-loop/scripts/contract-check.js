@@ -183,6 +183,8 @@ const improveRequired = [
   ['partial hygiene landed only', /partial[\s\S]{0,120}already-landed|partial[\s\S]{0,120}landed behavior/i],
   ['hygiene product-path snapshot hard rule', /without that snapshot|skipped product-path edit without snapshot|Path class rule/i],
   ['hygiene contaminated unstaged', /CONTAMINATED|left unstaged|do not stage/i],
+  ['hygiene untracked junk deletes only', /untracked junk|Never.*git rm.*clean tracked|never `git rm` clean tracked/i],
+  ['hygiene fail-closed Outcome partial', /CONTAMINATED[\s\S]{0,200}partial|Set Outcome to `partial`|Outcome to `partial`/i],
 ];
 
 for (const [name, re] of improveRequired) {
@@ -271,6 +273,20 @@ if (converge) {
   ok(
     /HYGIENE_PATHS|hygiene paths reverted|product land kept/i.test(converge),
     'grok-review-converge missing hygiene re-run FAIL keep-product rule'
+  );
+  ok(
+    /CONTAMINATED|left unstaged/i.test(converge),
+    'grok-review-converge missing CONTAMINATED / left-unstaged fail-closed isolation'
+  );
+  ok(
+    /HYGIENE_SNAPSHOTS|pre-hygiene content snapshot|skipped product-path edit without snapshot/i.test(
+      converge
+    ),
+    'grok-review-converge missing product-path snapshot hard rule'
+  );
+  ok(
+    /untracked junk|never `git rm` clean tracked/i.test(converge),
+    'grok-review-converge missing untracked-junk-only delete rule'
   );
   const head = converge.slice(0, 1200);
   ok(
