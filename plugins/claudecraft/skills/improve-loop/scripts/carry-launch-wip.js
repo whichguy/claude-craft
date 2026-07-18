@@ -235,14 +235,38 @@ function cleanTrackedOnLaunch(launch, tracked) {
     }
   }
   if (cleanErrors.length) {
-    const err = new Error(
-      'launch clean partial after carry: ' +
-        cleanErrors.slice(0, 5).join('; ') +
-        ' (workspace already has WIP — leave worktree; inspect both trees)'
-    );
-    err.code = 'LAUNCH_CLEAN_FAILED';
-    throw err;
+    throwLaunchCleanFailed(cleanErrors);
   }
+}
+
+/**
+ * Remove carried untracked paths from launch. Failures MUST be LAUNCH_CLEAN_FAILED
+ * (not raw EPERM) so worktree-enter keeps the worktree after a successful apply.
+ * @param {string} launch
+ * @param {string[]} untracked
+ */
+function cleanUntrackedOnLaunch(launch, untracked) {
+  const cleanErrors = [];
+  for (const rel of untracked) {
+    try {
+      rmPathRecursive(launch, rel);
+    } catch (e) {
+      cleanErrors.push(rel + ': ' + (e.message || e));
+    }
+  }
+  if (cleanErrors.length) {
+    throwLaunchCleanFailed(cleanErrors);
+  }
+}
+
+function throwLaunchCleanFailed(cleanErrors) {
+  const err = new Error(
+    'launch clean partial after carry: ' +
+      cleanErrors.slice(0, 5).join('; ') +
+      ' (workspace already has WIP — leave worktree; inspect both trees)'
+  );
+  err.code = 'LAUNCH_CLEAN_FAILED';
+  throw err;
 }
 
 /**
@@ -316,11 +340,13 @@ function carryLaunchWip(launch, workspace, opts = {}) {
   // 3) success only now — clean launch for carried paths.
   // Per-path: rename destinations / new files may not exist at HEAD (pathspec fails).
   // Never use reset --hard (would wipe non-carried isolation dirt e.g. launch .gitignore).
+  // Any failure here is LAUNCH_CLEAN_FAILED: workspace already has full WIP — enter must
+  // KEEP the worktree (do not teardown). Tracked + untracked clean both use this code.
   if (tracked.length > 0) {
     cleanTrackedOnLaunch(launch, tracked);
   }
-  for (const rel of untracked) {
-    rmPathRecursive(launch, rel);
+  if (untracked.length > 0) {
+    cleanUntrackedOnLaunch(launch, untracked);
   }
 
   notes.push('carried-launch-wip:' + all.length);

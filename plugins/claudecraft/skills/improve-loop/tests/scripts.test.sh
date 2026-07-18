@@ -737,6 +737,51 @@ try {
 }
 " "$TMP/real-apply-fail-repo" "$TMP/real-apply-fail-ws"
 
+# Untracked clean failure after successful apply → LAUNCH_CLEAN_FAILED + keep worktree.
+# Repro: tracked dirty + untracked uchg (immutable) so rm fails after apply.
+REPO_UF="$TMP/repo-untracked-clean-fail"
+mkdir -p "$REPO_UF"
+git -C "$REPO_UF" init -q -b main
+git -C "$REPO_UF" config user.email "test@example.com"
+git -C "$REPO_UF" config user.name "Test"
+echo base >"$REPO_UF/README"
+git -C "$REPO_UF" add README && git -C "$REPO_UF" commit -q -m init
+echo dirty >"$REPO_UF/README"
+echo sticky >"$REPO_UF/sticky-untracked.txt"
+# macOS: uchg makes unlink fail with EPERM; Linux: chattr +i if available
+UCHG_OK=0
+if chflags uchg "$REPO_UF/sticky-untracked.txt" 2>/dev/null; then
+  UCHG_OK=1
+elif command -v chattr >/dev/null 2>&1 && chattr +i "$REPO_UF/sticky-untracked.txt" 2>/dev/null; then
+  UCHG_OK=1
+fi
+if [[ "$UCHG_OK" -eq 1 ]]; then
+  set +e
+  node "$SCRIPTS/worktree-enter.js" --repo "$REPO_UF" --target "untracked clean fail" \
+    >"$TMP/enter-uf.out" 2>"$TMP/enter-uf.err"
+  EC_UF=$?
+  set -e
+  # always drop immutability so tmp cleanup works
+  chflags nouchg "$REPO_UF/sticky-untracked.txt" 2>/dev/null || chattr -i "$REPO_UF/sticky-untracked.txt" 2>/dev/null || true
+  if find "$REPO_UF/.worktrees" -name 'sticky-untracked.txt' 2>/dev/null | head -1 | grep -q .; then
+    while IFS= read -r f; do chflags nouchg "$f" 2>/dev/null || chattr -i "$f" 2>/dev/null || true; done \
+      < <(find "$REPO_UF/.worktrees" -name 'sticky-untracked.txt' 2>/dev/null)
+  fi
+  assert "untracked-clean-fail enter exit 9" test "$EC_UF" -eq 9
+  assert "untracked-clean-fail stderr keeps workspace" grep -q 'workspace kept at' "$TMP/enter-uf.err"
+  KEPT_UF=$(sed -n 's/^worktree-enter: workspace kept at //p' "$TMP/enter-uf.err" | head -1 | tr -d '\r')
+  assert "untracked-clean-fail kept path exists" test -n "$KEPT_UF" -a -d "$KEPT_UF"
+  # Tracked WIP must still be in kept workspace (not destroyed by teardown)
+  assert "untracked-clean-fail tracked WIP in kept ws" grep -q dirty "$KEPT_UF/README"
+  assert "untracked-clean-fail untracked WIP in kept ws" test -f "$KEPT_UF/sticky-untracked.txt"
+  # Must NOT have torn down all worktrees
+  WT_UF=$(find "$REPO_UF/.worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+  assert "untracked-clean-fail worktree not torn down" test "${WT_UF:-0}" -ge 1
+else
+  echo "PASS: untracked-clean-fail skipped (no uchg/chattr on this host)"
+  pass=$((pass + 1))
+fi
+
 # --- review-converge / model-agnostic composition (contract pins + path preference) ---
 # These are isolated hermetic checks so rename fatals (migrate order, dual marker, hard
 # grok-cc require, stale template) cannot silently regress without the L3 suite noticing.
