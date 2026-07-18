@@ -17,6 +17,10 @@ Host max-turns / max-budget must be **looser** than these caps so S11 can run. P
 
 Read **disk** (`IMPROVE_LOOP.md` Status + Stop-condition + Driver), not chat.
 
+Prefer `node <plugin>/tools/improve-stop-decision.js` with a fact snapshot when Node is
+available (see `contracts/goal.md`). Map `decision`/`reason` onto Status + S9 text. Still
+apply step 1 **before** the helper: hard `blocked:*` is lifecycle, not stop-table.
+
 1. Hard block: Driver `next_auto` is `blocked:*` that needs human (rebase-continue, etc.) → break to S9 (blocked).  
 2. `max_cycles` / `max_elapsed` / budget exceeded → break (`stopped (max_cycles)` / … on ledger if not already).  
 3. Status already `stopped (same-error ×3)` or `stopped (no-progress ×3)` → break.  

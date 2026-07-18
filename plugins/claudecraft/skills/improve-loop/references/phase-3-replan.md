@@ -195,7 +195,13 @@ stops. Never fold advisor-side dirt into the cycle commit.
 
 Immediately after surgical apply or deliberate non-apply, and without a subagent, use the
 counters Phase 2 already wrote to update Status *in this exact order* (canonical table:
-`contracts/goal.md` — terminal status → same-error → no-progress → caps → until):
+`contracts/goal.md` — terminal status → same-error → no-progress → caps → until). When Node
+is available, prefer `tools/improve-stop-decision.js` with a snapshot whose `until_kind` the
+caller derived from the ledger header (`default` / `custom` / `none`); pass
+`custom_until_met: false` here (only S8 / goal host may set true). Map helper
+`decision: complete|stop` onto Status; `confirm` → leave `active` + Notes
+`confirm: verification cycle required`; `continue` → leave `active`. Markdown rules below
+remain the no-Node fallback:
 
 1. `consecutive-same-error >= 3` → `stopped (same-error ×3)`
 2. `consecutive-no-progress >= 3` → `stopped (no-progress ×3)`

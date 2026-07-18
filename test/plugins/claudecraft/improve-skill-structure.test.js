@@ -30,6 +30,7 @@ const REQUIRED = [
   'tools/improve-worktree.sh',
   'tools/improve-progress-format.js',
   'tools/improve-next-auto.js',
+  'tools/improve-stop-decision.js',
 ];
 
 const LAW_PHRASES = [
@@ -435,6 +436,7 @@ describe('claudecraft improve skill structure', function () {
     expect(goal).to.match(/\*\*Confirm\*\*|Confirm — stay active/i);
     expect(goal).to.match(/Do \*\*not\*\* complete on "last non-material cycle was PASS"|Do not complete on "last non-material cycle was PASS"/i);
     expect(goal).to.match(/Precedence \(first match wins\)|terminal status → same-error/i);
+    expect(goal).to.match(/improve-stop-decision\.js|deriveStopDecision/i);
     // Ownership: improve-loop once-mode may create/reintegrate; continuous uses improve driver
     const lifeOwn = fs.readFileSync(
       path.join(CC, 'skills/improve/references/lifecycle.md'),

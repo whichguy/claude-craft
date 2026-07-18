@@ -42,6 +42,13 @@ ledger and never blocks reintegrate.
 → driver/host caps → until classification. Caps and outer-loop docs **reference** this table;
 Phase 3 keeps executing numbered rules that implement it.
 
+**Pure helper (preferred when Node is available):**
+`plugins/claudecraft/tools/improve-stop-decision.js` → `deriveStopDecision(snapshot)`.
+Caller supplies `until_kind: default|custom|none` (never string-match until text inside the
+helper). Output `{ decision, reason }` with `decision` ∈ `continue|confirm|complete|stop`.
+This Markdown table remains the no-Node fallback and the semantic source the helper encodes.
+S8 checks `next_auto: blocked:*` **before** consulting the stop helper.
+
 | Condition | Result |
 |---|---|
 | Existing `complete` or `stopped (...)` (and landed when required) | Preserve it |
