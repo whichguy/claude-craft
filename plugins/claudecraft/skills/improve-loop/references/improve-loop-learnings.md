@@ -208,3 +208,13 @@ Wave `mark_fail` on suite; `mark_blocked` only on real protect family.
 - **G:** skip material pilot this arc; run product-mode dogfood only before a real product `/improve`.
 - **E3:** skipped — product residual + limitation waived + confirmation greps green.
 
+## Planning enrichment (Spec-Kit-lite, no Spec Kit dep)
+
+| Surface | Note |
+|---|---|
+| `contracts/planning.md` | Tiers T0/T0p/T1/T2, promote-class, multi-line grammar, PLAN_APPLY A vs B fork |
+| Ledger `## Campaign brief` | After Driver (A) / Isolation (B); skill-law Done when only |
+| PLAN_* pins | Static docs + B user-skill contract-check; mirror not forced for PLAN_* |
+| B `backlog-blocks.js` | parse / open-count / deleteBlock / residual-forbidden; scripts.test fixtures |
+| H9 / H11 / H14 | Six-clause + residual thin; mid residual empty OK; A continuous `[x]` freeze |
+

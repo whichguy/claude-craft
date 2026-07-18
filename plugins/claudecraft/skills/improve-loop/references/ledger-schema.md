@@ -35,6 +35,20 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 - **resume_hint:** <one imperative line for cold resume|none>
 - **updated:** <ISO-8601Z|none>
 
+## Campaign brief
+<!-- After ## Driver, before ## Backlog (PLAN_BRIEF). Orchestrator-only surgical rewrite
+     through next ## . Success/Done when restates skill law only — no new complete predicates.
+     See contracts/planning.md -->
+- **Target:** <plain-language target>
+- **Problem / opportunity:** …
+- **In scope:** …
+- **Out of scope / waived:** …
+- **Constraints:** test command, package rules, safety…
+- **Sources inspected:** paths / digest / habitat…
+- **Success / Done when:** residual×2 + green suite (restate skill law only)
+- **Open questions:** none | …
+- **Plan tier:** 0 | 0p | 1 | 2
+
 ## Backlog
 - [x] <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)
 - [ ] <item> — <why it matters>
@@ -42,10 +56,24 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 ### Backlog item contract (P0/P1)
 
 Every unchecked **P0/P1** item uses a kind tag in brackets. Structure and replan
-discriminate **on the kind tag** — not prose judgment.
+discriminate **on the kind tag** — not prose judgment. Full planning design:
+`contracts/planning.md` (tiers, promote-class PLAN_CLASSIFY, multi-line PLAN_APPLY).
 
 **Material kinds** (`defect` | `product-choice` | `architecture` | `implementation`)
-require **six clauses** under the title line:
+require **six clauses** under the title line (PLAN_CLAUSES).
+
+**Greppable form (preferred new seeds — PLAN_TAG):**
+
+```markdown
+- [ ] P1: [defect] <change> (<path/symbol>) — <why>
+  - Evidence: <current source/runtime fact>
+  - Decision: <selected observable behavior or approach, and why>
+  - Preserve: <behavior, interface, state, or safety boundary that must not change>
+  - Unknown: <branch-changing question, or none>
+  - Acceptance: <specific observable result or verification command>
+```
+
+**Legacy A form (still valid — PLAN_LEGACY_A; continuous open-count still counts these):**
 
 ```markdown
 - [ ] [P1][defect|product-choice|architecture|implementation] <change> (<path/symbol>)
@@ -57,13 +85,15 @@ require **six clauses** under the title line:
 ```
 
 **Residual kind** (`residual`) is the structural residual survey form — **thin template
-only** (Evidence + Acceptance). No invented Decision/Preserve (anti-theater):
+only** (Evidence + Acceptance). No invented Decision/Preserve (anti-theater) (PLAN_RESIDUAL):
 
 ```markdown
-- [ ] [P1][residual] <finding> (<path/symbol>)
+- [ ] P1: [residual] <finding> (<path/symbol>)
   - Evidence: <structural fact observed>
   - Acceptance: <verification command or observable>
 ```
+
+Legacy residual: `- [ ] [P1][residual] …` with the same thin clauses.
 
 | Kind | Meaning |
 |---|---|

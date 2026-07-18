@@ -9,10 +9,12 @@ advisors are configured: independent review, native consolidation, cross-exposur
 when needed, final consolidation, then a surgical Backlog update. It prevents an unattended
 loop from drifting silently.
 
-**Portable defaults:** see `contracts/advisor.md` and the continuous driver's
-`throttle.md`. Default when no advisors are available or throttle says so: **native-only
-replan** (still run Consolidation rules and disproven-thesis guard). Full multi-model panel
-is optional and host-mapped.
+**Portable defaults:** see `contracts/advisor.md`, `contracts/planning.md` (PLAN_APPLY,
+structured 5-block schema, plan tiers), and the continuous driver's `throttle.md` (full
+panel every **3rd** cycle or stall — do not override from planning.md). Default when no
+advisors are available or throttle says so: **native-only replan** (still run Consolidation
+rules and disproven-thesis guard). Full multi-model panel is optional and host-mapped.
+**Apply (A continuous):** preserve already-`[x]` items verbatim — never open-only delete.
 
 #### Advisor configuration and non-edit authority
 

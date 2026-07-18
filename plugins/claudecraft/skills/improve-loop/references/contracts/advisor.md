@@ -7,10 +7,11 @@ Phase 3 may consult zero or more **advisors** before surgically updating the Bac
 ## Required behavior
 
 1. **Read-only:** no edits, no write commands; diagnose and recommend only.  
-2. Input: target, path to `IMPROVE_LOOP.md` (including this cycle’s Log entry), prior-learnings digest, Phase 1 report (or empty-backlog thesis).  
-3. Output: recommended next Backlog direction (checklist bullets preferred; free prose acceptable).  
+2. Input: target, path to `IMPROVE_LOOP.md` (including this cycle’s Log entry), prior-learnings digest, Phase 1 report (or empty-backlog thesis). Prefer open Backlog + last 3 Log + compact COMPLETED/DISPROVEN (not full ledger dump).  
+3. Output: prefer structured **5-block** form (see `contracts/planning.md`): purpose fit; material recommendations (class must-fix|decision|simplify|defer + kind + six-clause or residual thin); Deferred P2; risks/stop; anti-reseed. Free prose acceptable if clauses are still recoverable.  
 4. Must not recommend re-attempting a **disproven** thesis without a concrete re-open reason.  
-5. Must not drop or uncheck already-`[x]` Backlog items.
+5. Must not drop or uncheck already-`[x]` Backlog items (A continuous).  
+6. Do not invent Decision/Preserve on residual items; do not invent new complete predicates.
 
 ## Defaults and throttle
 

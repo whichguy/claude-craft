@@ -95,19 +95,25 @@ Then continue with the numbered steps below.
    items without judgment. Never leave the Backlog empty on a fresh file and then enter
    Phase 1. On this fresh create, skip 3a–4 and go to step 5 with `N = 1`.
 
-   **Fresh-seed contract (P0/P1):** write each seeded item per
+   **Fresh-seed contract (P0/P1):** follow `contracts/planning.md` decision order
+   (inspect → classify promote|keep P2|waive → tier) then write each seeded item per
    `ledger-schema.md` **Backlog item contract**. Discriminate **on the kind tag**:
 
    - **Material** kinds (`defect` | `product-choice` | `architecture` | `implementation`):
      six-clause form — title line plus **Evidence**, **Decision**, **Preserve**,
      **Unknown**, **Acceptance**. Decision and Preserve must be concrete (not placeholders).
+     Prefer greppable `P1: [kind]` (PLAN_TAG); legacy `[P1][kind]` still valid (PLAN_LEGACY_A).
    - **Residual** kind (`residual`): thin template only — **Evidence** + **Acceptance**.
      Do **not** invent Decision/Preserve for residual survey items (anti-theater).
    - **P2 / optional / YAGNI**: one-line only; exempt from six-clause and thin residual forms.
 
-   Prefer one to three highest-value items. Structural residual campaigns may seed only
-   `[residual]` items (or complete later via residual×2 empty-backlog rules without
-   inventing fake P0/P1).
+   Prefer one to three highest-value items (T2 seed cap). **Cold-start never leaves open
+   P0/P1 empty:** if promote-class is empty, seed thin residual (T0/T0p) — do not invent
+   fake six-clause material. Structural residual campaigns may seed only `[residual]`
+   items (mid-campaign residual×2 may empty open without inventing fake P0/P1).
+
+   When T2/T0p requires a brief: write `## Campaign brief` after `## Driver` (PLAN_BRIEF)
+   before Phase 1. Optional header: `**Product residual survey:** pending|done|n/a (defect)`.
 
 3. Otherwise read the header, **`## Driver`** (if present), Backlog, Stop-condition block,
    and last two or three Log entries only.

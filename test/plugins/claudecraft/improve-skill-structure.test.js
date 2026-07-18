@@ -22,6 +22,7 @@ const REQUIRED = [
   'skills/improve-loop/references/contracts/progress.md',
   'skills/improve-loop/references/contracts/executor.md',
   'skills/improve-loop/references/contracts/advisor.md',
+  'skills/improve-loop/references/contracts/planning.md',
   'skills/improve-loop/references/contracts/outer-loop.md',
   'skills/improve/references/parse.md',
   'skills/improve/references/lifecycle.md',
@@ -562,6 +563,64 @@ describe('claudecraft improve skill structure', function () {
     expect(p3).to.match(/six-clause|thin Evidence/i);
     // P2 exempt stated somewhere in contract chain
     expect(ledger + p0).to.match(/P2.*exempt|exempt from six-clause|one-line only/i);
+  });
+
+  it('planning contract: brief, tiers, dual tag samples, classify, PLAN_APPLY fork', function () {
+    const planning = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/planning.md'),
+      'utf8'
+    );
+    const ledger = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/ledger-schema.md'),
+      'utf8'
+    );
+    const index = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/INDEX.md'),
+      'utf8'
+    );
+    const p3 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-3-replan.md'),
+      'utf8'
+    );
+    const advisor = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/advisor.md'),
+      'utf8'
+    );
+
+    // PLAN_BRIEF
+    expect(planning).to.match(/## Campaign brief|Campaign brief/i);
+    expect(planning).to.match(/PLAN_BRIEF|Success \/ Done when/i);
+    expect(planning).to.match(/must not invent new complete predicates|Must not invent new complete/i);
+    expect(ledger).to.match(/## Campaign brief/);
+    expect(ledger).to.match(/\*\*Target:\*\*/);
+    expect(ledger).to.match(/After ## Driver|before ## Backlog/i);
+
+    // PLAN_TAG dual samples (greppable + legacy)
+    expect(ledger).to.match(/P1: \[defect\]/);
+    expect(ledger).to.match(/\[P1\]\[defect/);
+    expect(planning).to.match(/PLAN_TAG|P1: \[defect\]/);
+    expect(planning).to.match(/PLAN_LEGACY_A|Legacy A/i);
+
+    // PLAN_RESIDUAL — no Decision on residual
+    expect(planning).to.match(/PLAN_RESIDUAL|thin template/i);
+    expect(planning).to.match(/strip Decision\/Preserve|only Evidence \+ Acceptance/i);
+
+    // PLAN_CLASSIFY + tiers
+    expect(planning).to.match(/PLAN_CLASSIFY|promote-class|classify: promote/i);
+    expect(planning).to.match(/\bT0p\b/);
+    expect(planning).to.match(/\bT2\b/);
+    expect(planning).to.match(/promote\|keep P2\|waive|keep P2/);
+
+    // PLAN_APPLY fork — A continuous [x] preserve
+    expect(planning).to.match(/PLAN_APPLY|Apply \(A continuous\)/i);
+    expect(planning).to.match(/Preserve already-`\[x\]`|preserve already-`\[x\]`|already-`\[x\]`/i);
+    expect(p3).to.match(/preserve.*`\[x\]`|already-`\[x\]`|must never[\s\S]*`\[x\]`/i);
+    expect(p3).to.match(/contracts\/planning\.md|planning\.md/);
+
+    // INDEX + advisor schema
+    expect(index).to.match(/contracts\/planning\.md/);
+    expect(advisor).to.match(/5-block|must-fix|anti-reseed/i);
+    expect(advisor).to.match(/contracts\/planning\.md|planning\.md/);
   });
 
   it('dirty launch bootstraps worktree carry+drain instead of hard-stop only', function () {

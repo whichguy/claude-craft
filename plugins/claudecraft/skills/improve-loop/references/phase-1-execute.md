@@ -20,13 +20,15 @@ Executor requirements (portable): **Read** `contracts/executor.md`. In short: im
 without committing, staging for commit, or editing `IMPROVE_LOOP.md`.
 
 **Material intent handoff (normative):** when the selected item is a **material** kind
-(six-clause form per `ledger-schema.md`), pass **Change**, **Decision**, **Preserve**, and
-**Acceptance** into the planner/executor **unchanged**. The executor may report
+(six-clause form per `ledger-schema.md` / `contracts/planning.md`), pass **Change**,
+**Decision**, **Preserve**, and **Acceptance** into the planner/executor **unchanged**
+(greppable `P1: [kind]` or legacy `[P1][kind]`). The executor may report
 **contradictory evidence** (source/runtime fact that falsifies Decision or makes Preserve
 impossible) but must **not** silently reinterpret Decision or violate Preserve. On
 contradiction, set Outcome `blocked` or `partial` with Notes that name the conflict, and
 leave Decision/Preserve for Phase 3 amendment — do not “fix it another way” without a
-Backlog rewrite. Residual thin items hand off **Evidence** + **Acceptance** only.
+Backlog rewrite. Residual thin items hand off **Evidence** + **Acceptance** only
+(investigation path when Unknown ≠ none or residual survey).
 
 - **1a, always:** Dispatch a fresh host **executor** (general-purpose write agent; never a
   specialized committer). Give the next unchecked Backlog item and pointers to

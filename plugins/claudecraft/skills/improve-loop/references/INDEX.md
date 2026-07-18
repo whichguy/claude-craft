@@ -15,6 +15,7 @@ Normative one-cycle law. **SKILL.md** is the operator card; open these when exec
 | `contracts/progress.md` | Control-channel progress pulses (ephemeral; Log+git win) |
 | `contracts/executor.md` | Implementer must not commit |
 | `contracts/advisor.md` | Read-only replan advisors |
+| `contracts/planning.md` | Campaign brief, plan tiers T0/T0p/T1/T2, promote-class, multi-line grammar, PLAN_APPLY A vs B |
 | `contracts/outer-loop.md` | Ranking: host goal → `improve` driver (finite caps) |
 
 Continuous multi-cycle: host **goal** or `../../improve/SKILL.md`.  
