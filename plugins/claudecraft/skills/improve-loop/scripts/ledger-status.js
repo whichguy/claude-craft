@@ -50,8 +50,10 @@ const result = {
   iteration_counter: null,
   log_iterations: 0,
   open_backlog: 0,
+  // Under open-only Backlog contract should be 0; non-zero = legacy [x] pollution
   checked_backlog: 0,
   open_deferred: 0,
+  // Open-only Deferred prefers 0; non-zero = legacy checked P2 lines still parseable
   checked_deferred: 0,
   latest_n: null,
   latest_committed: null,

@@ -163,11 +163,6 @@ function classifyLaunch(launch) {
   return classifyLaunchDirt(porcelain(launch));
 }
 
-/** @deprecated-shape helper: code paths only (blocking). */
-function codeDirtyLaunch(launch) {
-  return classifyLaunch(launch).code;
-}
-
 function coldStart(launch, commonGitDir, target, testCommand, notes) {
   // Do NOT write .gitignore on LAUNCH — that leaves launch dirty and blocks merge-back.
   // Ensure ignore line on WORKSPACE after worktree add so the campaign branch can commit it.
