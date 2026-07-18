@@ -374,7 +374,7 @@ after key evaluations). Use stable labels so operators can skim:
 | Phase 0 enter | cold-start vs resume vs discard-stale | mode = …; launch code-dirt = none\|paths; ambient ignored = … | create/reuse WORKSPACE |
 | Phase 0 residual branch | open P0/P1 vs residual-only | open count = k; streak = m | execute item **or** skip Phase 1 execute |
 | Phase 1 select | open P0/P1 candidates; COMPLETED_SET / DISPROVEN_SET from git | selected = …; skipped reseed of completed/disproven = … | implement / investigate |
-| Phase 1 post-test | STATUS + CHANGED_PATHS + suggested Outcome | PASS\|FAIL; paths empty? → reconcile Outcome | on PASS: **post-PASS hygiene** (docs + scoped cleanup) then delete/leave open; on FAIL: revert |
+| Phase 1 post-test | STATUS + CHANGED_PATHS + suggested Outcome | PASS\|FAIL; paths empty? → reconcile Outcome; hygiene gate (confirmed\|partial + non-empty)? | on gate: **post-PASS hygiene** then delete/leave open; on FAIL: revert |
 | Phase 2 counters | STATUS × Outcome matrix row | no-progress / same-error / non-material after update | append Log; **remove** completed item from Backlog |
 | Phase 3 replan | digest + ledger + advisors usable K/M | Round 2 yes\|skip; open P0/P1 after = k; streak → m | surgical Backlog/Deferred apply |
 | Phase 3 complete gate | residual ×2 + suite green | streak ≥ 2? open = 0? suite gate a\|b\|c | set Status complete\|active\|stopped |
@@ -760,11 +760,11 @@ Shared family rules (both skills):
    invoke, multi-round under `/goal` (or optional ralph). Ralph never primary for improve-loop.
 6. **Destination CWD** — when the target repo ≠ Grok session cwd, sticky to the **target repo**
    for product commands; never sticky into disposable worktrees.
-7. **Post-PASS hygiene (directive, not a phase)** — after the suite **PASS**es (and Outcome is
-   not `blocked`), **consider** updating consumer docs for what just landed and cleaning scoped
-   stale artifacts / tech-debt litter from this change or consolidation. Fold into the same
-   cycle’s `CHANGED_PATHS` when action is warranted; no-op is fine. **Not** a new phase banner
-   or L2 step — judgment only, cheap and in-scope.
+7. **Post-PASS hygiene (directive, not a phase)** — after a green suite with **real product
+   land** (`confirmed`/`partial` + non-empty `CHANGED_PATHS`), **consider** updating consumer
+   docs and cleaning scoped stale artifacts / tech-debt litter from this change. Fold into
+   the same cycle’s `CHANGED_PATHS` when warranted; no-op is fine. Skip on empty no-ops,
+   `disproven`, FAIL, residual-only. **Not** a new phase banner or L2 step.
 
 **Sibling skill.** `grok-review-converge` implements the review/fix specialization of this
 family (Grok material/minor + clean-streak ×2). Improve-loop’s multi-cycle is L1 autonomous
@@ -1256,9 +1256,12 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   committing, if un-ignored artifacts remain, report them and recommend the operator gitignore
   or clean them.
 
-- **Post-PASS hygiene (directive — not a separate phase).** When `STATUS` is **PASS** and
-  Outcome is **not** `blocked`, **before Phase 2**, the orchestrator **considers** (judgment
-  only — not mandatory work every cycle):
+- **Post-PASS hygiene (directive — not a separate phase).** Run **only** when all hold:
+  `STATUS` is **PASS**, Outcome is `confirmed` or `partial` (not `blocked` / not `disproven`),
+  and pre-hygiene `CHANGED_PATHS` is **non-empty** (real product land — not a green no-op).
+  **Skip** residual-only / empty-execute, empty-`CHANGED_PATHS` investigations, FAIL, and
+  disproven (do not document or polish a failed thesis). **Before Phase 2**, the orchestrator
+  **considers** (judgment only — not mandatory work every cycle):
 
   1. **Documentation** — did this cycle’s landed behavior leave any *consumed* docs stale or
      incomplete (README, AGENTS.md, SKILL.md, architecture notes, generated doc regions the
@@ -1269,20 +1272,26 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
      freehand stash, or whole-repo archaeology.
 
   Emit a short reasoning beat: `· considering · docs + scoped cleanup` /
-  `· evaluates · stale docs? · removable debt?` / `· about to · apply | no-op`.
+  `· evaluates · gate open? · stale docs? · removable debt?` / `· about to · apply | no-op | skip`.
 
-  **If action is warranted** (cheap, in-scope, clearly correct): apply the edits/deletes under
-  WORKSPACE, then **re-parse** porcelain and **extend** `CHANGED_PATHS` with any new hygiene
-  paths (still drop `IMPROVE_LOOP.md` and paths in `TEST_ARTIFACT_PATHS`). Pure prose docs or
-  deletes do **not** require re-running the suite by default; if hygiene edits **executable
-  contract** sources the recorded command covers, re-run the suite **once** and re-apply the
-  shared `TEST_ARTIFACT_PATHS` capture before Phase 2.
+  **If action is warranted** (cheap, in-scope, clearly correct):
+  1. Snapshot `HYGIENE_BASE := CHANGED_PATHS` (product paths before hygiene).
+  2. Apply the edits/deletes under WORKSPACE.
+  3. Re-parse porcelain and **extend** `CHANGED_PATHS` with any new hygiene paths (still drop
+     `IMPROVE_LOOP.md` and paths in `TEST_ARTIFACT_PATHS`). Let
+     `HYGIENE_PATHS := CHANGED_PATHS − HYGIENE_BASE` (paths this fold-in added).
+  4. Pure prose docs or deletes do **not** re-run the suite by default. If hygiene edits
+     **executable contract** sources the recorded command covers, re-run the suite **once**
+     and re-apply the shared `TEST_ARTIFACT_PATHS` capture **before Phase 2**.
+  5. **Hygiene re-run FAIL:** do **not** treat the original green product thesis as FAIL.
+     Revert only `HYGIENE_PATHS` (`git restore -SW` / delete untracked for those paths);
+     restore `CHANGED_PATHS := HYGIENE_BASE`; keep STATUS **PASS** and the pre-hygiene Outcome;
+     Notes `post-PASS hygiene re-run FAIL — hygiene paths reverted; product land kept`. Do
+     **not** invent a second full FAIL revert of product code. Proceed to Phase 2.
 
-  **If nothing material:** optional Notes line
+  **If nothing material:** optional Notes
   `post-PASS hygiene: considered docs + repo cleanup; no changes`. Do **not** invent P0/P1
-  solely for hygiene theater. **Residual-only / empty-execute** cycles skip aggressive hygiene
-  (no unrelated doc rewrites on residual surveys). **FAIL** path: no post-PASS fold-in — use
-  the revert rules below.
+  solely for hygiene theater.
 
 - If STATUS is FAIL and there is nothing further to try this cycle, the orchestrator (the
   executor has already returned) reverts the attempted changes so code is clean before

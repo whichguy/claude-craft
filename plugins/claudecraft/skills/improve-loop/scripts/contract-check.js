@@ -173,9 +173,11 @@ const improveRequired = [
   ['next backlog open only', /Open work queue only|Next backlog:[\s\S]*?\(open: empty\)|do \*\*not\*\* emit `- \[x\]`/i],
   ['legacy x strip', /legacy \[x\] stripped|memory is git digest/i],
   ['post-PASS hygiene directive', /Post-PASS hygiene|post-PASS hygiene/i],
-  ['post-PASS docs + cleanup', /Documentation|stale.*docs|docs stale|tech-debt|scoped cleanup|repo cleanup/i],
-  ['extend CHANGED_PATHS after hygiene', /extend.*CHANGED_PATHS|CHANGED_PATHS.*extend|post-PASS hygiene paths/i],
+  ['post-PASS docs + cleanup', /Documentation[\s\S]{0,200}stale|stale.*docs|tech-debt litter|scoped cleanup|repo cleanup/i],
+  ['extend CHANGED_PATHS after hygiene', /extend.*CHANGED_PATHS|CHANGED_PATHS.*extend|post-PASS hygiene paths|HYGIENE_PATHS/i],
   ['hygiene not a separate phase', /not a separate phase|directive — not a separate phase|not a new phase/i],
+  ['hygiene gate real product land', /non-empty.*CHANGED_PATHS|pre-hygiene.*non-empty|real product land/i],
+  ['hygiene re-run FAIL keep product', /hygiene re-run FAIL|hygiene paths reverted|product land kept/i],
 ];
 
 for (const [name, re] of improveRequired) {
@@ -256,6 +258,14 @@ if (converge) {
   ok(
     /P0|P1/i.test(converge),
     'grok-review-converge should map material plan bullets to P0/P1 family tags'
+  );
+  ok(
+    /Post-PASS hygiene|post-PASS hygiene/i.test(converge),
+    'grok-review-converge missing post-PASS hygiene family directive'
+  );
+  ok(
+    /HYGIENE_PATHS|hygiene paths reverted|product land kept/i.test(converge),
+    'grok-review-converge missing hygiene re-run FAIL keep-product rule'
   );
   const head = converge.slice(0, 1200);
   ok(
