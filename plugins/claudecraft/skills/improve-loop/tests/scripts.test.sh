@@ -3,6 +3,12 @@
 # Exit 0 = pass; nonzero = fail.
 set -euo pipefail
 
+# Agent hosts sometimes export GIT_DIR / GIT_WORK_TREE (or similar) so every
+# `git -C <fixture>` still targets the outer repo — fixture init/add then fails
+# with "pathspec … did not match". Clear them for this suite only.
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
+  GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES 2>/dev/null || true
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPTS="$ROOT/scripts"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/improve-loop-test.XXXXXX")"
@@ -318,6 +324,20 @@ WS6r="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[
 assert "resume after carry same workspace" test "$WS6" = "$WS6r"
 assert "resume after carry WIP intact" test -f "$WS6r/extra.c"
 
+# Different target after carry: must discard-stale (advisory) + cold-start, NOT exit 10
+OUT6d="$TMP/enter6-diff-target.json"
+set +e
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO6" --target "other-skill-target" >"$OUT6d" 2>"$TMP/t6d.err"
+EC6d=$?
+set -e
+assert "different target after carry exit 0" test "$EC6d" -eq 0
+assert "different target notes discard-stale-different-target" grep -q 'discard-stale-different-target' "$OUT6d"
+assert "different target cold-start mode" grep -qE '"mode": "(discard-stale-cold-start|cold-start)"' "$OUT6d"
+WS6d="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT6d")"
+assert "different target new workspace" test "$WS6d" != "$WS6"
+# carried product WIP should have been restored to launch (best-effort) so not lost
+assert "different target restored extra.c to launch or kept somewhere" bash -c "test -f \"$REPO6/extra.c\" || test -f \"$WS6/extra.c\""
+
 # reintegrate_blocked → merge-back-only mode
 REPO7="$TMP/repo7"
 mkdir -p "$REPO7"
@@ -616,6 +636,112 @@ set -e
 assert "merge-back blocks code dirt exit 3" test "$MB_MIX_EC" -eq 3
 assert "merge-back blocked mode" grep -q '"merge_back": "blocked"' "$OUT_MB_MIX"
 assert "merge-back error lists extra.c" grep -q 'extra.c' "$OUT_MB_MIX"
+
+# New product file on campaign branch must FF onto launch (landing > clean tree)
+REPO_NEW="$TMP/repo-newfile"
+mkdir -p "$REPO_NEW"
+git -C "$REPO_NEW" init -q -b main
+git -C "$REPO_NEW" config user.email "test@example.com"
+git -C "$REPO_NEW" config user.name "Test"
+echo base >"$REPO_NEW/README"
+git -C "$REPO_NEW" add README
+git -C "$REPO_NEW" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_NEW" --target "new-file product" --test-command "true" >/dev/null
+WS_NEW="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_NEW")"
+# Simulate Phase 1 product: brand-new untracked file + README edit, pathspec stage (no add -A)
+mkdir -p "$WS_NEW/lib"
+echo 'module.exports = 1;' >"$WS_NEW/lib/new-module.js"
+echo y >>"$WS_NEW/README"
+git -C "$WS_NEW" add -- README lib/new-module.js
+[[ -f "$WS_NEW/.gitignore" ]] && git -C "$WS_NEW" add -- .gitignore || true
+git -C "$WS_NEW" commit -q -m "improve-loop: iteration 1 — add new-module"
+assert "new-file committed on campaign" git -C "$WS_NEW" cat-file -e HEAD:lib/new-module.js
+assert "new-file absent on launch pre-merge" bash -c "test ! -f \"$REPO_NEW/lib/new-module.js\""
+OUT_MB_NEW="$TMP/mergeback-newfile.json"
+set +e
+node "$SCRIPTS/merge-back.js" --repo "$REPO_NEW" >"$OUT_MB_NEW" 2>"$TMP/mergeback-newfile.err"
+MB_NEW_EC=$?
+set -e
+assert "new-file merge-back exit 0" test "$MB_NEW_EC" -eq 0
+assert "new-file merge-back ok" grep -qE '"merge_back": "ok"|"merge_back": "ok_teardown_advisory"' "$OUT_MB_NEW"
+assert "new-file present on launch after FF" test -f "$REPO_NEW/lib/new-module.js"
+assert "new-file content on launch" grep -q 'module.exports = 1' "$REPO_NEW/lib/new-module.js"
+assert "new-file in launch HEAD tree" git -C "$REPO_NEW" cat-file -e HEAD:lib/new-module.js
+
+# Untracked litter (.bundled_manifest_*.tmp) must NOT block merge-back (auto-clean)
+REPO_LIT="$TMP/repo-litter"
+mkdir -p "$REPO_LIT/skills"
+git -C "$REPO_LIT" init -q -b main
+git -C "$REPO_LIT" config user.email "test@example.com"
+git -C "$REPO_LIT" config user.name "Test"
+echo x >"$REPO_LIT/README"
+git -C "$REPO_LIT" add README
+git -C "$REPO_LIT" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_LIT" --target "litter" --test-command "true" >/dev/null
+WS_LIT="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_LIT")"
+echo y >>"$WS_LIT/README"
+git -C "$WS_LIT" add README
+[[ -f "$WS_LIT/.gitignore" ]] && git -C "$WS_LIT" add .gitignore || true
+git -C "$WS_LIT" commit -q -m "improve-loop: iteration 1 — litter"
+# untracked hermes-style temp on launch
+echo temp >"$REPO_LIT/skills/.bundled_manifest_hm9sh3am.tmp"
+OUT_MB_LIT="$TMP/mergeback-litter.json"
+set +e
+node "$SCRIPTS/merge-back.js" --repo "$REPO_LIT" >"$OUT_MB_LIT" 2>"$TMP/mergeback-litter.err"
+MB_LIT_EC=$?
+set -e
+assert "litter merge-back exit 0" test "$MB_LIT_EC" -eq 0
+assert "litter merge-back ok" grep -qE '"merge_back": "ok"|"merge_back": "ok_teardown_advisory"' "$OUT_MB_LIT"
+assert "litter cleaned note" grep -qE 'litter-cleaned|ignored-litter' "$OUT_MB_LIT"
+assert "litter tmp removed from launch" test ! -f "$REPO_LIT/skills/.bundled_manifest_hm9sh3am.tmp"
+
+# lib-paths unit: litter classified non-code
+node -e '
+const lp = require(process.argv[1]);
+const c = lp.classifyLaunchDirt([
+  "cron/jobs.json",
+  "skills/.bundled_manifest_x.tmp",
+  "extra.c",
+  "IMPROVE_LOOP.md",
+]);
+if (!c.ambient.includes("cron/jobs.json")) process.exit(2);
+if (!c.litter.includes("skills/.bundled_manifest_x.tmp")) process.exit(3);
+if (!c.code.includes("extra.c")) process.exit(4);
+if (!c.isolation.includes("IMPROVE_LOOP.md")) process.exit(5);
+if (lp.normalizeTarget("Ask  Skill") !== lp.normalizeTarget("ask skill")) process.exit(6);
+' "$SCRIPTS/lib-paths.js"
+assert "lib-paths litter+normalize unit" true
+
+# porcelainEntries expands untracked dirs so litter inside ?? skills/ is visible
+REPO_PE="$TMP/repo-porcelain-expand"
+mkdir -p "$REPO_PE/skills"
+git -C "$REPO_PE" init -q -b main
+git -C "$REPO_PE" config user.email "test@example.com"
+git -C "$REPO_PE" config user.name "Test"
+echo x >"$REPO_PE/README"
+git -C "$REPO_PE" add README
+git -C "$REPO_PE" commit -q -m init
+echo temp >"$REPO_PE/skills/.bundled_manifest_expand.tmp"
+node -e '
+const lp = require(process.argv[1]);
+const rows = lp.porcelainEntries(process.argv[2]);
+const paths = rows.map((r) => r.path);
+if (!paths.some((p) => p.includes(".bundled_manifest_expand.tmp"))) process.exit(2);
+const c = lp.classifyLaunchDirt(rows);
+if (!c.litter.some((p) => p.includes(".bundled_manifest_expand.tmp"))) process.exit(3);
+if (c.code.some((p) => p === "skills" || p === "skills/")) process.exit(4);
+' "$SCRIPTS/lib-paths.js" "$REPO_PE"
+assert "porcelainEntries expands untracked litter dirs" true
 
 # Empty ambient prefixes → cron dirt blocks (strict)
 REPO_STRICT="$TMP/repo-strict"

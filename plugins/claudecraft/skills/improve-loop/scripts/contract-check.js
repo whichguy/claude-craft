@@ -246,6 +246,10 @@ const improveRequired = [
   ['dirty intent ledger never dirty', /Dirty — intent|Never dirty|ledger.*never dirty|IMPROVE_LOOP\.md.*Never/i],
   ['dirty intent prior commits never dirty', /Prior commits|already landed.*not dirty|commits are never dirty/i],
   ['enter-carry baseline not dirty', /enter-carried|carried_paths|Enter-carried baseline/i],
+  // Landing priority: new files + FF product over polish
+  ['landing priority product over polish', /Landing priority|product over polish|Primary goal.*merge-back|more important than.*clean/i],
+  ['new files first-class product', /New files are first-class|untracked.*product|Include untracked \(\?\?\)|new files.*pathspec|new product files/i],
+  ['pathspec stages untracked product', /add -- <path>|still-dirty.*untracked|Skipping untracked product/i],
   ['cold-start residual streak reset', /Always.*init.*consecutive-non-material-cycles:\s*0|never inherit streak|cold-start.*streak always starts at \*\*0\*\*/i],
   ['residual Outcome partial hard', /Outcome `partial` only|Outcome \*\*`partial`\*\* only|never\*\*[\s\S]{0,40}`confirmed`[\s\S]{0,80}empty `CHANGED_PATHS`|never.*confirmed.*no product land/i],
   ['residual allow-empty emergency or ledger path', /Emergency allow-empty residual|allow-empty[\s\S]{0,80}residual|git commit --allow-empty|ledger-only[\s\S]{0,40}residual/i],

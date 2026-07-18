@@ -11,6 +11,8 @@
  * Launch dirt classification (via lib-paths.classifyLaunchDirt):
  *   - isolation (.gitignore, IMPROVE_LOOP.md, .worktrees/) → non-blocking
  *   - ambient (IMPROVE_LOOP_AMBIENT_PREFIXES; default cron/, wiki/) → non-blocking
+ *   - litter (IMPROVE_LOOP_LITTER_GLOBS; default .bundled_manifest_*.tmp, *~, .*.tmp)
+ *     → non-blocking; untracked litter is auto-cleaned before classify
  *   - code (everything else) → blocks with exit 3
  *
  * Teardown is **advisory / lenient** (never destructive of WIP):
@@ -27,7 +29,7 @@
  *   4 ff-only merge failed (sets reintegrate_blocked)
  *   5 git error
  *
- * Injectable: GIT_CMD, IMPROVE_LOOP_AMBIENT_PREFIXES
+ * Injectable: GIT_CMD, IMPROVE_LOOP_AMBIENT_PREFIXES, IMPROVE_LOOP_LITTER_GLOBS
  */
 'use strict';
 
@@ -40,7 +42,9 @@ const {
   launchRoot,
   pointerPaths,
   porcelain,
+  porcelainEntries,
   classifyLaunchDirt,
+  cleanUntrackedLitter,
   errMsg,
 } = require('./lib-paths.js');
 const { advisoryTeardownIsolation } = require('./carry-launch-wip.js');
@@ -100,6 +104,7 @@ const out = {
   notes: [],
   ignored_ambient: [],
   ignored_isolation: [],
+  ignored_litter: [],
   blocking_dirt: [],
   worktree_removed: false,
   branch_deleted: false,
@@ -118,16 +123,32 @@ if (!launchBranch) {
   process.exit(0);
 }
 
-const dirt = porcelain(launch);
-const classified = classifyLaunchDirt(dirt);
+// Auto-clean untracked runtime litter (e.g. skills/.bundled_manifest_*.tmp) so
+// agent-home temp files do not block FF after a terminal land.
+try {
+  const cleaned = cleanUntrackedLitter(launch);
+  for (const n of cleaned.notes || []) out.notes.push(n);
+} catch (e) {
+  out.notes.push('litter-clean-error:' + errMsg(e).slice(0, 80));
+}
+
+const dirtEntries = porcelainEntries(launch);
+const dirt = dirtEntries.map((e) => e.path);
+const classified = classifyLaunchDirt(dirtEntries);
 out.ignored_ambient = classified.ambient;
 out.ignored_isolation = classified.isolation;
+out.ignored_litter = classified.litter || [];
 out.blocking_dirt = classified.code;
 if (classified.ambient.length) {
   out.notes.push('ignored-ambient-dirt:' + classified.ambient.slice(0, 12).join(','));
 }
 if (classified.isolation.length) {
   out.notes.push('ignored-isolation-dirt:' + classified.isolation.join(','));
+}
+if (classified.litter && classified.litter.length) {
+  out.notes.push(
+    'ignored-litter-dirt:' + classified.litter.slice(0, 12).join(',')
+  );
 }
 if (classified.code.length) {
   const ambHint =

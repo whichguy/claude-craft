@@ -404,27 +404,51 @@ function restoreWipToLaunch(workspace, launch, opts = {}) {
   }
 
   if (tracked.length > 0) {
+    // Split ambient vs product so cron/wiki races on launch do not spam soft-fail
+    // and look like product restore failures (ask campaign: cron mutated underfoot).
+    let isAmbient = () => false;
     try {
-      const patch = gitDiffHeadBinary(workspace, tracked);
-      if (patch && patch.length > 0) {
-        try {
-          gitApplyBinary(launch, patch);
-          for (const p of tracked) restored.push(p);
-        } catch (e) {
-          // Soft: do not fail closed on apply conflict — leave both trees, advise.
-          notes.push(
-            'restore-wip-tracked-apply-soft-fail: ' + errMsg(e).slice(0, 160)
-          );
-          for (const p of tracked) skipped.push(p);
-        }
-      } else {
-        // No binary diff vs workspace HEAD (e.g. pure index dirt) — leave as skip
-        for (const p of tracked) skipped.push(p);
-      }
-    } catch (e) {
-      notes.push('restore-wip-tracked-diff-fail: ' + errMsg(e).slice(0, 120));
-      for (const p of tracked) skipped.push(p);
+      const { isAmbientDirt } = require('./lib-paths.js');
+      isAmbient = (p) => isAmbientDirt(p);
+    } catch {
+      /* keep false */
     }
+    const trackedAmbient = tracked.filter((p) => isAmbient(p));
+    const trackedProduct = tracked.filter((p) => !isAmbient(p));
+
+    const applyGroup = (group, label) => {
+      if (!group.length) return;
+      try {
+        const patch = gitDiffHeadBinary(workspace, group);
+        if (patch && patch.length > 0) {
+          try {
+            gitApplyBinary(launch, patch);
+            for (const p of group) restored.push(p);
+          } catch (e) {
+            if (label === 'ambient') {
+              for (const p of group) {
+                skipped.push(p);
+                notes.push('restore-skipped-ambient-race:' + p);
+              }
+            } else {
+              notes.push(
+                'restore-wip-tracked-apply-soft-fail: ' + errMsg(e).slice(0, 160)
+              );
+              for (const p of group) skipped.push(p);
+            }
+          }
+        } else {
+          for (const p of group) skipped.push(p);
+        }
+      } catch (e) {
+        notes.push(
+          'restore-wip-tracked-diff-fail: ' + errMsg(e).slice(0, 120)
+        );
+        for (const p of group) skipped.push(p);
+      }
+    };
+    applyGroup(trackedProduct, 'product');
+    applyGroup(trackedAmbient, 'ambient');
   }
 
   for (const rel of untracked) {
@@ -484,22 +508,34 @@ function advisoryTeardownIsolation(launch, opts = {}) {
       notes.push('restore-wip-unexpected: ' + errMsg(e).slice(0, 120));
     }
 
-    // Isolation-only dirt is safe to drop so soft-remove can succeed.
+    // Isolation + untracked litter is safe to drop so soft-remove can succeed.
     // Never touch ambient/code paths here — those were restored (or kept).
     try {
-      const { porcelain, classifyLaunchDirt, isIsolationDirt } = require('./lib-paths.js');
+      const {
+        porcelain,
+        classifyLaunchDirt,
+        isIsolationDirt,
+        cleanUntrackedLitter,
+      } = require('./lib-paths.js');
+      const litterClean = cleanUntrackedLitter(worktree);
+      for (const n of litterClean.notes || []) notes.push(n);
       const classified = classifyLaunchDirt(porcelain(worktree));
-      if (classified.code.length === 0 && classified.ambient.length === 0) {
-        for (const p of classified.isolation) {
-          if (!isIsolationDirt(p)) continue;
-          try {
-            fs.rmSync(path.join(worktree, p), { recursive: true, force: true });
-          } catch {
-            /* leave; soft-remove may still keep tree */
-          }
+      // Drop isolation plumbing; if only ambient/litter remain after restore,
+      // note orphan-safe-to-prune (ambient may reappear from race).
+      for (const p of classified.isolation) {
+        if (!isIsolationDirt(p)) continue;
+        try {
+          fs.rmSync(path.join(worktree, p), { recursive: true, force: true });
+        } catch {
+          /* leave; soft-remove may still keep tree */
         }
-        // Also drop untracked isolation leftovers listed only as isolation
-        notes.push('teardown-advisory: isolation-only dirt cleaned for soft-remove');
+      }
+      if (classified.isolation.length) {
+        notes.push('teardown-advisory: isolation dirt cleaned for soft-remove');
+      }
+      // Retry soft-remove when no product code dirt remains.
+      if (classified.code.length === 0) {
+        notes.push('teardown-advisory: worktree has no product code dirt');
       }
     } catch (e) {
       notes.push(
@@ -513,15 +549,38 @@ function advisoryTeardownIsolation(launch, opts = {}) {
       worktree_removed = true;
       notes.push('teardown-advisory: worktree soft-removed');
     } catch (e) {
-      worktree_kept = true;
-      worktree_removed = false;
-      notes.push(
-        'teardown-advisory: worktree kept (soft-remove refused — dirt or lock): ' +
-          worktree
-      );
-      notes.push(
-        'teardown-advisory-detail: ' + errMsg(e).slice(0, 160)
-      );
+      // One retry after re-check: sometimes restore left only ambient that launch already has.
+      try {
+        const { porcelain, classifyLaunchDirt, cleanUntrackedLitter } =
+          require('./lib-paths.js');
+        cleanUntrackedLitter(worktree);
+        const c2 = classifyLaunchDirt(porcelain(worktree));
+        if (c2.code.length === 0) {
+          // Still may refuse if ambient dirty — soft remove without force won't clear.
+          git(launch, ['worktree', 'remove', worktree]);
+          worktree_removed = true;
+          notes.push('teardown-advisory: worktree soft-removed (retry)');
+        } else {
+          throw e;
+        }
+      } catch (e2) {
+        worktree_kept = true;
+        worktree_removed = false;
+        notes.push(
+          'teardown-advisory: worktree kept (soft-remove refused — dirt or lock): ' +
+            worktree
+        );
+        notes.push(
+          'teardown-advisory-detail: ' + errMsg(e2).slice(0, 160)
+        );
+        notes.push(
+          'orphan-worktree-safe-to-prune: inspect then: git -C ' +
+            launch +
+            ' worktree remove ' +
+            worktree +
+            '  # or worktree prune after manual clean; never --force from improve-loop'
+        );
+      }
     }
   } else {
     worktree_removed = !worktree || !fs.existsSync(worktree);

@@ -31,8 +31,9 @@
  *   9 launch WIP carry failed (launch left dirty; worktree torn down on apply/copy
  *     failure; worktree KEPT on LAUNCH_CLEAN_FAILED so WIP is not destroyed)
  *  10 carried-wip-discard-blocked: default discard-stale would destroy the only copy of
- *     carried launch WIP (or non-isolation campaign dirt). Use --resume, or finish/
- *     campaign-teardown after recovering WIP. Does not remove worktree/pointer.
+ *     carried launch WIP (or non-isolation campaign dirt) for the **same** target.
+ *     Different --target always discards-stale (advisory restore) then cold-starts.
+ *     Same-target: use --resume, or recover WIP then campaign-teardown / merge-back.
  *
  * Injectable: GIT_CMD, IMPROVE_LOOP_POINTER_DIR
  */
@@ -48,6 +49,7 @@ const {
   pointerPaths,
   stampSlug,
   ensureWorktreesGitignore,
+  normalizeTarget,
   isUnder,
   porcelain,
   classifyLaunchDirt,
@@ -378,9 +380,15 @@ if (ptr) {
     notes.push('invalid-pointer-cleared');
   } else {
     // Default product path: discard stale isolation, then cold-start below.
-    // Fail-closed when discard would destroy the only copy of carried/campaign WIP
-    // (pilot incident: second enter after carry cleaned launch then wiped worktree).
-    if (wouldLoseCarriedWip(ptr)) {
+    // Fail-closed only for the **same** target when discard would destroy the only
+    // copy of carried/campaign WIP (pilot: second enter wiped WIP after launch clean).
+    // Different --target is a new campaign: advisory-restore + soft discard + cold-start
+    // so catalog skill-by-skill /improve does not require manual campaign-teardown.
+    const prevT = normalizeTarget(ptr.target);
+    const nextT = normalizeTarget(target);
+    const sameTarget =
+      !prevT || !nextT || prevT === nextT;
+    if (wouldLoseCarriedWip(ptr) && sameTarget) {
       console.error(
         'worktree-enter: carried-wip-discard-blocked — default discard-stale would destroy ' +
           'the only copy of carried launch WIP and/or non-isolation campaign dirt'
@@ -394,6 +402,14 @@ if (ptr) {
         console.error('worktree-enter: workspace kept at ' + ptr.worktree_path);
       }
       process.exit(10);
+    }
+    if (wouldLoseCarriedWip(ptr) && !sameTarget) {
+      notes.push(
+        'discard-stale-different-target:' +
+          (ptr.target || '(empty)') +
+          '→' +
+          (target || '(empty)')
+      );
     }
     discardStaleCampaign(launch, commonGitDir, ptr, notes);
   }

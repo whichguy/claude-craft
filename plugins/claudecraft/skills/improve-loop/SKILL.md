@@ -336,6 +336,10 @@ Some **host local sessions** (e.g. Grok Build ≥0.2.102) **keep the current dir
 2. Still use absolute paths for anything outside that root (`SKILL_DIR`, other repos).
 3. Always `git -C "$WORKSPACE"` / `git -C "$LAUNCH"` when both trees matter.
 4. Temporary WORKSPACE only via subshell `(cd "$WORKSPACE" && …)`.
+5. **L3 JSON I/O (noisy hosts):** some agent shells dump huge zsh state into tool
+   transcripts. Redirect L3 stdout/stderr to `/tmp/improve-*.json` (or similar) and
+   **read the file** with the file tool — do not rely on truncated shell capture for
+   `worktree-enter` / `merge-back` / `campaign-teardown` JSON.
 
 **Disallowed:** outer sticky under `.worktrees/*`; leaving sticky on TARGET after exit without
 attempting restore to `ORIGINAL_CWD`; assuming relative paths refer to the host session repo
@@ -860,6 +864,9 @@ Fail fast in Phase 0. Do not half-run a cycle.
   - **isolation** — `.gitignore`, `IMPROVE_LOOP.md`, `.worktrees/` (non-blocking)
   - **ambient** — paths under prefixes from env `IMPROVE_LOOP_AMBIENT_PREFIXES`
     (default when unset: `cron/,wiki/`; set to empty or `-` for strict no ambient)
+  - **litter** — ephemeral temps via `IMPROVE_LOOP_LITTER_GLOBS` (default:
+    `.bundled_manifest_*.tmp`, `*~`, `.*.tmp` basenames; Hermes skill bundle temps).
+    Untracked litter is **auto-cleaned** before the blocking check. Non-blocking.
   - **code** — everything else (blocks merge-back if still dirty after enter)
 
   After a successful enter, launch should be free of carried product/ambient WIP. New
@@ -880,6 +887,7 @@ Fail fast in Phase 0. Do not half-run a cycle.
 | **Enter-carried baseline** | Paths launch WIP brought into WORKSPACE at cold-start (`pointer.carried_paths`); expected; left unstaged unless this cycle’s thesis intentionally changes them |
 | **This turn’s test litter** | `TEST_ARTIFACT_PATHS` — suite side effects, not product work |
 | **Launch ambient** (merge-back) | default `cron/`, `wiki/` — runtime noise |
+| **Launch litter** (merge-back) | untracked temps (`.bundled_manifest_*.tmp`, `*~`, `.*.tmp`) — auto-cleaned / non-blocking |
 
 | Is dirty (blocks) | Why |
 |---|---|
@@ -890,6 +898,29 @@ Fail fast in Phase 0. Do not half-run a cycle.
 expected mid-campaign; (3) enter-carry is expected until teardown restores it; (4) pathspec
 commits stage only this cycle’s product `CHANGED_PATHS` + ledger — they never need a
 “clean tree.” Do not invent extra dirty categories.
+
+### Landing priority (product over polish)
+
+**Primary goal of every cycle that lands code:** put the improvement into git history on
+the campaign branch and, when terminal, **FF merge-back onto launch**. That is more
+important than an empty porcelain tree or a soft-removed worktree.
+
+| Priority | What “success” means |
+|---|---|
+| **1. Product land** | Thesis work is in `CHANGED_PATHS` (edits **and new files**), green suite, pathspec-committed on `improve/<slug>` |
+| **2. Merge-back** | Terminal: FF campaign tip into launch so main/launch **has** those commits |
+| **3. Hygiene / dirt** | Ignore ambient/litter; block only *unexpected foreign* product WIP; teardown is advisory |
+
+**New files are first-class product.** Creating, staging, and committing new paths under
+WORKSPACE is normal and expected (tests, modules, docs, scripts). Do **not**:
+
+- skip pathspec-staging untracked product (`??` in porcelain) to “keep the tree clean”
+- treat a new intentional product path as test litter, launch litter, or enter-carried baseline
+- refuse a cycle solely because porcelain is non-empty after a good product commit
+
+**Do** pathspec-stage every still-dirty path in this cycle’s `CHANGED_PATHS` (including
+paths that were untracked when first written). `git add -A` stays forbidden; explicit
+paths that *include new files* is required.
 
 ## Durable state vs live ledger (self-contained cycles)
 
@@ -1052,12 +1083,18 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    product dirt is now carried into WORKSPACE); `5` tracked legacy ledger → stop
    (operator `git rm`); `6` path traversal → stop; `7` worktree create/repair failed → stop;
    `8` bare → stop; `9` launch WIP carry failed (launch left dirty; worktree torn down) → stop;
-   **`10` `carried-wip-discard-blocked`** — a live pointer exists and default discard-stale would
-   destroy the **only** copy of carried launch WIP and/or non-isolation campaign dirt
-   (launch was cleaned after carry). **Worktree and pointer are kept.** Operator must
-   `--resume` the same campaign, or recover WIP from the worktree then
-   `campaign-teardown` / merge-back. **Never** re-invoke bare `worktree-enter` without
-   `--resume` while a post-carry pointer is active.
+   **`10` `carried-wip-discard-blocked`** — a live pointer exists for the **same target**
+   and default discard-stale would destroy the **only** copy of carried launch WIP and/or
+   non-isolation campaign dirt (launch was cleaned after carry). **Worktree and pointer
+   are kept.** Operator must `--resume` the same campaign, or recover WIP from the worktree
+   then `campaign-teardown` / merge-back. **Never** re-invoke bare `worktree-enter` without
+   `--resume` while a post-carry pointer is active **for that same target**.
+
+   **Different target:** if the live pointer's `target` (normalized) differs from this
+   invoke's `--target`, L3 **does not** exit 10 — it runs advisory discard-stale
+   (restore WIP to launch, soft-remove) then cold-starts, with notes
+   `discard-stale-different-target:<old>→<new>`. Catalog skill-by-skill `/improve` must
+   not require a manual teardown between targets.
 
    If `mode == merge-back-only`: run Phase 5 merge-back only (L3 `merge-back.js`); stop.
 
@@ -1206,16 +1243,20 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
 7. Build a **prior-learnings digest** for this target from git history (git commits are the
    durable, reviewable ledger; this is what makes learnings reviewable across cycles).
 
-   - Fetch the **full commit bodies** of the last 15 prior improve-loop iterations for this
-     target (from WORKSPACE; shared object DB):
-     `git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%n%b%n---"`.
-     This is a **bulk prefix match** against the literal `improve-loop: iteration` — it
-     matches every improve-loop commit. **No number and no em-dash belongs in this
-     pattern.** (The per-iteration lookups used elsewhere in the skill,
-     `--grep="improve-loop: iteration N —"`, are a *different* pattern and already carry the
-     em-dash to stop `iteration 1` matching `10`; do not conflate them. Adding an em-dash
-     here would match **zero** commits, since real subjects put a number between `iteration`
-     and `—`.)
+   - Fetch prior improve-loop commit bodies for **this target** (from WORKSPACE; shared
+     object DB). Multi-skill repos (e.g. `~/.hermes`) interleave many targets on one
+     history — **scope the digest**:
+     1. Prefer commits whose body contains a stable `Target: <text>` line matching this
+        campaign target (normalized whitespace/case), **or** whose body/subject mentions
+        the target path/slug from kickoff.
+     2. Pull a wider window then filter: e.g.
+        `git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 40 --format="%H%n%s%n%b%n---"`
+        then keep the newest **15** matching this target.
+     3. If fewer than 1 match after filter, fall back to unfiltered last 15 and Notes
+        `digest unscoped — multi-target noise` (still build COMPLETED_SET carefully).
+     The bulk prefix is the literal `improve-loop: iteration` — **no number and no em-dash
+     in that pattern.** (Per-iteration lookups `--grep="improve-loop: iteration N —"` are
+     different and keep the em-dash so `iteration 1` does not match `10`.)
    - Separately run `git -C "$WORKSPACE" log --oneline -20` for recent history and pass
      it as a pointer for general context.
    - From the 15 bodies, extract a compact, in-memory digest: per iteration, its **Thesis**,
@@ -1304,12 +1345,14 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   as a **set of pathnames** from `git -C "$WORKSPACE" status --porcelain`: strip the
   two-column status code and its following space from each line; for a rename line
   (`R  old -> new`) take the `new` path; unquote any path git quoted (paths with
-  spaces/special characters are wrapped in double quotes with C-style escapes). Drop
-  `IMPROVE_LOOP.md` (Phase 1 must not edit it; Phase 4 handles it separately). This is the
-  executor's change set; anything that becomes dirty *only after* the test run is test
-  output and is never staged — **except** post-PASS hygiene paths intentionally extended
-  below. Phase 4 stages code paths only from this git-grounded set (pre-test plus any
-  post-PASS hygiene extension) — never from the executor's `WHAT_CHANGED` alone.
+  spaces/special characters are wrapped in double quotes with C-style escapes). **Include
+  untracked (`??`) paths** — new files/dirs the thesis created are product land, not dirt
+  to ignore. Drop `IMPROVE_LOOP.md` (Phase 1 must not edit it; Phase 4 handles it
+  separately). This is the executor's change set; anything that becomes dirty *only after*
+  the test run is test output and is never staged — **except** post-PASS hygiene paths
+  intentionally extended below. Phase 4 stages code paths only from this git-grounded set
+  (pre-test plus any post-PASS hygiene extension) — never from the executor's
+  `WHAT_CHANGED` alone.
 
 - Then the orchestrator (native) runs the recorded test command **exactly once** with
   process CWD = **WORKSPACE**, without sticking the host session there — e.g.
@@ -1788,18 +1831,22 @@ below). No second clear commit.
      Notes, leave the file on disk, do **not** `git rm`, stop and report. Do not attempt
      commit.
   5. **Stage explicit paths only under WORKSPACE — never `git add -A` / `add .`.**
+     Pathspec **must** include new product files: for each path in `CHANGED_PATHS` that is
+     still dirty (modified, added, or **untracked `??`**), run
+     `git -C "$WORKSPACE" add -- <path>` so `git commit` records the blob. Skipping
+     untracked product “to stay clean” is a contract miss.
      - **Non-terminal (Status `active`):** `git -C "$WORKSPACE" add -- IMPROVE_LOOP.md`.
        Also, when STATUS is PASS, Outcome is not `blocked`, and `CHANGED_PATHS` is non-empty,
-       add the still-dirty code paths from `CHANGED_PATHS`.
+       add the still-dirty code paths from `CHANGED_PATHS` (edits **and** new files).
      - **Terminal (`complete` or `stopped (...)`):**
        `git -C "$WORKSPACE" rm -f -- IMPROVE_LOOP.md` if tracked (`-f` required when the
        ledger was edited after the prior iteration commit — plain `rm` refuses local
        modifications and leaves IMPROVE_LOOP.md on the campaign branch). If untracked,
        delete the file and do not add it. Also add still-dirty code paths from
        `CHANGED_PATHS` when STATUS is PASS, Outcome is not `blocked`, and that set is
-       non-empty. A ledger-only terminal commit may stage **only** the deletion of
-       `IMPROVE_LOOP.md` (not a re-add of its contents). **Do not** run merge-back if this
-       `git commit` fails (`PHASE4_COMMIT_OK` stays false).
+       non-empty (same rule: **new files included**). A ledger-only terminal commit may
+       stage **only** the deletion of `IMPROVE_LOOP.md` (not a re-add of its contents).
+       **Do not** run merge-back if this `git commit` fails (`PHASE4_COMMIT_OK` stays false).
   6. **Commit once on the campaign branch:**
      `git -C "$WORKSPACE" commit -m "improve-loop: iteration N — <summary>" -m "<body>"`.
      Record success in-memory for Phase 5 (`PHASE4_COMMIT_OK=true`, this cycle's `N`).
@@ -1816,6 +1863,8 @@ below). No second clear commit.
   work, and why) is exactly what stops a future cycle from wasting effort re-attempting it,
   so never omit or minimize it; it is not a failure to hide but a result to bank.
 
+  - **Target** — required stable line `Target: <TARGET>` (plain-language target from the
+    invoke / pointer). Phase 0 digests filter multi-skill repos on this field.
   - **Thesis** — what was tried and why (from the Log `Thesis`); state it whether it was
     ultimately proven or disproven.
   - **Outcome** — `confirmed` / `disproven` / `partial` / `blocked`; for `disproven`, state
@@ -1990,10 +2039,11 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   | **Branch deleted** | yes \| no (`-d` only) |
   | **Pointer cleared** | yes \| no |
   | **Ambient ignored** | <paths or _(none)_> |
+  | **Litter cleaned/ignored** | <paths or _(none)_> |
   | **Blocking dirt** | <paths or _(none)_> |
   | **Error** | <one line or —> |
   | **Next if blocked** | clean/commit blocking paths · re-run `merge-back.js` / `/improve` merge-back-only |
-  | **Next if worktree kept** | inspect kept path · WIP should already be restored on launch · optional `git worktree prune` later |
+  | **Next if worktree kept** | inspect kept path · WIP should already be restored on launch · when notes include `orphan-worktree-safe-to-prune`, use that copy-paste `git worktree remove <path>` (or `worktree prune` after manual clean) — **never** `--force` from the skill |
   ```
 
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
