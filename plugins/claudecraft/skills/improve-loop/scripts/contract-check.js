@@ -320,6 +320,15 @@ if (converge) {
       'review-converge missing legacy GROK_CONVERGE.md migrate rule'
     );
     ok(
+      /migrate-before-create|Migrate first/i.test(converge),
+      'review-converge missing migrate-before-create order (fatal if create-first orphans legacy ledger)'
+    );
+    ok(
+      /landed-commit grep|either marker|legacy marker/i.test(converge) &&
+        /grok-review-converge: round/.test(converge),
+      'review-converge missing dual-marker landed/orphan grep (legacy commits must not false-orphan)'
+    );
+    ok(
       !/grok-cc:grok-rescue` must be available/i.test(converge) &&
         !/must be available \(the `grok-cc` plugin/i.test(converge),
       'review-converge still hard-requires grok-cc'
@@ -335,8 +344,32 @@ if (converge) {
       !/Grok-driven review\/fix|asks Grok to review/i.test(head),
       'review-converge description still Grok-product identity'
     );
+    // Completion template (sibling of SKILL) must not teach the old ledger/promise names as primary
+    const tmplPath = path.join(path.dirname(convergeSkill), 'completion-report.template.html');
+    if (exists(tmplPath)) {
+      const html = read(tmplPath);
+      ok(
+        /REVIEW_CONVERGE\.md/.test(html),
+        'completion template missing REVIEW_CONVERGE.md'
+      );
+      ok(
+        !/GROK_REVIEW_CONVERGE_DONE/.test(html),
+        'completion template still ships GROK_REVIEW_CONVERGE_DONE promise'
+      );
+      ok(
+        /REVIEW_CONVERGE_DONE/.test(html) || /\/goal/.test(html),
+        'completion template missing REVIEW_CONVERGE_DONE or /goal run path'
+      );
+    }
   }
 }
+
+// defaultConvergePath preference: when preferred exists, --converge default must not force legacy
+ok(
+  defaultConvergePath().includes('review-converge') ||
+    !exists(path.join(home, '.claude/skills/review-converge/SKILL.md')),
+  'defaultConvergePath must prefer review-converge when present'
+);
 
 // improve-loop must declare family table / sibling converge
 ok(

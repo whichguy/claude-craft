@@ -585,6 +585,112 @@ set -e
 assert "strict ambient empty blocks cron exit 3" test "$MB_ST_EC" -eq 3
 assert "strict blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_ST"
 
+# --- review-converge / model-agnostic composition (contract pins + path preference) ---
+# These are isolated hermetic checks so rename fatals (migrate order, dual marker, hard
+# grok-cc require, stale template) cannot silently regress without the L3 suite noticing.
+CONTRACT="$SCRIPTS/contract-check.js"
+CONVERGE_SKILL="${HOME}/.claude/skills/review-converge/SKILL.md"
+LEGACY_SKILL="${HOME}/.claude/skills/grok-review-converge/SKILL.md"
+CONVERGE_TMPL="${HOME}/.claude/skills/review-converge/completion-report.template.html"
+
+assert "contract-check.js exists" test -f "$CONTRACT"
+set +e
+node "$CONTRACT" --skill-dir "$ROOT" \
+  --mirror "$ROOT/SKILL.md" \
+  --converge "$CONVERGE_SKILL" \
+  >"$TMP/contract-out.txt" 2>"$TMP/contract-err.txt"
+CC_EC=$?
+set -e
+assert "contract-check exit 0" test "$CC_EC" -eq 0
+assert "contract-check PASS banner" grep -q '^PASS:' "$TMP/contract-out.txt"
+
+if [[ -f "$CONVERGE_SKILL" ]]; then
+  assert "converge product name" grep -qE 'name:[[:space:]]*review-converge' "$CONVERGE_SKILL"
+  assert "converge REVIEW_CONVERGE ledger" grep -q 'REVIEW_CONVERGE.md' "$CONVERGE_SKILL"
+  assert "converge commit marker" grep -q 'review-converge: round' "$CONVERGE_SKILL"
+  assert "converge migrate-before-create" grep -qiE 'migrate-before-create|Migrate first' "$CONVERGE_SKILL"
+  assert "converge dual-marker landed grep" grep -q 'grok-review-converge: round' "$CONVERGE_SKILL"
+  assert "converge native-first" grep -qiE 'Native first|native first' "$CONVERGE_SKILL"
+  assert "converge no hard grok-cc require" bash -c \
+    "! grep -qiE 'grok-cc:grok-rescue\` must be available|must be available \\(the \`grok-cc\` plugin' \"$CONVERGE_SKILL\""
+  # Fatal: create-while-legacy-exists must be forbidden in prose
+  assert "converge forbids create-over-legacy" \
+    grep -qiE 'never create a fresh|parallel empty ledger|while a legacy ledger still exists' \
+    "$CONVERGE_SKILL"
+fi
+
+if [[ -f "$LEGACY_SKILL" ]]; then
+  assert "legacy alias is deprecation stub" grep -qiE 'DEPRECATED alias|Superseded by' "$LEGACY_SKILL"
+  LEGACY_BYTES="$(wc -c <"$LEGACY_SKILL" | tr -d ' ')"
+  assert "legacy alias thin (<2500 bytes)" test "$LEGACY_BYTES" -lt 2500
+fi
+
+if [[ -f "$CONVERGE_TMPL" ]]; then
+  assert "template REVIEW_CONVERGE primary" grep -q 'REVIEW_CONVERGE.md' "$CONVERGE_TMPL"
+  assert "template no old promise name" bash -c \
+    "! grep -q 'GROK_REVIEW_CONVERGE_DONE' \"$CONVERGE_TMPL\""
+fi
+
+# defaultConvergePath: preferred path wins when both exist (isolated HOME fixture)
+FAKE_CC_HOME="$TMP/cc-home"
+mkdir -p "$FAKE_CC_HOME/.claude/skills/review-converge" \
+  "$FAKE_CC_HOME/.claude/skills/grok-review-converge" \
+  "$FAKE_CC_HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop"
+# minimal skill package so contract-check can read layout (reuse real package via skill-dir)
+printf '%s\n' '---' 'name: review-converge' '---' '# Review converge' \
+  'Preferred multi-round outer driver: `/goal`' \
+  'Optional legacy outer driver: `ralph-loop`' \
+  '## Running it multi-round' \
+  '### Preferred: `/goal`' \
+  'Consecutive clean rounds >= 2' \
+  'material vs minor' \
+  'git history aware' \
+  'Improvement loop family with improve-loop' \
+  'P0 P1 tags' \
+  'Post-PASS hygiene' \
+  'HYGIENE_PATHS product land kept' \
+  'CONTAMINATED left unstaged' \
+  'HYGIENE_SNAPSHOTS pre-hygiene content snapshot' \
+  'untracked junk never `git rm` clean tracked' \
+  'Native first preferred default' \
+  'REVIEW_CONVERGE.md' \
+  'review-converge: round' \
+  'GROK_CONVERGE.md migrate rename legacy' \
+  'migrate-before-create Migrate first' \
+  'landed-commit grep either marker grok-review-converge: round' \
+  >"$FAKE_CC_HOME/.claude/skills/review-converge/SKILL.md"
+printf '%s\n' '---' 'name: grok-review-converge' '---' \
+  'DEPRECATED alias. Superseded by review-converge.' \
+  >"$FAKE_CC_HOME/.claude/skills/grok-review-converge/SKILL.md"
+# stub mirror so missing-mirror does not fail hard beyond the read fail list
+cp "$ROOT/SKILL.md" \
+  "$FAKE_CC_HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop/SKILL.md"
+set +e
+HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
+  >"$TMP/cc-prefer-out.txt" 2>"$TMP/cc-prefer-err.txt"
+CC_PREF_EC=$?
+set -e
+assert "contract-check prefers review-converge path" test "$CC_PREF_EC" -eq 0
+assert "contract-check converge line is preferred" \
+  grep -q 'converge:.*review-converge' "$TMP/cc-prefer-out.txt"
+
+# When preferred missing, fall back to legacy (still a stub — contract skips product pins)
+rm -rf "$FAKE_CC_HOME/.claude/skills/review-converge"
+set +e
+HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
+  >"$TMP/cc-legacy-out.txt" 2>"$TMP/cc-legacy-err.txt"
+CC_LEG_EC=$?
+set -e
+assert "contract-check falls back to legacy path" test "$CC_LEG_EC" -eq 0
+assert "contract-check converge line is legacy" \
+  grep -q 'converge:.*grok-review-converge' "$TMP/cc-legacy-out.txt"
+
+# improve-loop family cross-ref still names review-converge
+assert "improve-loop SKILL names review-converge sibling" \
+  grep -q 'review-converge' "$ROOT/SKILL.md"
+assert "improve-loop advisors optional native-first" \
+  grep -qiE 'Advisors are optional|native-replanner|optional advisor' "$ROOT/SKILL.md"
+
 echo "---"
 echo "passed=$pass failed=$fail"
 [[ "$fail" -eq 0 ]]
