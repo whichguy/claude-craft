@@ -359,6 +359,192 @@ function carryLaunchWip(launch, workspace, opts = {}) {
   return { carried: all, notes, tracked, untracked };
 }
 
+/**
+ * Reverse of carryLaunchWip: best-effort restore non-isolation WIP from workspace
+ * back onto launch **without** destroying the workspace copy.
+ *
+ * Lenient rules:
+ *   - tracked: git apply on launch (soft; on conflict note and continue)
+ *   - untracked: copy only when dest is missing (never overwrite launch work)
+ *   - never cleans/deletes workspace paths
+ *
+ * @param {string} workspace
+ * @param {string} launch
+ * @param {{ notes?: string[] }} [opts]
+ * @returns {{ restored: string[], skipped: string[], notes: string[] }}
+ */
+function restoreWipToLaunch(workspace, launch, opts = {}) {
+  const notes = opts.notes || [];
+  const restored = [];
+  const skipped = [];
+
+  if (!workspace || !fs.existsSync(workspace)) {
+    notes.push('restore-wip: workspace missing');
+    return { restored, skipped, notes };
+  }
+  if (!launch || !fs.existsSync(launch)) {
+    notes.push('restore-wip: launch missing');
+    return { restored, skipped, notes };
+  }
+
+  let tracked = [];
+  let untracked = [];
+  try {
+    const c = listCarryCandidates(workspace);
+    tracked = c.tracked;
+    untracked = c.untracked;
+  } catch (e) {
+    notes.push('restore-wip: list failed: ' + errMsg(e).slice(0, 120));
+    return { restored, skipped, notes };
+  }
+
+  if (tracked.length === 0 && untracked.length === 0) {
+    notes.push('restore-wip:0');
+    return { restored, skipped, notes };
+  }
+
+  if (tracked.length > 0) {
+    try {
+      const patch = gitDiffHeadBinary(workspace, tracked);
+      if (patch && patch.length > 0) {
+        try {
+          gitApplyBinary(launch, patch);
+          for (const p of tracked) restored.push(p);
+        } catch (e) {
+          // Soft: do not fail closed on apply conflict — leave both trees, advise.
+          notes.push(
+            'restore-wip-tracked-apply-soft-fail: ' + errMsg(e).slice(0, 160)
+          );
+          for (const p of tracked) skipped.push(p);
+        }
+      } else {
+        // No binary diff vs workspace HEAD (e.g. pure index dirt) — leave as skip
+        for (const p of tracked) skipped.push(p);
+      }
+    } catch (e) {
+      notes.push('restore-wip-tracked-diff-fail: ' + errMsg(e).slice(0, 120));
+      for (const p of tracked) skipped.push(p);
+    }
+  }
+
+  for (const rel of untracked) {
+    const dest = path.join(launch, rel);
+    if (fs.existsSync(dest)) {
+      skipped.push(rel);
+      notes.push('restore-wip-skip-exists:' + rel);
+      continue;
+    }
+    try {
+      copyPathRecursive(workspace, rel, launch);
+      restored.push(rel);
+    } catch (e) {
+      skipped.push(rel);
+      notes.push(
+        'restore-wip-copy-soft-fail:' + rel + ':' + errMsg(e).slice(0, 80)
+      );
+    }
+  }
+
+  notes.push('restore-wip:' + restored.length);
+  if (skipped.length) notes.push('restore-wip-skipped:' + skipped.length);
+  if (restored.length && restored.length <= 12) {
+    notes.push('restore-wip-paths:' + restored.join(','));
+  } else if (restored.length > 12) {
+    notes.push('restore-wip-paths:' + restored.slice(0, 12).join(',') + ',…');
+  }
+
+  return { restored, skipped, notes };
+}
+
+/**
+ * Advisory isolation teardown — never force-destroy WIP.
+ *
+ * Order:
+ *   1. restore non-isolation worktree WIP onto launch (best-effort, keep workspace copy)
+ *   2. soft `git worktree remove` (NO --force, NO fs.rmSync)
+ *   3. soft `git branch -d` only (NO -D)
+ *   4. optional pointer clear (caller decides)
+ *
+ * @param {string} launch
+ * @param {{ worktree?: string|null, campaign?: string|null, notes?: string[] }} opts
+ * @returns {{ worktree_removed: boolean, branch_deleted: boolean, notes: string[], worktree_kept: boolean }}
+ */
+function advisoryTeardownIsolation(launch, opts = {}) {
+  const notes = opts.notes || [];
+  const worktree = opts.worktree || null;
+  const campaign = opts.campaign || null;
+  let worktree_removed = false;
+  let branch_deleted = false;
+  let worktree_kept = false;
+
+  if (worktree && fs.existsSync(worktree)) {
+    try {
+      restoreWipToLaunch(worktree, launch, { notes });
+    } catch (e) {
+      notes.push('restore-wip-unexpected: ' + errMsg(e).slice(0, 120));
+    }
+
+    // Isolation-only dirt is safe to drop so soft-remove can succeed.
+    // Never touch ambient/code paths here — those were restored (or kept).
+    try {
+      const { porcelain, classifyLaunchDirt, isIsolationDirt } = require('./lib-paths.js');
+      const classified = classifyLaunchDirt(porcelain(worktree));
+      if (classified.code.length === 0 && classified.ambient.length === 0) {
+        for (const p of classified.isolation) {
+          if (!isIsolationDirt(p)) continue;
+          try {
+            fs.rmSync(path.join(worktree, p), { recursive: true, force: true });
+          } catch {
+            /* leave; soft-remove may still keep tree */
+          }
+        }
+        // Also drop untracked isolation leftovers listed only as isolation
+        notes.push('teardown-advisory: isolation-only dirt cleaned for soft-remove');
+      }
+    } catch (e) {
+      notes.push(
+        'teardown-advisory: isolation-clean skip: ' + errMsg(e).slice(0, 80)
+      );
+    }
+
+    // Soft remove only — never --force, never recursive rm of the tree.
+    try {
+      git(launch, ['worktree', 'remove', worktree]);
+      worktree_removed = true;
+      notes.push('teardown-advisory: worktree soft-removed');
+    } catch (e) {
+      worktree_kept = true;
+      worktree_removed = false;
+      notes.push(
+        'teardown-advisory: worktree kept (soft-remove refused — dirt or lock): ' +
+          worktree
+      );
+      notes.push(
+        'teardown-advisory-detail: ' + errMsg(e).slice(0, 160)
+      );
+    }
+  } else {
+    worktree_removed = !worktree || !fs.existsSync(worktree);
+    if (worktree_removed) notes.push('teardown-advisory: worktree already gone');
+  }
+
+  if (campaign) {
+    try {
+      git(launch, ['branch', '-d', campaign]);
+      branch_deleted = true;
+      notes.push('teardown-advisory: branch soft-deleted (-d)');
+    } catch {
+      branch_deleted = false;
+      notes.push(
+        'teardown-advisory: branch kept (not fully merged or -d refused): ' +
+          campaign
+      );
+    }
+  }
+
+  return { worktree_removed, branch_deleted, notes, worktree_kept };
+}
+
 function selfTest() {
   const fails = [];
   const ok = (c, msg) => {
@@ -382,6 +568,8 @@ function selfTest() {
   ok(typeof carryLaunchWip === 'function', 'carryLaunchWip export');
   ok(typeof listCarryCandidates === 'function', 'listCarryCandidates export');
   ok(typeof hasUnmerged === 'function', 'hasUnmerged export');
+  ok(typeof restoreWipToLaunch === 'function', 'restoreWipToLaunch export');
+  ok(typeof advisoryTeardownIsolation === 'function', 'advisoryTeardownIsolation export');
 
   if (fails.length) {
     for (const f of fails) console.error('FAIL:', f);
@@ -395,6 +583,8 @@ module.exports = {
   listCarryCandidates,
   hasUnmerged,
   carryLaunchWip,
+  restoreWipToLaunch,
+  advisoryTeardownIsolation,
   gitDiffHeadBinary,
   gitApplyBinary,
   copyPathRecursive,

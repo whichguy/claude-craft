@@ -137,35 +137,29 @@ function wouldLoseCarriedWip(ptr) {
 }
 
 /**
- * Best-effort remove a prior campaign's isolation (worktree + branch + pointer).
+ * Advisory remove of a prior campaign's isolation (worktree + branch + pointer).
  * Used by default enter path so each /improve starts clean.
  * Caller must not invoke this when wouldLoseCarriedWip(ptr) is true (exit 10).
+ *
+ * Never force-destroys WIP: soft worktree remove only, soft branch -d only,
+ * restore non-isolation dirt to launch first. Kept dirty trees are orphaned
+ * with notes (random next slug avoids collision).
  */
 function discardStaleCampaign(launch, commonGitDir, ptr, notes) {
   const slug = ptr.campaign_branch || ptr.worktree_path || 'unknown';
   notes.push('discarded-stale-campaign:' + slug);
-  if (ptr.worktree_path && fs.existsSync(ptr.worktree_path)) {
-    try {
-      git(launch, ['worktree', 'remove', '--force', ptr.worktree_path]);
-    } catch {
-      try {
-        git(launch, ['worktree', 'remove', ptr.worktree_path]);
-      } catch {
-        try {
-          fs.rmSync(ptr.worktree_path, { recursive: true, force: true });
-          notes.push('discard-worktree-rm-fallback');
-        } catch {
-          notes.push('discard-worktree-failed');
-        }
-      }
-    }
-  }
-  if (ptr.campaign_branch) {
-    try {
-      git(launch, ['branch', '-D', ptr.campaign_branch]);
-    } catch {
-      notes.push('discard-branch-failed-or-missing');
-    }
+  // Lazy require avoids circular load with carry-launch-wip self-test paths.
+  const { advisoryTeardownIsolation } = require('./carry-launch-wip.js');
+  const td = advisoryTeardownIsolation(launch, {
+    worktree: ptr.worktree_path,
+    campaign: ptr.campaign_branch,
+    notes,
+  });
+  if (td.worktree_kept) {
+    notes.push(
+      'discard-stale-advisory: prior worktree kept (not force-removed): ' +
+        (ptr.worktree_path || '')
+    );
   }
   deletePointer(commonGitDir);
 }
@@ -217,10 +211,14 @@ function coldStart(launch, commonGitDir, target, testCommand, notes) {
 
   // Snapshot non-ignored launch WIP into workspace, then clean those paths on launch.
   // Fail-closed: on error tear down the new worktree/branch and leave launch dirty.
+  // carriedPaths = enter baseline (expected WIP). Orchestrator dirty guards must not
+  // treat these as "unexpected product" — see SKILL.md Dirty — intent.
+  let carriedPaths = [];
   try {
     const carry = carryLaunchWip(launch, worktreePath, { notes });
     if (carry.carried && carry.carried.length) {
       notes.push('carried-wip-at-enter');
+      carriedPaths = carry.carried.slice();
     }
   } catch (e) {
     const msg = e && e.message ? e.message : String(e);
@@ -235,20 +233,20 @@ function coldStart(launch, commonGitDir, target, testCommand, notes) {
       );
       process.exit(9);
     }
-    // Apply/copy failed before launch clean — safe to remove empty-ish worktree
+    // Apply/copy failed before launch clean — soft-remove only (never force-destroy).
+    // Launch still holds the only WIP copy; worktree is incomplete/empty of carry.
     try {
-      git(launch, ['worktree', 'remove', '--force', worktreePath]);
+      git(launch, ['worktree', 'remove', worktreePath]);
     } catch {
-      try {
-        fs.rmSync(worktreePath, { recursive: true, force: true });
-      } catch {
-        /* ignore */
-      }
+      notes.push(
+        'carry-fail-worktree-soft-remove-kept: ' + worktreePath
+      );
     }
     try {
-      git(launch, ['branch', '-D', campaignBranch]);
+      git(launch, ['branch', '-d', campaignBranch]);
     } catch {
-      /* ignore */
+      // Soft only — leave unmerged/empty campaign branch; next cold-start uses a new slug.
+      notes.push('carry-fail-branch-kept: ' + campaignBranch);
     }
     process.exit(9);
   }
@@ -267,7 +265,9 @@ function coldStart(launch, commonGitDir, target, testCommand, notes) {
     test_command: testCommand || null,
     created_at: new Date().toISOString(),
     reintegrate_error: null,
-    carried_wip_at_enter: notes.some((n) => String(n).startsWith('carried-launch-wip:') && n !== 'carried-launch-wip:0'),
+    carried_wip_at_enter: carriedPaths.length > 0,
+    // Enter baseline — never "unexpected product" dirt mid-campaign.
+    carried_paths: carriedPaths,
   };
   writePointer(commonGitDir, ptr);
   return { workspace: worktreePath, campaign_branch: campaignBranch, launch_branch: lb, pointer: pointerPaths(commonGitDir).pointer };

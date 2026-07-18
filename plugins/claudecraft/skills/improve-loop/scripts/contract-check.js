@@ -242,6 +242,11 @@ const improveRequired = [
   ['hygiene fail-closed Outcome partial', /CONTAMINATED[\s\S]{0,200}partial|Set Outcome to `partial`|Outcome to `partial`/i],
   // Pilot follow-ups (carried-WIP discard + residual honesty)
   ['carried-wip-discard-blocked exit 10', /carried-wip-discard-blocked|exit \*\*10\*\*|`10`.*carried-wip/i],
+  // Dirty intent: ledger + prior commits + enter-carry are never dirty
+  ['dirty intent ledger never dirty', /Dirty — intent|Never dirty|ledger.*never dirty|IMPROVE_LOOP\.md.*Never/i],
+  ['dirty intent prior commits never dirty', /Prior commits|already landed.*not dirty|commits are never dirty/i],
+  ['enter-carry baseline not dirty', /enter-carried|carried_paths|Enter-carried baseline/i],
+  ['cold-start residual streak reset', /Always.*init.*consecutive-non-material-cycles:\s*0|never inherit streak|cold-start.*streak always starts at \*\*0\*\*/i],
   ['residual Outcome partial hard', /Outcome `partial` only|Outcome \*\*`partial`\*\* only|never\*\*[\s\S]{0,40}`confirmed`[\s\S]{0,80}empty `CHANGED_PATHS`|never.*confirmed.*no product land/i],
   ['residual allow-empty emergency or ledger path', /Emergency allow-empty residual|allow-empty[\s\S]{0,80}residual|git commit --allow-empty|ledger-only[\s\S]{0,40}residual/i],
   ['residual Next deferred required', /Residual empty-tree commits \*\*must still\*\*|every cycle \(including residual-only, empty-tree/i],

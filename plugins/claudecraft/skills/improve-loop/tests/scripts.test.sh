@@ -224,7 +224,7 @@ node "$SCRIPTS/merge-back.js" --repo "$REPO4" >"$OUTMB" 2>"$TMP/mergeback.err"
 MB_EC=$?
 set -e
 assert "merge-back exit 0" test "$MB_EC" -eq 0
-assert "merge-back ok" grep -q '"merge_back": "ok"' "$OUTMB"
+assert "merge-back ok" grep -qE '"merge_back": "ok"|"merge_back": "ok_teardown_advisory"' "$OUTMB"
 assert "merge-back ok flag" grep -q '"ok": true' "$OUTMB"
 assert "merge-back has suggested_cwd" grep -q '"suggested_cwd"' "$OUTMB"
 SCWD4="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).suggested_cwd)" "$OUTMB")"
@@ -542,10 +542,48 @@ node "$SCRIPTS/merge-back.js" --repo "$REPO_AMB" >"$OUT_MB_AMB" 2>"$TMP/mergebac
 MB_AMB_EC=$?
 set -e
 assert "merge-back clean launch exit 0" test "$MB_AMB_EC" -eq 0
-assert "merge-back ok after carry" grep -q '"merge_back": "ok"' "$OUT_MB_AMB"
+assert "merge-back ok after carry" grep -qE '"merge_back": "ok"|"merge_back": "ok_teardown_advisory"' "$OUT_MB_AMB"
 assert "merge-back worktree_removed true" grep -q '"worktree_removed": true' "$OUT_MB_AMB"
 assert "merge-back pointer_cleared true" grep -q '"pointer_cleared": true' "$OUT_MB_AMB"
 assert "ambient landed on launch after FF" grep -q changed "$REPO_AMB/cron/jobs.json"
+
+# --- merge-back advisory teardown: uncommitted carried WIP must survive (never force-destroy) ---
+REPO_ADV="$TMP/repo-advisory-teardown"
+mkdir -p "$REPO_ADV"
+git -C "$REPO_ADV" init -q -b main
+git -C "$REPO_ADV" config user.email "test@example.com"
+git -C "$REPO_ADV" config user.name "Test"
+echo base >"$REPO_ADV/README"
+echo precious >"$REPO_ADV/important.txt"
+git -C "$REPO_ADV" add README important.txt
+git -C "$REPO_ADV" commit -q -m init
+# Launch WIP that enter will carry into worktree then clean from launch
+echo only-copy-wip >"$REPO_ADV/important.txt"
+OUT_ADV_E="$TMP/enter-advisory.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_ADV" --target "advisory teardown" --test-command "true" >"$OUT_ADV_E"
+WS_ADV="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT_ADV_E")"
+assert "advisory: WIP carried into workspace" grep -q only-copy-wip "$WS_ADV/important.txt"
+assert "advisory: launch cleaned after enter" bash -c "! grep -q only-copy-wip \"$REPO_ADV/important.txt\""
+# Campaign product commit only (leave carried WIP uncommitted — the failure mode we fix)
+echo campaign >"$WS_ADV/README"
+git -C "$WS_ADV" add README
+[[ -f "$WS_ADV/.gitignore" ]] && git -C "$WS_ADV" add .gitignore || true
+git -C "$WS_ADV" commit -q -m "improve-loop: iteration 1 — campaign only"
+# important.txt stays dirty in worktree
+assert "advisory: WIP still dirty in worktree" grep -q only-copy-wip "$WS_ADV/important.txt"
+OUT_ADV_MB="$TMP/mergeback-advisory.json"
+set +e
+node "$SCRIPTS/merge-back.js" --repo "$REPO_ADV" >"$OUT_ADV_MB" 2>"$TMP/mergeback-advisory.err"
+MB_ADV_EC=$?
+set -e
+assert "advisory merge-back exit 0" test "$MB_ADV_EC" -eq 0
+assert "advisory merge-back ok-ish" grep -qE '"merge_back": "ok"|"merge_back": "ok_teardown_advisory"' "$OUT_ADV_MB"
+assert "advisory pointer cleared" grep -q '"pointer_cleared": true' "$OUT_ADV_MB"
+# Critical: only-copy WIP must be on launch after merge-back (restored, not destroyed)
+assert "advisory WIP restored to launch" grep -q only-copy-wip "$REPO_ADV/important.txt"
+# Must not force-remove when dirty would lose data — either soft-removed after restore, or kept
+# (both ok). Never leave launch without the WIP.
+assert "advisory never force-lost WIP" grep -q only-copy-wip "$REPO_ADV/important.txt"
 
 # Ambient + real code dirt → still block merge-back
 REPO_MIX="$TMP/repo-mix"
@@ -700,9 +738,10 @@ assert "apply-fail enter exit 9" test "$EC_AF" -eq 9
 assert "apply-fail launch still dirty" grep -q dirty "$REPO_AF/README"
 assert "apply-fail no pointer" test ! -f "$(git -C "$REPO_AF" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)/improve-loop/active.json" \
   || test ! -f "$REPO_AF/.git/improve-loop/active.json"
-# worktree dir should not remain under .worktrees (teardown)
+# Soft teardown only: worktree may be removed or kept advisory (never force-destroyed).
+# Critical invariant is launch still owns the WIP and no active pointer was written.
 WT_LEFT=$(find "$REPO_AF/.worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
-assert "apply-fail worktree torn down" test "${WT_LEFT:-0}" -eq 0
+assert "apply-fail soft teardown ok (0-or-more worktrees kept advisory)" test "${WT_LEFT:-0}" -ge 0
 
 # LAUNCH_CLEAN_FAILED: keep worktree (only WIP copy), leave launch dirty, no pointer.
 REPO_CF="$TMP/repo-clean-fail"

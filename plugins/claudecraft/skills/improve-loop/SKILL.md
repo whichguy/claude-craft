@@ -254,7 +254,10 @@ counts as non-material for residual purposes). Status stays **`active`** until s
 Operator-facing phrasing: residual ×2 is **two consecutive post-replan empty P0/P1 cycles**,
 not necessarily two pure residual-only cycles after all work — the finishing cycle is streak 1.
 
-Recover streak from the live ledger when present; else from the latest improve commit body.
+Recover streak from the **live ledger** when present (same campaign / `--resume`). On
+**cold-start**, streak always starts at **0** — do **not** copy
+`consecutive-non-material-cycles` from a prior invoke’s terminal complete commit (anti-reseed
+uses COMPLETED_SET; residual×2 must re-earn on every new campaign).
 
 ### When Status becomes `complete`
 
@@ -840,13 +843,11 @@ Fail fast in Phase 0. Do not half-run a cycle.
   If it is ignored, refuse clearly so the user can un-ignore it.
 - **Test artifacts must not litter the tracked tree** (evaluated under WORKSPACE). The
   recorded test command may write transient files (byte-code caches, coverage data, snapshots,
-  build output). Recommend the target repo **gitignore** these — `git status --porcelain`
-  omits gitignored paths, so ignored artifacts never trip the dirty-tree guards. Un-ignored
-  persistent test output is a real hazard: this skill excludes it from the *current* turn's
-  guards (see the shared code-dirty definition in Phase 0 step 4 and the turn-level
-  `TEST_ARTIFACT_PATHS` set), but a *later* invocation's fresh Phase 0 dirty-tree guard will
-  see it as dirt and stop. If that happens the skill reports it and asks the operator to
-  gitignore or clean those paths; it never permanently teaches itself to ignore arbitrary paths.
+  build output). Prefer gitignoring them. This turn’s suite litter is tracked in
+  `TEST_ARTIFACT_PATHS` and is **not** dirty for this turn’s guards (see **Dirty — intent**
+  below). Persistent un-ignored litter left after the campaign can show up on a later
+  enter as unexpected product dirt — report and ask the operator to gitignore/clean;
+  never permanently teach the skill to ignore arbitrary paths.
 - Ensure the tools required for the path being taken are present: `git` and a shell capable
   of running the recorded test command. **Phase 1 execution does not depend on `codex-worker`
   (or any other external implementer).** The orchestrator implements natively (or via a
@@ -861,10 +862,34 @@ Fail fast in Phase 0. Do not half-run a cycle.
     (default when unset: `cron/,wiki/`; set to empty or `-` for strict no ambient)
   - **code** — everything else (blocks merge-back if still dirty after enter)
 
-  After a successful enter, launch should be free of carried product/ambient WIP. New dirt
-  that appears on launch **mid-campaign** still blocks merge-back (exit 3). **Do not**
-  `git stash` launch dirt to force enter or merge — use L3 carry on enter; for mid-run
-  launch dirt, operator commit/discard/move.
+  After a successful enter, launch should be free of carried product/ambient WIP. New
+  **unexpected product** dirt on launch mid-campaign still blocks merge-back (exit 3).
+  **Do not** `git stash` to force enter or merge — use L3 carry on enter; for mid-run
+  launch product dirt, operator commit/discard/move.
+
+### Dirty — intent (keep this simple)
+
+**Dirty is only about unexpected uncommitted product paths.** It is not a general
+“anything changed” sensor and must not impede a clean re-run or mid-campaign residual.
+
+| Never dirty | Why |
+|---|---|
+| **`IMPROVE_LOOP.md` (live ledger)** | Required working memory across **every** iteration of this campaign; written/updated every cycle; pathspec-staged or terminal-deleted on purpose |
+| **Prior commits / git history** | Already landed; not in porcelain; digest/COMPLETED_SET is **learning**, not dirt |
+| **Isolation plumbing** | `.worktrees/`, campaign `.gitignore` for worktrees |
+| **Enter-carried baseline** | Paths launch WIP brought into WORKSPACE at cold-start (`pointer.carried_paths`); expected; left unstaged unless this cycle’s thesis intentionally changes them |
+| **This turn’s test litter** | `TEST_ARTIFACT_PATHS` — suite side effects, not product work |
+| **Launch ambient** (merge-back) | default `cron/`, `wiki/` — runtime noise |
+
+| Is dirty (blocks) | Why |
+|---|---|
+| **Unexpected uncommitted product** on WORKSPACE (not in the never-dirty set) | Abandoned half-work that must not be pathspec-committed by accident or treated as a clean residual baseline |
+| **Unexpected product on LAUNCH** at merge-back | Would mix foreign WIP into FF / conflict with reintegrate |
+
+**Rules of thumb:** (1) porcelain only — commits are never dirty; (2) ledger is always
+expected mid-campaign; (3) enter-carry is expected until teardown restores it; (4) pathspec
+commits stage only this cycle’s product `CHANGED_PATHS` + ledger — they never need a
+“clean tree.” Do not invent extra dirty categories.
 
 ## Durable state vs live ledger (self-contained cycles)
 
@@ -1067,7 +1092,10 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    (see residual discipline); **also seed `## Deferred (P2)`** from the digest’s union of
    prior `Next deferred:` / archived Deferred (dedupe, cap 8–12; empty OK — see Seed). Never
    enter Phase 1 with zero open P0/P1 on cold-start (Deferred alone does not satisfy that).
-   Init `consecutive-non-material-cycles: 0` (or recover from latest commit body if present).
+   **Always** init `consecutive-non-material-cycles: 0` on cold-start / discard-stale-cold-start
+   — **never** inherit streak from a prior campaign’s terminal `complete` commit body (that
+   would short-circuit residual×2 and impede a clean re-run on the same target). Recover
+   streak only from the **live ledger** on `--resume` of *this* worktree (step 3).
    Set `N = 1`. Skip 3a–4; go to step 5.
 
    If mode is **`--resume`** and ledger is absent after terminal land on **this** worktree:
@@ -1108,11 +1136,13 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
      `git -C "$WORKSPACE" log --grep="improve-loop: iteration <N> —" -n 1` finds a commit
      (em-dash required). Same-turn terminal after archive uses Phase 5's landed rule (file
      already removed).
-   - **Code-dirty** (shared with step 6, Phase 3 post-panel, Phase 4 veto): under WORKSPACE,
-     path is code-dirty **iff** `git -C "$WORKSPACE" status --porcelain` lists it **and** it
-     is **not** in `{IMPROVE_LOOP.md} ∪ TEST_ARTIFACT_PATHS`. Ignore LAUNCH dirt. Fresh turn
-     has empty `TEST_ARTIFACT_PATHS`, so un-ignored prior test litter counts — report and ask
-     operator to gitignore/clean (see Test-artifacts precondition).
+   - **Code-dirty** (shared with step 6, Phase 3 post-panel, Phase 4 ledger-only veto) —
+     see **Dirty — intent** above. Under WORKSPACE, a path is code-dirty **iff** it is
+     listed in `git -C "$WORKSPACE" status --porcelain` **and** it is **not** one of:
+     `IMPROVE_LOOP.md`, isolation (`.worktrees/`, campaign `.gitignore`), this turn’s
+     `TEST_ARTIFACT_PATHS`, or enter-carried baseline (`pointer.carried_paths` / enter notes
+     `carried-paths:`). **Ledger and prior commits are never dirty.** Ignore LAUNCH dirt
+     here (merge-back classifies launch separately).
    - Status terminal **and landed**: do not start a new cycle. If the resume file still
      exists, run **leftover-ledger archive** (below), then Phase 5. Do not seed a fresh
      ledger. (Modern terminal archive already removed the file; next `/improve` cold-starts
@@ -1168,10 +1198,10 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    record `ledger write failed — emergency allow-empty residual`. Never ship a residual
    commit with a subject-only / empty message body.
 
-6. For turns that will run Phases 1–3, apply the dirty-tree guard (shared **code-dirty**
-   definition, step 4): if anything code-dirty is present, stop and report — do not fold
-   pre-existing work into this cycle. Do not auto-stash. Ledger-flush turns already branched
-   at step 4.
+6. For turns that will run Phases 1–3, apply the dirty-tree guard (shared **code-dirty**,
+   step 4): stop only if **unexpected uncommitted product** is present. Do **not** stop for
+   ledger, enter-carry baseline, isolation, or this turn’s test litter. Do not auto-stash.
+   Ledger-flush turns already branched at step 4.
 
 7. Build a **prior-learnings digest** for this target from git history (git commits are the
    durable, reviewable ledger; this is what makes learnings reviewable across cycles).
@@ -1662,15 +1692,13 @@ complete/stop/residual rationale, do not apply it. Keep the prior Backlog, appen
 `replan output unusable; Backlog unchanged` to the latest Notes, and let the terminal test
 below evaluate only counters; do not invent `complete` from a wiped list.
 
-After the rounds and surgical apply or deliberate non-apply, re-check for code-dirtiness
-using the **shared code-dirty definition** (Phase 0 step 4; excludes `IMPROVE_LOOP.md` and
-this turn's `TEST_ARTIFACT_PATHS`). Advisors are read-only. If any code path is newly dirty
-relative to the post-Phase-1/post-revert baseline and is not already accounted for in this
-cycle's PASS `CHANGED_PATHS`, treat it as an infrastructure fault:
-do not stage it and append `unexpected dirty paths after advisor panel: …` to Notes. On a
-ledger-only turn, Phase 4's code-dirty veto will correctly refuse to commit; on a PASS
-turn, leave unexpected paths unstaged so the next invocation's Phase 0 dirty-tree guard
-stops. Never fold advisor-side dirt into the cycle commit.
+After the rounds and surgical apply or deliberate non-apply, re-check for **unexpected
+product** dirt (shared code-dirty, Phase 0 step 4 — ledger / enter-carry / test litter
+never count). Advisors are read-only. If any path is newly dirty relative to the
+post-Phase-1/post-revert baseline and is not already in this cycle's PASS `CHANGED_PATHS`,
+treat it as an infrastructure fault: do not stage it; Notes
+`unexpected dirty paths after advisor panel: …`. Never fold advisor-side product into the
+cycle commit (pathspec only).
 
 Immediately after surgical apply or deliberate non-apply, and without a subagent, update
 **residual streak** then Status *in this exact order*:
@@ -1732,19 +1760,15 @@ below). No second clear commit.
   FAIL revert — into the veto below instead of silently committing the untrusted diff on a
   green test run.)
 
-  - On a ledger-only turn, re-check code dirtiness using the **shared code-dirty definition**
-    (Phase 0 step 4; excludes `IMPROVE_LOOP.md` and this turn's `TEST_ARTIFACT_PATHS`). If any
-    code path is dirty, do not commit anything. Leave all files as-is, including Phase 2/3 state edits. Set the
-    latest Log entry to
-    `Committed: no — code-dirty veto (refused ledger-only commit over dirty code)` and
-    append one Notes line. This correction stays uncommitted. Do not set `Committed: yes`
-    and do not perform commit-fail counter correction: no commit was attempted, and Phase
-    2 already scored the cycle (blocked used the blocked row; empty-backlog held counters).
-    Stop and report. The next invocation's Phase 0 step 4 handles this as not-landed plus
-    code-dirty. Do not race past it with a clean-looking ledger commit over abandoned code.
-  - On a non-ledger-only turn, skip this veto and stage code paths as below. Unexpected
-    extra dirty files outside `CHANGED_PATHS` remain unstaged for the next cycle's Phase-0
-    dirty-tree guard.
+  - On a ledger-only turn, re-check **unexpected product** dirt only (shared code-dirty,
+    Phase 0 step 4). **Ledger, enter-carry baseline, isolation, and test litter do not
+    veto.** If unexpected product is dirty, do not commit: leave all files as-is (including
+    Phase 2/3 ledger edits), set
+    `Committed: no — code-dirty veto (refused ledger-only commit over dirty code)`, Notes,
+    stop and report. No commit was attempted — do not invent commit-fail counter correction.
+  - On a non-ledger-only turn, skip this veto and stage pathspec product from
+    `CHANGED_PATHS` as below. Extra unexpected product outside `CHANGED_PATHS` stays
+    unstaged (next guard can surface it).
 
 - **Commit procedure — fixed order (do not reorder).** This loop commits unattended. Secret
   patterns: `AKIA[0-9A-Z]{16}`, `ghp_[A-Za-z0-9]{36}`, `sk-[A-Za-z0-9]{20,}`,
@@ -1768,11 +1792,14 @@ below). No second clear commit.
        Also, when STATUS is PASS, Outcome is not `blocked`, and `CHANGED_PATHS` is non-empty,
        add the still-dirty code paths from `CHANGED_PATHS`.
      - **Terminal (`complete` or `stopped (...)`):**
-       `git -C "$WORKSPACE" rm -- IMPROVE_LOOP.md` if tracked; if untracked, delete the
-       file and do not add it. Also add still-dirty code paths from `CHANGED_PATHS` when
-       STATUS is PASS, Outcome is not `blocked`, and that set is non-empty. A ledger-only
-       terminal commit may stage **only** the deletion of `IMPROVE_LOOP.md` (not a re-add of
-       its contents).
+       `git -C "$WORKSPACE" rm -f -- IMPROVE_LOOP.md` if tracked (`-f` required when the
+       ledger was edited after the prior iteration commit — plain `rm` refuses local
+       modifications and leaves IMPROVE_LOOP.md on the campaign branch). If untracked,
+       delete the file and do not add it. Also add still-dirty code paths from
+       `CHANGED_PATHS` when STATUS is PASS, Outcome is not `blocked`, and that set is
+       non-empty. A ledger-only terminal commit may stage **only** the deletion of
+       `IMPROVE_LOOP.md` (not a re-add of its contents). **Do not** run merge-back if this
+       `git commit` fails (`PHASE4_COMMIT_OK` stays false).
   6. **Commit once on the campaign branch:**
      `git -C "$WORKSPACE" commit -m "improve-loop: iteration N — <summary>" -m "<body>"`.
      Record success in-memory for Phase 5 (`PHASE4_COMMIT_OK=true`, this cycle's `N`).
@@ -1931,14 +1958,22 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   cd "${SUGGESTED_CWD:-$LAUNCH}" 2>/dev/null || cd "$TARGET_REPO" 2>/dev/null || true
   ```
 
-  Parse JSON: `merge_back` is `ok` | `blocked` | `skipped_detached` | `teardown_partial`;
-  `suggested_cwd` is the durable path (LAUNCH); also `worktree_removed`, `branch_deleted`,
-  `pointer_cleared`, `ignored_ambient`, `blocking_dirt`. On blocked/skipped, leave WORKSPACE;
-  print the FF command from notes/error. Land is durable even if merge-back fails. Prefer the
-  script over freehand FF so teardown order (FF → remove worktree → delete branch → delete
-  pointer) stays correct. **Never** leave sticky under a removed `.worktrees/*`.
-  **Never freehand-stash** launch dirt to force merge — L3 ignores ambient prefixes; real
-  code dirt requires operator commit/discard.
+  Parse JSON: `merge_back` is `ok` | `ok_teardown_advisory` | `blocked` | `skipped_detached` |
+  `teardown_partial`; `suggested_cwd` is the durable path (LAUNCH); also `worktree_removed`,
+  `worktree_kept`, `branch_deleted`, `pointer_cleared`, `ignored_ambient`, `blocking_dirt`.
+  On blocked/skipped, leave WORKSPACE; print the FF command from notes/error. Land is durable
+  even if teardown is incomplete. Prefer the script over freehand FF so order
+  (FF → advisory teardown) stays correct. **Never** leave sticky under a removed
+  `.worktrees/*`. **Never freehand-stash** launch dirt to force merge — L3 ignores ambient
+  prefixes; real code dirt requires operator commit/discard.
+
+  **Teardown is advisory / lenient (non-negotiable):** merge-back and campaign-teardown
+  **must not** force-destroy WIP. They restore non-isolation worktree dirt onto launch
+  best-effort, then soft-remove (`git worktree remove` **without** `--force`, `git branch
+  -d` only — never `-D` / never `fs.rmSync` of the tree). If soft-remove refuses, **keep**
+  the worktree and report `teardown-advisory` / `worktree_kept` notes — FF success still
+  counts as landed. **Never** call merge-back unless this cycle's Phase 4 commit landed
+  (`PHASE4_COMMIT_OK=true`).
 
   Emit a **Merge-back card** (mandatory after the L3 call, success or fail):
 
@@ -1947,16 +1982,18 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
 
   | | |
   |---|---|
-  | **Result** | ok \| blocked \| skipped_detached \| teardown_partial |
+  | **Result** | ok \| ok_teardown_advisory \| blocked \| skipped_detached \| teardown_partial |
   | **FF into** | `<launch_branch>` · campaign `<campaign_branch>` |
   | **SHAs** | `<short tip after FF or —>` |
-  | **Worktree removed** | yes \| no |
-  | **Branch deleted** | yes \| no |
+  | **Worktree removed** | yes \| no (soft only — never force) |
+  | **Worktree kept** | yes \| no · path if kept (advisory — WIP restored to launch when possible) |
+  | **Branch deleted** | yes \| no (`-d` only) |
   | **Pointer cleared** | yes \| no |
   | **Ambient ignored** | <paths or _(none)_> |
   | **Blocking dirt** | <paths or _(none)_> |
   | **Error** | <one line or —> |
   | **Next if blocked** | clean/commit blocking paths · re-run `merge-back.js` / `/improve` merge-back-only |
+  | **Next if worktree kept** | inspect kept path · WIP should already be restored on launch · optional `git worktree prune` later |
   ```
 
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no

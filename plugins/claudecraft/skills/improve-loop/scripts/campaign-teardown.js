@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 /**
- * campaign-teardown.js — L3: best-effort remove this run's isolation without FF merge.
+ * campaign-teardown.js — L3: **advisory** remove this run's isolation without FF merge.
  *
  * Use on fail/block exit so the next /improve does not resume dirt.
  * Does NOT merge into launch. Prefer merge-back.js after terminal land.
+ *
+ * Teardown is lenient / advisory:
+ *   - restore non-isolation worktree WIP onto launch first (best-effort)
+ *   - soft worktree remove only (never --force, never fs.rmSync of the tree)
+ *   - soft branch -d only (never -D)
+ *   - always clear pointer best-effort so next /improve can cold-start
  *
  * Usage:
  *   node campaign-teardown.js --repo <path>
@@ -17,13 +23,13 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  git,
   resolveRepo,
   commonGit,
   launchRoot,
   pointerPaths,
   errMsg,
 } = require('./lib-paths.js');
+const { advisoryTeardownIsolation } = require('./carry-launch-wip.js');
 
 function usage(msg) {
   if (msg) console.error(msg);
@@ -58,6 +64,10 @@ const out = {
   launch,
   notes: [],
   suggested_cwd: launch,
+  worktree_removed: false,
+  branch_deleted: false,
+  worktree_kept: false,
+  pointer_cleared: false,
 };
 
 if (!fs.existsSync(pointer)) {
@@ -77,6 +87,7 @@ try {
     /* ignore */
   }
   out.teardown = 'bad_pointer_cleared';
+  out.pointer_cleared = true;
   out.ok = true;
   process.stdout.write(JSON.stringify(out, null, 2) + '\n');
   process.exit(0);
@@ -87,38 +98,26 @@ const campaign = ptr.campaign_branch;
 out.campaign_branch = campaign;
 out.worktree_path = worktree;
 
-if (worktree && fs.existsSync(worktree)) {
-  try {
-    git(launch, ['worktree', 'remove', '--force', worktree]);
-    out.notes.push('worktree-removed');
-  } catch {
-    try {
-      fs.rmSync(worktree, { recursive: true, force: true });
-      out.notes.push('worktree-rm-fallback');
-    } catch (e) {
-      out.notes.push('worktree-remove-failed:' + errMsg(e).slice(0, 80));
-    }
-  }
-}
-
-if (campaign) {
-  try {
-    git(launch, ['branch', '-D', campaign]);
-    out.notes.push('branch-deleted');
-  } catch {
-    out.notes.push('branch-delete-skipped');
-  }
-}
+const td = advisoryTeardownIsolation(launch, {
+  worktree,
+  campaign,
+  notes: out.notes,
+});
+out.worktree_removed = td.worktree_removed;
+out.branch_deleted = td.branch_deleted;
+out.worktree_kept = !!td.worktree_kept;
 
 try {
   if (fs.existsSync(pointer)) fs.unlinkSync(pointer);
   out.notes.push('pointer-cleared');
+  out.pointer_cleared = true;
 } catch {
   out.notes.push('pointer-clear-failed');
+  out.pointer_cleared = false;
 }
 
 out.ok = true;
-out.teardown = 'ok';
+out.teardown = out.worktree_kept ? 'ok_advisory' : 'ok';
 out.suggested_cwd = launch;
 process.stdout.write(JSON.stringify(out, null, 2) + '\n');
 process.exit(0);

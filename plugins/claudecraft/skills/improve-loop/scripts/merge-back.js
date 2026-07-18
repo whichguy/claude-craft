@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * merge-back.js — L3: end-of-campaign FF merge into launch + teardown
+ * merge-back.js — L3: end-of-campaign FF merge into launch + **advisory** teardown
  *
  * Usage:
  *   node merge-back.js --repo <path> [--json]
@@ -13,8 +13,14 @@
  *   - ambient (IMPROVE_LOOP_AMBIENT_PREFIXES; default cron/, wiki/) → non-blocking
  *   - code (everything else) → blocks with exit 3
  *
+ * Teardown is **advisory / lenient** (never destructive of WIP):
+ *   - restore non-isolation worktree WIP onto launch (best-effort)
+ *   - soft `git worktree remove` only — never `--force`, never `fs.rmSync`
+ *   - soft `git branch -d` only — never `-D`
+ *   - FF success still returns ok even when worktree/branch are kept
+ *
  * Exit codes:
- *   0 ok (merge + teardown) or skipped (no launch_branch) with reintegrate_blocked set
+ *   0 ok (FF + advisory teardown) or skipped (no launch_branch) with reintegrate_blocked set
  *   1 usage
  *   2 no pointer
  *   3 launch dirty (blocking code paths only)
@@ -37,6 +43,7 @@ const {
   classifyLaunchDirt,
   errMsg,
 } = require('./lib-paths.js');
+const { advisoryTeardownIsolation } = require('./carry-launch-wip.js');
 
 function usage(msg) {
   if (msg) console.error(msg);
@@ -97,6 +104,7 @@ const out = {
   worktree_removed: false,
   branch_deleted: false,
   pointer_cleared: false,
+  worktree_kept: false,
 };
 
 if (!launchBranch) {
@@ -154,50 +162,45 @@ try {
   process.exit(4);
 }
 
-// teardown: remove worktree → delete branch → delete pointer
+// Teardown is advisory: never force-destroy worktree WIP; FF land is the success.
 try {
-  if (worktree && fs.existsSync(worktree)) {
-    try {
-      git(launch, ['worktree', 'remove', '--force', worktree]);
-      out.worktree_removed = true;
-    } catch {
-      try {
-        git(launch, ['worktree', 'remove', worktree]);
-        out.worktree_removed = true;
-      } catch {
-        out.notes.push('worktree-remove-failed');
-      }
-    }
-  } else {
-    out.worktree_removed = !worktree || !fs.existsSync(worktree);
-  }
-  try {
-    git(launch, ['branch', '-d', campaign]);
-    out.branch_deleted = true;
-  } catch {
-    try {
-      git(launch, ['branch', '-D', campaign]);
-      out.branch_deleted = true;
-    } catch {
-      out.notes.push('branch-delete-failed');
-    }
-  }
+  const td = advisoryTeardownIsolation(launch, {
+    worktree,
+    campaign,
+    notes: out.notes,
+  });
+  out.worktree_removed = td.worktree_removed;
+  out.branch_deleted = td.branch_deleted;
+  out.worktree_kept = !!td.worktree_kept;
+
+  // Clear pointer after successful FF so next /improve can cold-start.
+  // Kept worktrees are orphaned intentionally (operator can prune); they are
+  // not force-deleted. Random slugs avoid name collision on next enter.
   if (fs.existsSync(pointer)) {
     fs.unlinkSync(pointer);
     out.pointer_cleared = true;
   } else {
     out.pointer_cleared = true;
   }
+
   out.ok = true;
-  out.merge_back = 'ok';
-  // Hint for orchestrator / host sticky-CWD: leave the removed worktree directory
+  // FF succeeded. Partial teardown is still "ok" with advisory notes — not a hard fail.
+  out.merge_back = out.worktree_kept ? 'ok_teardown_advisory' : 'ok';
   out.suggested_cwd = launch;
 } catch (e) {
   out.error = e.message || String(e);
   out.merge_back = 'teardown_partial';
   out.suggested_cwd = launch;
+  // Still try to clear pointer so the campaign is not stuck locked after FF.
+  try {
+    if (fs.existsSync(pointer)) fs.unlinkSync(pointer);
+    out.pointer_cleared = true;
+  } catch {
+    out.pointer_cleared = false;
+  }
+  out.ok = true; // FF already landed — do not elevate teardown noise to hard fail
   process.stdout.write(JSON.stringify(out, null, 2) + '\n');
-  process.exit(5);
+  process.exit(0);
 }
 
 out.suggested_cwd = out.suggested_cwd || launch;
