@@ -348,7 +348,7 @@ EC_R=$?
 set -e
 assert "symlink under claude-home exit 0" test "$EC_R" -eq 0
 assert "symlink_followed true" grep -q '"symlink_followed": true' "$OUT_R"
-assert "notes symlink-followed" grep -q 'symlink-followed' "$OUT_R"
+assert "notes left-home" grep -q 'symlink-followed-left-home' "$OUT_R"
 PROD_REAL="$(cd "$PROD" && pwd -P)"
 assert "target_repo is product" node -e "
 const fs=require('fs'); const path=require('path');
@@ -372,7 +372,7 @@ OUT_IN="$TMP/resolve-inside-pkg.json"
 node "$RESOLVE" --target-path "$FAKE_HOME/skills/widget/SKILL.md" --claude-home "$FAKE_HOME" >"$OUT_IN"
 assert "inside pkg is_symlink false" grep -q '"is_symlink": false' "$OUT_IN"
 assert "inside pkg symlink_followed true" grep -q '"symlink_followed": true' "$OUT_IN"
-assert "inside pkg notes followed" grep -q 'symlink-followed' "$OUT_IN"
+assert "inside pkg notes left-home" grep -q 'symlink-followed-left-home' "$OUT_IN"
 assert "inside pkg target_repo product" node -e "
 const fs=require('fs'); const path=require('path');
 const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
@@ -393,13 +393,27 @@ echo 'real' >"$REAL_DIR/SKILL.md"
 OUT_REAL="$TMP/resolve-real.json"
 node "$RESOLVE" --target-path "$REAL_DIR" --claude-home "$FAKE_HOME" >"$OUT_REAL"
 assert "real dir not symlink_followed" grep -q '"symlink_followed": false' "$OUT_REAL"
-assert "real dir under-claude note" grep -q 'under-claude-home-not-symlink' "$OUT_REAL"
+assert "real dir stayed-home note" grep -q 'under-claude-home-realpath-stayed' "$OUT_REAL"
 HOME_REAL="$(cd "$FAKE_HOME" && pwd -P)"
 assert "real dir target is fake home git" node -e "
 const fs=require('fs'); const path=require('path');
 const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
 process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
 " "$OUT_REAL" "$HOME_REAL"
+
+# Leaf symlink under home that stays under home (alias → real sibling)
+mkdir -p "$FAKE_HOME/skills/real-sibling"
+echo 'sib' >"$FAKE_HOME/skills/real-sibling/SKILL.md"
+ln -sfn "$FAKE_HOME/skills/real-sibling" "$FAKE_HOME/skills/alias-skill"
+OUT_ALIAS="$TMP/resolve-internal-alias.json"
+node "$RESOLVE" --target-path "$FAKE_HOME/skills/alias-skill" --claude-home "$FAKE_HOME" >"$OUT_ALIAS"
+assert "internal alias followed" grep -q '"symlink_followed": true' "$OUT_ALIAS"
+assert "internal alias within-home note" grep -q 'symlink-followed-within-home' "$OUT_ALIAS"
+assert "internal alias target home git" node -e "
+const fs=require('fs'); const path=require('path');
+const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
+" "$OUT_ALIAS" "$HOME_REAL"
 
 # Broken symlink → exit 3
 ln -sf "$TMP/does-not-exist-xyz" "$FAKE_HOME/skills/broken"

@@ -17,7 +17,7 @@ description: >-
 | **L0 `/goal` (host, optional)** | Session visibility; max-turns/budget if operator opens goal | Multi-cycle engine (not required for autonomy) |
 | **L1 Entry (`/improve`)** | Resolve target; **campaign driver** (default: loop L2 until terminal/cap/block); end report | Phase internals of a single cycle |
 | **L2 Cycle kernel (Phases 0–5)** | One gated cycle: execute → test → learn → replan → commit → signal | Multi-cycle iteration (L1 owns the loop) |
-| **L3 Scripts** (`scripts/`) | Shell probe, worktree enter, pointer RMW, ledger-status, merge-back | Advisor judgment, thesis prose |
+| **L3 Scripts** (`scripts/`) | Shell probe, worktree enter, resolve-target-repo, pointer RMW, ledger-status, merge-back | Advisor judgment, thesis prose |
 
 ```text
 /improve <target>                    # default: autonomous campaign
@@ -523,7 +523,9 @@ repo root** before Phase 0 step 1a, in this order:
 1. **Map the target to a filesystem path** when possible: absolute path from the invoke; skill /
    agent / command / hook under `$HOME/.claude/skills|agents|commands|hooks/<name>` (or
    `…/SKILL.md`); known project path (e.g. `backchain skill` → `$HOME/src/backchain`); goal
-   objective path.
+   objective path. Prefer an install-surface `CAND` under `$HOME/.claude/…` when the user
+   named a skill/agent/command/hook by name (so step 2 can follow install symlinks); use a
+   known product checkout path when they named a repo/project explicitly.
 2. **Claude-home install resolve (mandatory when `CAND` is under `$HOME/.claude`).**
    Always run L3 when the candidate lives on the install surface — do **not** require the
    leaf path itself to be a symlink. Common shapes:

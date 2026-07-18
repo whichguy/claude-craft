@@ -94,9 +94,12 @@ const leafSymlinkMoved =
 let symlinkFollowed = false;
 if (underClaude && (resolvedOutsideHome || leafSymlinkMoved)) {
   symlinkFollowed = true;
-  notes.push('symlink-followed');
+  notes.push(
+    resolvedOutsideHome ? 'symlink-followed-left-home' : 'symlink-followed-within-home'
+  );
 } else if (underClaude) {
-  notes.push('under-claude-home-not-symlink');
+  // Real path still under install home (no product-repo escape)
+  notes.push('under-claude-home-realpath-stayed');
 } else if (isSymlink) {
   notes.push('symlink-outside-claude-home');
 }
