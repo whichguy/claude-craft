@@ -5,7 +5,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { deriveStopDecision } = require(path.join(
+const {
+  deriveStopDecision,
+  classifyUntilKind,
+  isDefaultUntilForm,
+  DEFAULT_UNTIL,
+} = require(path.join(
   __dirname,
   '../../../plugins/claudecraft/tools/improve-stop-decision.js'
 ));
@@ -38,6 +43,53 @@ function d(partial) {
 }
 
 describe('improve-stop-decision.js', function () {
+  describe('classifyUntilKind', function () {
+    it('exports canonical DEFAULT_UNTIL matching parse/Phase 0', function () {
+      expect(DEFAULT_UNTIL).to.equal(
+        'no material P0/P1 for 2 consecutive cycles (green tests)'
+      );
+      expect(isDefaultUntilForm(DEFAULT_UNTIL)).to.equal(true);
+    });
+    it('default continuous string → default', function () {
+      expect(classifyUntilKind(DEFAULT_UNTIL, 'continuous')).to.equal('default');
+      expect(
+        classifyUntilKind('No Material P0/P1 for 2 consecutive cycles (green tests)', 'continuous')
+      ).to.equal('default');
+      expect(
+        classifyUntilKind('stop when no material P0/P1 after 2 consecutive clean cycles', 'continuous')
+      ).to.equal('default');
+    });
+    it('empty / none / once → none', function () {
+      expect(classifyUntilKind('', 'continuous')).to.equal('none');
+      expect(classifyUntilKind('none', 'continuous')).to.equal('none');
+      expect(classifyUntilKind(null, 'continuous')).to.equal('none');
+      expect(classifyUntilKind(DEFAULT_UNTIL, 'once')).to.equal('none');
+      expect(classifyUntilKind('ship when UX done', 'once')).to.equal('none');
+    });
+    it('other continuous text → custom', function () {
+      expect(classifyUntilKind('ship when docs pass', 'continuous')).to.equal('custom');
+      expect(classifyUntilKind('coverage > 80%', 'continuous')).to.equal('custom');
+    });
+    it('invalid mode throws code 2', function () {
+      try {
+        classifyUntilKind(DEFAULT_UNTIL, 'forever');
+        expect.fail('expected throw');
+      } catch (e) {
+        expect(e.code).to.equal(2);
+      }
+    });
+    it('deriveStopDecision still has no until-string field requirement beyond until_kind', function () {
+      // eligible default complete without any `until` string field
+      expect(
+        d({
+          until_kind: 'default',
+          consecutive_non_material_cycles: 2,
+          suite_this_cycle: 'PASS',
+        })
+      ).to.deep.equal({ decision: 'complete', reason: 'until-default' });
+    });
+  });
+
   it('throws code 2 on non-object snapshot', function () {
     expect(() => deriveStopDecision(null)).to.throw(/object/);
     try {

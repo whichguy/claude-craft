@@ -1,6 +1,6 @@
 {
   "name": "claudecraft",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Host-agnostic tested improvement: improve-loop (one cycle: backlog → test → learnings commit → replan) and improve (continuous driver with worktree create/reintegrate/destroy). Portable goal/executor/advisor contracts; optional multi-model advisors.",
   "author": { "name": "whichguy", "url": "https://github.com/whichguy" },
   "homepage": "https://github.com/whichguy/claude-craft",

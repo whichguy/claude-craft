@@ -4,14 +4,15 @@
  * improve-stop-decision.js — pure stop-table encoding for improve / improve-loop.
  *
  * Encodes contracts/goal.md "Stop predicate (shared) — canonical table" only.
- * Does not amend semantics. Does not string-match until text (caller supplies
- * until_kind). Does not own worktree lifecycle (see improve-next-auto.js).
+ * Does not amend semantics. deriveStopDecision does **not** string-match until
+ * text (caller supplies until_kind via classifyUntilKind). Does not own worktree
+ * lifecycle (see improve-next-auto.js).
  *
  * No network. No git. Deterministic from a JSON snapshot.
  *
  * Snapshot:
  *   mode: continuous|once
- *   until_kind: default|custom|none   (caller-derived; never classified here)
+ *   until_kind: default|custom|none   (caller-derived; never classified inside derive)
  *   status: active|complete|stopped (...)
  *   p0_p1_remaining: non-negative int
  *   consecutive_non_material_cycles: non-negative int
@@ -23,6 +24,10 @@
  *
  * Output: { decision: continue|confirm|complete|stop, reason: <enum> }
  *
+ * Also exports classifyUntilKind(untilString, mode) — caller-side only; single
+ * source for the canonical default continuous until string (matches parse.md /
+ * Phase 0 restore / Phase 3 default-form match).
+ *
  * Exit codes (CLI):
  *   0 success
  *   1 usage / malformed JSON
@@ -33,6 +38,10 @@ const MODES = new Set(['continuous', 'once']);
 const UNTIL_KINDS = new Set(['default', 'custom', 'none']);
 const SUITES = new Set(['PASS', 'FAIL', 'none']);
 const CAPS = new Set(['none', 'max_cycles', 'max_elapsed', 'budget']);
+
+/** Canonical continuous default until — single source (parse.md / Phase 0 restore). */
+const DEFAULT_UNTIL =
+  'no material P0/P1 for 2 consecutive cycles (green tests)';
 
 const REASONS = new Set([
   'none',
@@ -75,6 +84,42 @@ function out(decision, reason) {
     throw new Error(`internal: unknown reason ${reason}`);
   }
   return { decision, reason };
+}
+
+/**
+ * True when until text matches Phase 3 default P0/P1×2 form
+ * (full default string, or case-insensitive P0/P1 + 2 + consecutive).
+ * @param {string} s
+ * @returns {boolean}
+ */
+function isDefaultUntilForm(s) {
+  const t = String(s == null ? '' : s).trim();
+  if (!t) return false;
+  const lower = t.toLowerCase();
+  if (lower === DEFAULT_UNTIL.toLowerCase()) return true;
+  // Phase 3: substring match P0/P1 + 2 consecutive (case-insensitive)
+  return /p0\/p1/i.test(t) && /\b2\b/.test(t) && /consecutive/i.test(t);
+}
+
+/**
+ * Caller-side until classifier. Feeds deriveStopDecision — never call from inside
+ * deriveStopDecision (purity: derive only sees until_kind enum).
+ *
+ * @param {string|null|undefined} untilString ledger header/Driver until text
+ * @param {'continuous'|'once'} mode
+ * @returns {'default'|'custom'|'none'}
+ */
+function classifyUntilKind(untilString, mode) {
+  if (mode !== 'continuous' && mode !== 'once') {
+    invalid(`mode must be continuous|once (got ${mode})`);
+  }
+  // Once mode always uses until: none at classify (derive rejects once+default/custom)
+  if (mode === 'once') return 'none';
+
+  const t = untilString == null ? '' : String(untilString).trim();
+  if (!t || t.toLowerCase() === 'none') return 'none';
+  if (isDefaultUntilForm(t)) return 'default';
+  return 'custom';
 }
 
 /**
@@ -171,6 +216,7 @@ function deriveStopDecision(s) {
 function usage() {
   process.stderr.write(
     'Usage: improve-stop-decision.js [--file snapshot.json]  (or JSON on stdin)\n' +
+      '  Snapshot may omit until_kind and pass until + mode — then classifyUntilKind is applied.\n' +
       'Prints JSON: { decision, reason }\n' +
       'Exit 1 = usage/malformed JSON; exit 2 = invalid snapshot enums/combos\n'
   );
@@ -204,6 +250,18 @@ function main(argv) {
     process.exit(e.code === 2 ? 2 : 1);
   }
   try {
+    // Convenience: if until_kind missing but until+mode present, classify first
+    if (
+      data &&
+      typeof data === 'object' &&
+      !Array.isArray(data) &&
+      (data.until_kind == null || data.until_kind === '') &&
+      data.mode
+    ) {
+      data = Object.assign({}, data, {
+        until_kind: classifyUntilKind(data.until, data.mode),
+      });
+    }
     const result = deriveStopDecision(data);
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   } catch (e) {
@@ -216,4 +274,10 @@ if (require.main === module) {
   main(process.argv.slice(2));
 }
 
-module.exports = { deriveStopDecision, REASONS };
+module.exports = {
+  deriveStopDecision,
+  classifyUntilKind,
+  isDefaultUntilForm,
+  DEFAULT_UNTIL,
+  REASONS,
+};

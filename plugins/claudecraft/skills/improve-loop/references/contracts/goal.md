@@ -42,11 +42,20 @@ ledger and never blocks reintegrate.
 → driver/host caps → until classification. Caps and outer-loop docs **reference** this table;
 Phase 3 keeps executing numbered rules that implement it.
 
-**Pure helper (preferred when Node is available):**
-`plugins/claudecraft/tools/improve-stop-decision.js` → `deriveStopDecision(snapshot)`.
-Caller supplies `until_kind: default|custom|none` (never string-match until text inside the
-helper). Output `{ decision, reason }` with `decision` ∈ `continue|confirm|complete|stop`.
-This Markdown table remains the no-Node fallback and the semantic source the helper encodes.
+**Pure helpers (preferred when Node is available):**
+`plugins/claudecraft/tools/improve-stop-decision.js`
+
+1. **`classifyUntilKind(untilString, mode)`** — caller-side; maps ledger until text →
+   `default|custom|none` using the **canonical** continuous default string
+   `no material P0/P1 for 2 consecutive cycles (green tests)` (same as parse.md / Phase 0
+   restore / Phase 3 default-form match). Single source: exported `DEFAULT_UNTIL`.
+2. **`deriveStopDecision(snapshot)`** — pure encoding of this table. Snapshot carries
+   `until_kind` (never string-matches until text inside derive). Output
+   `{ decision, reason }` with `decision` ∈ `continue|confirm|complete|stop`.
+
+Recipe: `until_kind = classifyUntilKind(header.until, mode)` then
+`deriveStopDecision({ …, until_kind, suite_this_cycle, … })`.
+This Markdown table remains the no-Node fallback and the semantic source derive encodes.
 S8 checks `next_auto: blocked:*` **before** consulting the stop helper.
 
 | Condition | Result |

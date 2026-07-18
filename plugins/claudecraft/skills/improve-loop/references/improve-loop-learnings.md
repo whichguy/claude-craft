@@ -161,3 +161,32 @@ SKILL S9 include `until: <short>`; caps.md outer-host wording; structure pins.
 ## Stop after custom-until S8 quality-review
 
 Material `c7553c3` then two cleans (pair after). Residual skeptic (host goal + S9) → section above.
+
+## 0.1.2 stop / ownership / intent / helper series (goal Fable3)
+
+| SHA | One-line |
+|---|---|
+| `2898159` | stop/ownership: zero open P0/P1 + **current-cycle** suite PASS; Confirm when suite skipped; rule-4 suppress for non-`none` until; once may create/reintegrate |
+| `e3b9a22` | material six-clause fidelity through replan; residual thin `[residual]` Evidence+Acceptance — no theater |
+| `ee57287` | pure `deriveStopDecision` / `until_kind` caller-derived; dual version pin 0.1.2 |
+
+Follow-up: `classifyUntilKind` (caller-side; single-source `DEFAULT_UNTIL`) sits **beside** derive — never inside (purity).
+
+### Invariants from history (do not reverse)
+
+| ID | Invariant | SHA / evidence |
+|---|---|---|
+| H1 | Tip-unique recovery never peer-promotes force destroy/drop | `149cedc` open-pr resume_hint |
+| H2 | Status/flags are explicit yes/no — never `!!` truthy coerce | `567bf37` |
+| H3 | One improve-loop cycle ≠ continuous; host goal iterates | `7e2c2ab` |
+| H4 | Custom until judged by S8 or host goal against disk | `c7553c3`, `0d50180` |
+| H5 | Code land defaults material; P2/YAGNI row before default material | `c51e760`, `f182ebd` |
+| H6 | Dirty launch → carry drain + bootstrap — not force-clear protect tips | `232b1f6` |
+| H7 | not-landed terminal must not set `goal.blocked` | `f017175` |
+| H8 | Complete needs zero open P0/P1 + current-cycle PASS (confirm when skipped) | `2898159` |
+| H9 | Material six-clause; residual thin `[residual]` — no theater | `e3b9a22` |
+| H10 | Stop helper pure; until_kind caller-derived (`classifyUntilKind` beside) | `ee57287` |
+| H11 | Residual×2 empty-complete without inventing P0/P1 is correct | Hermes 179 catalog |
+| H12 | agent-home allowlists path-qualified hermes_release_watch only | gif-search class |
+| H13 | Disk beats chat for control flow | learnings bank |
+| H14 | Package A ≠ B ≠ C; equalize B→hermes only | Fable series |

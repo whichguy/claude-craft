@@ -437,6 +437,23 @@ describe('claudecraft improve skill structure', function () {
     expect(goal).to.match(/Do \*\*not\*\* complete on "last non-material cycle was PASS"|Do not complete on "last non-material cycle was PASS"/i);
     expect(goal).to.match(/Precedence \(first match wins\)|terminal status → same-error/i);
     expect(goal).to.match(/improve-stop-decision\.js|deriveStopDecision/i);
+    expect(goal).to.match(/classifyUntilKind/);
+    expect(goal).to.match(/DEFAULT_UNTIL|no material P0\/P1 for 2 consecutive cycles/i);
+    const capsStop = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/caps.md'),
+      'utf8'
+    );
+    expect(capsStop).to.match(/classifyUntilKind/);
+    expect(capsStop).to.match(/deriveStopDecision/);
+    // Learnings bank includes 0.1.2 series SHAs
+    const learn = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/improve-loop-learnings.md'),
+      'utf8'
+    );
+    expect(learn).to.match(/2898159/);
+    expect(learn).to.match(/e3b9a22/);
+    expect(learn).to.match(/ee57287/);
+    expect(learn).to.match(/149cedc/);
     // Ownership: improve-loop once-mode may create/reintegrate; continuous uses improve driver
     const lifeOwn = fs.readFileSync(
       path.join(CC, 'skills/improve/references/lifecycle.md'),
