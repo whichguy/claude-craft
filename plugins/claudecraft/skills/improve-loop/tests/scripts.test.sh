@@ -662,6 +662,81 @@ assert "rename: newname gone on launch" test ! -f "$REPO_REN/newname.txt"
 assert "rename: launch no staged delete" bash -c \
   '! git -C "'"$REPO_REN"'" status --porcelain | grep -q "oldname\|newname"'
 
+# --- Carry failure semantics (real worktree-enter entry point) ---
+# APPLY_FAILED: leave launch dirty, tear down new worktree (no pointer).
+REPO_AF="$TMP/repo-apply-fail"
+mkdir -p "$REPO_AF"
+git -C "$REPO_AF" init -q -b main
+git -C "$REPO_AF" config user.email "test@example.com"
+git -C "$REPO_AF" config user.name "Test"
+echo base >"$REPO_AF/README"
+git -C "$REPO_AF" add README && git -C "$REPO_AF" commit -q -m init
+echo dirty >"$REPO_AF/README"
+set +e
+IMPROVE_LOOP_CARRY_FORCE_FAIL=apply \
+  node "$SCRIPTS/worktree-enter.js" --repo "$REPO_AF" --target "apply fail" \
+  >"$TMP/enter-af.out" 2>"$TMP/enter-af.err"
+EC_AF=$?
+set -e
+assert "apply-fail enter exit 9" test "$EC_AF" -eq 9
+assert "apply-fail launch still dirty" grep -q dirty "$REPO_AF/README"
+assert "apply-fail no pointer" test ! -f "$(git -C "$REPO_AF" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)/improve-loop/active.json" \
+  || test ! -f "$REPO_AF/.git/improve-loop/active.json"
+# worktree dir should not remain under .worktrees (teardown)
+WT_LEFT=$(find "$REPO_AF/.worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+assert "apply-fail worktree torn down" test "${WT_LEFT:-0}" -eq 0
+
+# LAUNCH_CLEAN_FAILED: keep worktree (only WIP copy), leave launch dirty, no pointer.
+REPO_CF="$TMP/repo-clean-fail"
+mkdir -p "$REPO_CF"
+git -C "$REPO_CF" init -q -b main
+git -C "$REPO_CF" config user.email "test@example.com"
+git -C "$REPO_CF" config user.name "Test"
+echo base >"$REPO_CF/README"
+git -C "$REPO_CF" add README && git -C "$REPO_CF" commit -q -m init
+echo dirty >"$REPO_CF/README"
+set +e
+IMPROVE_LOOP_CARRY_FORCE_FAIL=clean \
+  node "$SCRIPTS/worktree-enter.js" --repo "$REPO_CF" --target "clean fail" \
+  >"$TMP/enter-cf.out" 2>"$TMP/enter-cf.err"
+EC_CF=$?
+set -e
+assert "clean-fail enter exit 9" test "$EC_CF" -eq 9
+assert "clean-fail launch still dirty" grep -q dirty "$REPO_CF/README"
+assert "clean-fail stderr keeps workspace" grep -q 'workspace kept at' "$TMP/enter-cf.err"
+# Extract kept path from stderr and assert WIP present there
+KEPT_WS=$(sed -n 's/^worktree-enter: workspace kept at //p' "$TMP/enter-cf.err" | head -1 | tr -d '\r')
+assert "clean-fail kept path exists" test -n "$KEPT_WS" -a -d "$KEPT_WS"
+assert "clean-fail WIP in kept workspace" grep -q dirty "$KEPT_WS/README"
+# campaign branch should still exist (not deleted on clean-fail keep path)
+BR_CF=$(git -C "$REPO_CF" branch --list 'improve/clean-fail-*' | head -1 | tr -d ' *')
+assert "clean-fail campaign branch kept" test -n "$BR_CF"
+
+# Real APPLY_FAILED without force env (filesystem conflict): README dir blocks apply
+assert "carry APPLY_FAILED real path" node -e "
+const fs=require('fs'); const path=require('path'); const {execFileSync}=require('child_process');
+const {carryLaunchWip}=require('$CARRY_JS');
+const r=process.argv[1]; const ws=process.argv[2];
+fs.mkdirSync(r,{recursive:true});
+execFileSync('git',['-C',r,'init','-q','-b','main']);
+execFileSync('git',['-C',r,'config','user.email','t@e.com']);
+execFileSync('git',['-C',r,'config','user.name','T']);
+fs.writeFileSync(path.join(r,'README'),'base\\n');
+execFileSync('git',['-C',r,'add','README']);
+execFileSync('git',['-C',r,'commit','-q','-m','init']);
+fs.writeFileSync(path.join(r,'README'),'dirty\\n');
+fs.mkdirSync(ws,{recursive:true});
+fs.mkdirSync(path.join(ws,'README')); // wrong type → apply fails
+try {
+  carryLaunchWip(r, ws, {notes:[]});
+  process.exit(2);
+} catch(e) {
+  if (e.code !== 'APPLY_FAILED') process.exit(3);
+  if (!fs.readFileSync(path.join(r,'README'),'utf8').includes('dirty')) process.exit(4);
+  process.exit(0);
+}
+" "$TMP/real-apply-fail-repo" "$TMP/real-apply-fail-ws"
+
 # --- review-converge / model-agnostic composition (contract pins + path preference) ---
 # These are isolated hermetic checks so rename fatals (migrate order, dual marker, hard
 # grok-cc require, stale template) cannot silently regress without the L3 suite noticing.

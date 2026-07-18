@@ -28,7 +28,8 @@
  *   6 path-traversal / invalid pointer
  *   7 worktree create/repair failed
  *   8 bare repo
- *   9 launch WIP carry failed (launch left dirty; worktree torn down)
+ *   9 launch WIP carry failed (launch left dirty; worktree torn down on apply/copy
+ *     failure; worktree KEPT on LAUNCH_CLEAN_FAILED so WIP is not destroyed)
  *
  * Injectable: GIT_CMD, IMPROVE_LOOP_POINTER_DIR
  */
@@ -204,10 +205,10 @@ function coldStart(launch, commonGitDir, target, testCommand, notes) {
     // LAUNCH_CLEAN_FAILED: workspace already has WIP — do NOT tear it down (would lose
     // the only copy). Leave pointer unwritten and exit 9 so operator can recover from WORKSPACE.
     if (e && e.code === 'LAUNCH_CLEAN_FAILED') {
+      // Path alone on this line so operators/tests can parse it reliably.
+      console.error('worktree-enter: workspace kept at ' + worktreePath);
       console.error(
-        'worktree-enter: workspace kept at ' +
-          worktreePath +
-          ' (launch clean failed after carry; inspect both trees)'
+        'worktree-enter: launch clean failed after carry; inspect both trees'
       );
       process.exit(9);
     }

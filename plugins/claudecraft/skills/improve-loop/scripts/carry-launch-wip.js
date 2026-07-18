@@ -269,6 +269,19 @@ function carryLaunchWip(launch, workspace, opts = {}) {
     return { carried: [], notes, tracked: [], untracked: [] };
   }
 
+  // Test seam (hermetic only): IMPROVE_LOOP_CARRY_FORCE_FAIL=apply|clean|copy
+  const forceFail = String(process.env.IMPROVE_LOOP_CARRY_FORCE_FAIL || '').trim();
+  if (forceFail === 'apply') {
+    const err = new Error('forced apply fail (IMPROVE_LOOP_CARRY_FORCE_FAIL=apply)');
+    err.code = 'APPLY_FAILED';
+    throw err;
+  }
+  if (forceFail === 'copy') {
+    const err = new Error('forced copy fail (IMPROVE_LOOP_CARRY_FORCE_FAIL=copy)');
+    err.code = 'COPY_FAILED';
+    throw err;
+  }
+
   // 1) tracked delta → apply in workspace (before any launch clean)
   if (tracked.length > 0) {
     const patch = gitDiffHeadBinary(launch, tracked);
@@ -288,6 +301,16 @@ function carryLaunchWip(launch, workspace, opts = {}) {
       err.code = 'COPY_FAILED';
       throw err;
     }
+  }
+
+  // After workspace has WIP: optional forced clean failure (test seam).
+  // Worktree-enter must KEEP the worktree on LAUNCH_CLEAN_FAILED.
+  if (forceFail === 'clean') {
+    const err = new Error(
+      'forced launch clean fail after carry (IMPROVE_LOOP_CARRY_FORCE_FAIL=clean)'
+    );
+    err.code = 'LAUNCH_CLEAN_FAILED';
+    throw err;
   }
 
   // 3) success only now — clean launch for carried paths.
