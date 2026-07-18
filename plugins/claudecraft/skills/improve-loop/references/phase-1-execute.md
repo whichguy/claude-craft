@@ -14,30 +14,43 @@ Phase 0 step 7 (a thesis is "disproven" only if its most-recent recorded outcome
 Executor requirements (portable): **Read** `contracts/executor.md`. In short: implement
 without committing, staging for commit, or editing `IMPROVE_LOOP.md`.
 
+**Material intent handoff (normative):** when the selected item is a **material** kind
+(six-clause form per `ledger-schema.md`), pass **Change**, **Decision**, **Preserve**, and
+**Acceptance** into the planner/executor **unchanged**. The executor may report
+**contradictory evidence** (source/runtime fact that falsifies Decision or makes Preserve
+impossible) but must **not** silently reinterpret Decision or violate Preserve. On
+contradiction, set Outcome `blocked` or `partial` with Notes that name the conflict, and
+leave Decision/Preserve for Phase 3 amendment — do not “fix it another way” without a
+Backlog rewrite. Residual thin items hand off **Evidence** + **Acceptance** only.
+
 - **1a, always:** Dispatch a fresh host **executor** (general-purpose write agent; never a
   specialized committer). Give the next unchecked Backlog item and pointers to
-  `IMPROVE_LOOP.md` and recent git history (paths/refs, not inlined content). **Instruct it
-  explicitly: do not commit, do not `git add`/stage, and do not edit `IMPROVE_LOOP.md` —
-  just modify the working tree and report what changed.** A 1a commit or stage would bypass
-  this cycle's scope check, secret scan, and exactly-one-commit discipline, and a
-  stray staged file would ride along on the next commit. If the host agent can invoke other
-  skills/tools for a named skill in the backlog item, it may do so when available; otherwise
-  implement directly. Do not block the cycle on skill-tool availability.
+  `IMPROVE_LOOP.md` and recent git history (paths/refs, not inlined content). For material
+  items, include the Decision / Preserve / Acceptance clauses in the brief (not a
+  paraphrase that drops them). **Instruct it explicitly: do not commit, do not `git add`/
+  stage, and do not edit `IMPROVE_LOOP.md` — just modify the working tree and report what
+  changed.** A 1a commit or stage would bypass this cycle's scope check, secret scan, and
+  exactly-one-commit discipline, and a stray staged file would ride along on the next
+  commit. If the host agent can invoke other skills/tools for a named skill in the backlog
+  item, it may do so when available; otherwise implement directly. Do not block the cycle
+  on skill-tool availability.
 
   **Optional host split (e.g. Claude + codex-worker):** if the live model tier prefers a
   separate implementer and that implementer is available, 1a may stop short of writing code
-  and return a scoped implementation specification: goal, exact file list, acceptance
-  criteria, and `Do not commit`. Otherwise 1a implements or investigates itself.
+  and return a scoped implementation specification: goal, exact file list, **Decision**,
+  **Preserve**, acceptance criteria (item Acceptance + suite), and `Do not commit`.
+  Otherwise 1a implements or investigates itself.
 
 - **1b, conditional:** Only when 1a returned that scoped specification, dispatch the host
   implementer (e.g. `codex-worker` when present) without worktree isolation; this loop is
   single-threaded in the same tree. Give it the bounded brief: goal, exact file scope,
-  constraints, acceptance criteria, and `Do not commit; leave changes in the working tree.`
-  It should report structured `done`/`partial`/`blocked`/`failed` status, git-verified
-  changed files, what it verified, risks, and, when blocked with open questions, enough
-  context to resume the same implementer thread rather than launching a fresh one.
-  Clarify-and-resume stays inside this Phase 1 dispatch (cap ~two rounds), resolved before
-  1b reports back — never threaded across cycles via the Log.
+  constraints, **Decision**, **Preserve**, acceptance criteria, and
+  `Do not commit; leave changes in the working tree.` It should report structured
+  `done`/`partial`/`blocked`/`failed` status, git-verified changed files, what it
+  verified, risks, and, when blocked with open questions, enough context to resume the
+  same implementer thread rather than launching a fresh one. Clarify-and-resume stays
+  inside this Phase 1 dispatch (cap ~two rounds), resolved before 1b reports back — never
+  threaded across cycles via the Log.
 - **Scope check on 1b's report:** if the implementer reports any changed path outside the
   file scope declared in its brief, do not silently fold that path into this cycle's commit:
   note it in the Log (`scope violation: <path> was outside the declared file scope`) and set

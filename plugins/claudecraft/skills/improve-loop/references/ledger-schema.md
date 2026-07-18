@@ -39,6 +39,53 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 - [x] <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)
 - [ ] <item> — <why it matters>
 
+### Backlog item contract (P0/P1)
+
+Every unchecked **P0/P1** item uses a kind tag in brackets. Structure and replan
+discriminate **on the kind tag** — not prose judgment.
+
+**Material kinds** (`defect` | `product-choice` | `architecture` | `implementation`)
+require **six clauses** under the title line:
+
+```markdown
+- [ ] [P1][defect|product-choice|architecture|implementation] <change> (<path/symbol>)
+  - Evidence: <current source/runtime fact>
+  - Decision: <selected observable behavior or approach, and why>
+  - Preserve: <behavior, interface, state, or safety boundary that must not change>
+  - Unknown: <branch-changing question, or none>
+  - Acceptance: <specific observable result or verification command>
+```
+
+**Residual kind** (`residual`) is the structural residual survey form — **thin template
+only** (Evidence + Acceptance). No invented Decision/Preserve (anti-theater):
+
+```markdown
+- [ ] [P1][residual] <finding> (<path/symbol>)
+  - Evidence: <structural fact observed>
+  - Acceptance: <verification command or observable>
+```
+
+| Kind | Meaning |
+|---|---|
+| `defect` | Violates an existing contract |
+| `product-choice` | Multiple defensible behaviors; selected semantics explicit |
+| `architecture` | Authority / ownership / data flow / extension boundary |
+| `implementation` | Realizes already-decided behavior without changing contract |
+| `residual` | Structural residual survey finding; thin template |
+
+**P2 / optional / YAGNI** items stay **one-line** (no six-clause or thin residual form)
+and do not count as open P0/P1 for until/stop. Count every other unchecked item as P0/P1.
+
+Rules:
+
+- Alternatives required only for `product-choice` / `architecture` when a material
+  alternative was considered (fold into Decision).
+- Unknown only if answers would change scope, approach, interface, sequencing, or tests;
+  otherwise write `none`.
+- Global **Test command** is the verification floor; item **Acceptance** is
+  item-specific proof on top of that floor.
+- Do **not** invent fake Decision/Preserve on residual items to look complete.
+
 ## Stop-condition tracking
 - consecutive-no-progress: 0
 - consecutive-same-error: 0 (signature: none)

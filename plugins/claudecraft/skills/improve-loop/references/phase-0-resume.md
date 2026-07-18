@@ -95,6 +95,20 @@ Then continue with the numbered steps below.
    items without judgment. Never leave the Backlog empty on a fresh file and then enter
    Phase 1. On this fresh create, skip 3a–4 and go to step 5 with `N = 1`.
 
+   **Fresh-seed contract (P0/P1):** write each seeded item per
+   `ledger-schema.md` **Backlog item contract**. Discriminate **on the kind tag**:
+
+   - **Material** kinds (`defect` | `product-choice` | `architecture` | `implementation`):
+     six-clause form — title line plus **Evidence**, **Decision**, **Preserve**,
+     **Unknown**, **Acceptance**. Decision and Preserve must be concrete (not placeholders).
+   - **Residual** kind (`residual`): thin template only — **Evidence** + **Acceptance**.
+     Do **not** invent Decision/Preserve for residual survey items (anti-theater).
+   - **P2 / optional / YAGNI**: one-line only; exempt from six-clause and thin residual forms.
+
+   Prefer one to three highest-value items. Structural residual campaigns may seed only
+   `[residual]` items (or complete later via residual×2 empty-backlog rules without
+   inventing fake P0/P1).
+
 3. Otherwise read the header, **`## Driver`** (if present), Backlog, Stop-condition block,
    and last two or three Log entries only.
    If the Log has zero entries, the file was created by an earlier invocation that crashed

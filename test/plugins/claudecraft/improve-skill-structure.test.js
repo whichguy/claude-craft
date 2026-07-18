@@ -463,6 +463,67 @@ describe('claudecraft improve skill structure', function () {
     expect(improveSkill).to.match(/until: <short>/);
   });
 
+  it('material backlog contract: six-clause seed, residual thin, handoff + replan fidelity', function () {
+    const ledger = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/ledger-schema.md'),
+      'utf8'
+    );
+    const p0 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),
+      'utf8'
+    );
+    const p1 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-1-execute.md'),
+      'utf8'
+    );
+    const p3 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-3-replan.md'),
+      'utf8'
+    );
+    const exec = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/executor.md'),
+      'utf8'
+    );
+
+    // Ledger: material six-clause + residual thin + kind taxonomy
+    expect(ledger).to.match(/Backlog item contract/i);
+    expect(ledger).to.match(/Evidence:/);
+    expect(ledger).to.match(/Decision:/);
+    expect(ledger).to.match(/Preserve:/);
+    expect(ledger).to.match(/Unknown:/);
+    expect(ledger).to.match(/Acceptance:/);
+    expect(ledger).to.match(/\[residual\]/);
+    expect(ledger).to.match(/defect\|product-choice\|architecture\|implementation/);
+    expect(ledger).to.match(/thin template|Evidence \+ Acceptance/i);
+    expect(ledger).to.match(/No invented Decision\/Preserve|Do \*\*not\*\* invent fake Decision/i);
+    expect(ledger).to.match(/P2.*optional.*YAGNI|YAGNI.*one-line/i);
+
+    // Phase 0: fresh-seed discriminates on kind tag
+    expect(p0).to.match(/Fresh-seed contract|fresh-seed contract/i);
+    expect(p0).to.match(/six-clause|Evidence.*Decision.*Preserve/i);
+    expect(p0).to.match(/\[residual\]|residual.*thin/i);
+    expect(p0).to.match(/kind tag|on the kind tag/i);
+    expect(p0).to.match(/Do \*\*not\*\* invent Decision\/Preserve for residual|not invent Decision\/Preserve for residual/i);
+
+    // Phase 1: material handoff wording
+    expect(p1).to.match(/Material intent handoff|material intent handoff/i);
+    expect(p1).to.match(/Decision.*Preserve.*Acceptance|Change.*Decision.*Preserve.*Acceptance/i);
+    expect(p1).to.match(/silently reinterpret|must \*\*not\*\* silently reinterpret/i);
+    expect(p1).to.match(/contradictory evidence/i);
+    expect(exec).to.match(/Decision.*Preserve|silently reinterpret/i);
+
+    // Phase 3: taxonomy + fidelity locks
+    expect(p3).to.match(/must-fix/);
+    expect(p3).to.match(/decision/);
+    expect(p3).to.match(/simplify/);
+    expect(p3).to.match(/defer/);
+    expect(p3).to.match(/Intent fidelity|fidelity locks/i);
+    expect(p3).to.match(/Cannot\*\* silently drop|cannot silently drop|silently drop Decision/i);
+    expect(p3).to.match(/six-clause|thin Evidence/i);
+    // P2 exempt stated somewhere in contract chain
+    expect(ledger + p0).to.match(/P2.*exempt|exempt from six-clause|one-line only/i);
+  });
+
   it('dirty launch bootstraps worktree carry+drain instead of hard-stop only', function () {
     const p0 = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),

@@ -57,6 +57,9 @@ paths rather than inlining all content; each advisor has repository access. Ask 
 > iterations in the digest. Do not recommend re-attempting a thesis whose most-recent
 > recorded outcome was disproven, unless you give a concrete reason the prior disproof does
 > not hold (new evidence, changed conditions, or the prior disproof was flawed).
+> When recommending new or revised P0/P1 work, preserve existing Decision/Preserve/
+> Acceptance intent unless you cite new contradictory evidence. Classify each material
+> recommendation as must-fix | decision | simplify | defer.
 
 The **native-replanner fallback** (Consolidation 1, below) receives the same inputs as Round
 1, so it gets the digest automatically; the disproven-thesis guard below applies to its
@@ -110,8 +113,30 @@ than merely backlog priority.
 
 The final product—Consolidation 2, Consolidation 1 on early exit, or native-replanner
 fallback—must be a **Backlog body only**: markdown checklist lines (`- [ ]` or `- [x]`)
-with short rationale phrases on the same lines. It must not be a free-form essay or a
-whole-file rewrite.
+with short rationale phrases on the same lines (plus the required clause sub-bullets for
+P0/P1 per `ledger-schema.md`). It must not be a free-form essay or a whole-file rewrite.
+
+**Advisor recommendation taxonomy (classify each material suggestion before apply):**
+
+| Class | Meaning | Backlog effect |
+|---|---|---|
+| `must-fix` | Violates an existing contract or broken suite | New/updated `[defect]` or residual thin item |
+| `decision` | Multiple defensible behaviors; needs explicit choice | New/updated `[product-choice]` or `[architecture]` with Decision filled |
+| `simplify` | Same behavior, less surface | Optional `[implementation]` or P2 — never silently drop Preserve |
+| `defer` | Out of target scope or not worth a cycle | Log Notes only; **not** a new P0/P1 unless operator elevates |
+
+**Intent fidelity locks (normative):**
+
+- **Retain** Decision / Preserve / Acceptance on still-open material items when evidence is
+  unchanged. Amend those clauses **only** with new source/runtime evidence (or an explicit
+  operator redirect).
+- Write **new** unchecked P0/P1 with the same contract as Phase 0: material → six-clause;
+  `[residual]` → thin Evidence + Acceptance only; P2/optional/YAGNI → one-line exempt.
+- **Cannot** silently drop Decision, Preserve, or Acceptance from a material item that
+  remains open. If evidence invalidates Decision, rewrite Decision (and Unknown if needed)
+  with a Notes line — do not delete the clauses to “simplify.”
+- Prefer branch-testing Unknowns before promoting them into scope-changing Decision text
+  (guidance only — not structure-tested).
 
 Apply it surgically and natively: replace only the `## Backlog` body through the next
 `## ` heading in `IMPROVE_LOOP.md`. Never ask an advisor or fallback replanner to rewrite
