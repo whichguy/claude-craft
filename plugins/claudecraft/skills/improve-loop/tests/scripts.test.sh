@@ -278,7 +278,7 @@ set -e
 assert "tracked ledger exit 5" test "$EC5" -eq 5
 assert "tracked ledger message" grep -q 'tracked launch' "$TMP/t5.err"
 
-# code-dirty launch with untracked legacy ledger → exit 4
+# product dirt + untracked legacy ledger → carry WIP + migrate/discard (no longer exit 4)
 REPO6="$TMP/repo6"
 mkdir -p "$REPO6"
 git -C "$REPO6" init -q -b main
@@ -288,12 +288,17 @@ echo x >"$REPO6/README"
 git -C "$REPO6" add README && git -C "$REPO6" commit -q -m init
 echo '# L' >"$REPO6/IMPROVE_LOOP.md"
 echo dirty >"$REPO6/extra.c"
+OUT6="$TMP/enter6.json"
 set +e
-node "$SCRIPTS/worktree-enter.js" --repo "$REPO6" --target t >/dev/null 2>"$TMP/t6.err"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO6" --target t >"$OUT6" 2>"$TMP/t6.err"
 EC6=$?
 set -e
-assert "dirty launch migrate exit 4" test "$EC6" -eq 4
-assert "dirty launch message" grep -q 'code-dirty' "$TMP/t6.err"
+assert "dirty launch with untracked ledger exit 0" test "$EC6" -eq 0
+assert "dirty launch notes carry" grep -qE 'carried-launch-wip:|carried-paths:extra.c' "$OUT6"
+WS6="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT6")"
+assert "extra.c carried into workspace" test -f "$WS6/extra.c"
+assert "extra.c content in workspace" grep -q dirty "$WS6/extra.c"
+assert "extra.c cleaned from launch" test ! -f "$REPO6/extra.c"
 
 # reintegrate_blocked → merge-back-only mode
 REPO7="$TMP/repo7"
@@ -486,8 +491,8 @@ const {porcelainPath}=require('$SCRIPTS/lib-paths.js');
 process.exit(porcelainPath('?? .worktrees/')==='.worktrees/'?0:1)
 "
 
-# --- Ambient launch dirt: non-blocking for merge-back / enter notes ---
-# Default ambient prefixes: cron/, wiki/ (override via IMPROVE_LOOP_AMBIENT_PREFIXES)
+# --- Ambient launch dirt: carried into worktree then cleaned on launch ---
+# Default ambient prefixes still matter for merge-back mid-campaign; enter carries all non-ignored WIP.
 REPO_AMB="$TMP/repo-ambient"
 mkdir -p "$REPO_AMB/cron" "$REPO_AMB/wiki"
 git -C "$REPO_AMB" init -q -b main
@@ -504,11 +509,13 @@ echo more >>"$REPO_AMB/wiki/log.md"
 OUT_AMB="$TMP/enter-ambient.json"
 node "$SCRIPTS/worktree-enter.js" --repo "$REPO_AMB" --target "ambient dirty" --test-command "true" >"$OUT_AMB"
 assert "ambient dirty still cold-starts" grep -qE '"mode": "cold-start"|"mode": "discard-stale-cold-start"' "$OUT_AMB"
-assert "ambient dirty noted on enter" grep -q 'ignored-ambient-dirt:' "$OUT_AMB"
+assert "ambient dirty carried note" grep -q 'carried-launch-wip:' "$OUT_AMB"
 WS_AMB="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT_AMB")"
+assert "ambient carried into workspace" grep -q changed "$WS_AMB/cron/jobs.json"
+assert "ambient cleaned from launch after enter" bash -c "! grep -q changed \"$REPO_AMB/cron/jobs.json\""
 echo y >>"$WS_AMB/README"
-git -C "$WS_AMB" add README
-# ensure .gitignore staged if new
+# commit ambient + README so merge-back keeps carried work
+git -C "$WS_AMB" add README cron/jobs.json wiki/log.md
 [[ -f "$WS_AMB/.gitignore" ]] && git -C "$WS_AMB" add .gitignore || true
 git -C "$WS_AMB" commit -q -m "improve-loop: iteration 1 — ambient merge path"
 OUT_MB_AMB="$TMP/mergeback-ambient.json"
@@ -516,12 +523,11 @@ set +e
 node "$SCRIPTS/merge-back.js" --repo "$REPO_AMB" >"$OUT_MB_AMB" 2>"$TMP/mergeback-ambient.err"
 MB_AMB_EC=$?
 set -e
-assert "merge-back ignores ambient dirt exit 0" test "$MB_AMB_EC" -eq 0
-assert "merge-back ok with ambient" grep -q '"merge_back": "ok"' "$OUT_MB_AMB"
-assert "merge-back lists ignored ambient" grep -q 'ignored-ambient-dirt\|cron/jobs' "$OUT_MB_AMB"
+assert "merge-back clean launch exit 0" test "$MB_AMB_EC" -eq 0
+assert "merge-back ok after carry" grep -q '"merge_back": "ok"' "$OUT_MB_AMB"
 assert "merge-back worktree_removed true" grep -q '"worktree_removed": true' "$OUT_MB_AMB"
 assert "merge-back pointer_cleared true" grep -q '"pointer_cleared": true' "$OUT_MB_AMB"
-assert "launch still has ambient dirt after FF" bash -c "git -C \"$REPO_AMB\" status --porcelain | grep -q cron/jobs"
+assert "ambient landed on launch after FF" grep -q changed "$REPO_AMB/cron/jobs.json"
 
 # Ambient + real code dirt → still block merge-back
 REPO_MIX="$TMP/repo-mix"
@@ -584,6 +590,49 @@ MB_ST_EC=$?
 set -e
 assert "strict ambient empty blocks cron exit 3" test "$MB_ST_EC" -eq 3
 assert "strict blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_ST"
+
+# --- Carry launch WIP into worktree (diff/apply + untracked copy + clean launch) ---
+CARRY_JS="$SCRIPTS/carry-launch-wip.js"
+assert "carry-launch-wip.js exists" test -f "$CARRY_JS"
+set +e
+node "$CARRY_JS" --self-test >"$TMP/carry-self.out" 2>"$TMP/carry-self.err"
+CARRY_EC=$?
+set -e
+assert "carry-launch-wip self-test exit 0" test "$CARRY_EC" -eq 0
+
+REPO_CARRY="$TMP/repo-carry"
+mkdir -p "$REPO_CARRY"
+git -C "$REPO_CARRY" init -q -b main
+git -C "$REPO_CARRY" config user.email "test@example.com"
+git -C "$REPO_CARRY" config user.name "Test"
+echo base >"$REPO_CARRY/README"
+echo keep >"$REPO_CARRY/keep.txt"
+git -C "$REPO_CARRY" add README keep.txt
+git -C "$REPO_CARRY" commit -q -m init
+# tracked edit, tracked delete, untracked new
+echo modified >"$REPO_CARRY/README"
+rm -f "$REPO_CARRY/keep.txt"
+echo brand >"$REPO_CARRY/new-untracked.txt"
+OUT_CARRY="$TMP/enter-carry.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_CARRY" --target "carry wip" --test-command "true" >"$OUT_CARRY"
+assert "carry enter notes wip" grep -q 'carried-launch-wip:' "$OUT_CARRY"
+WS_CARRY="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT_CARRY")"
+assert "carry: README modified in workspace" grep -q modified "$WS_CARRY/README"
+assert "carry: keep.txt deleted in workspace" test ! -f "$WS_CARRY/keep.txt"
+assert "carry: untracked in workspace" test -f "$WS_CARRY/new-untracked.txt"
+assert "carry: untracked content" grep -q brand "$WS_CARRY/new-untracked.txt"
+assert "carry: launch README restored" grep -q base "$REPO_CARRY/README"
+assert "carry: launch keep restored" test -f "$REPO_CARRY/keep.txt"
+assert "carry: launch untracked removed" test ! -f "$REPO_CARRY/new-untracked.txt"
+assert "carry: launch porcelain clean of product" bash -c \
+  'n=$(git -C "'"$REPO_CARRY"'" status --porcelain | grep -v "\.worktrees" | grep -v "IMPROVE_LOOP" | grep -c . || true); test "$n" -eq 0'
+
+# isolation not carried as freehand WIP (IMPROVE_LOOP.md untracked still migrates separately)
+assert "listCarryCandidates filters isolation" node -e "
+const {listCarryCandidates}=require('$CARRY_JS');
+const {isIsolationDirt}=require('$SCRIPTS/lib-paths.js');
+process.exit(isIsolationDirt('IMPROVE_LOOP.md')&&isIsolationDirt('.worktrees/x')?0:1)
+"
 
 # --- review-converge / model-agnostic composition (contract pins + path preference) ---
 # These are isolated hermetic checks so rename fatals (migrate order, dual marker, hard

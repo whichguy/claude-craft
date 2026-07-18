@@ -450,10 +450,9 @@ On any hard stop / veto, print immediately:
 
 Reason codes (use these strings when they apply): `shell unavailable`,
 `ambiguous target repo`, `no test command`, `legacy tracked ledger`,
-`launch code-dirty`, `worktree code-dirty`, `code-dirty veto`, `secret veto`,
-`commit failed`, `reintegrate_blocked`, `scope violation`, `symlink broken`.
-(`launch code-dirty` = **blocking product paths only** — ambient prefixes do not use this
-code; they are ignored with a kickoff/merge-back note.)
+`wip carry failed`, `worktree code-dirty`, `code-dirty veto`, `secret veto`,
+`commit failed`, `reintegrate_blocked`, `scope violation`, `symlink broken`,
+`launch code-dirty` (merge-back / mid-campaign only — enter carries then cleans launch WIP).
 
 ### Kickoff card (once Phase 0 has resolved WORKSPACE — or on early STOP)
 
@@ -487,7 +486,7 @@ operator knows what success looks like before any cycle runs.
 | **Test command** | `<cmd>` |
 | **Seed backlog** | open P0/P1 count · next: <short item or _(empty)_> |
 | **Deferred carried** | open P2 count from digest/seed · _(none)_ if empty |
-| **Launch ambient dirt** | none \| ignored `<paths>` (prefixes `IMPROVE_LOOP_AMBIENT_PREFIXES`, default `cron/,wiki/`) — never freehand-stash |
+| **Launch WIP carry** | none \| carried `<n>` paths into WORKSPACE then cleaned on launch (`carried-launch-wip:N`) — never freehand-stash |
 | **Session cwd (home)** | `<ORIGINAL_CWD>` |
 | **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE; not host session if different) |
 | **Outer host goal** | yes \| no (optional observability only) |
@@ -815,6 +814,14 @@ Fail fast in Phase 0. Do not half-run a cycle.
   launch would leave merge-blocking dirt). Stage/commit that `.gitignore` on the **campaign
   branch** in the first Phase 4 that lands (or a ledger-only cycle if no code yet) so the
   ignore rule is durable. Do **not** leave campaign paths as unignored litter.
+- **Launch WIP is carried into WORKSPACE on cold-start (L3).** `worktree-enter` creates the
+  campaign worktree from `HEAD`, then **snapshots non-ignored launch WIP** into WORKSPACE
+  (`git diff HEAD --binary` + apply for tracked changes; copy untracked `exclude-standard`
+  files). Isolation paths (`.worktrees/`, `IMPROVE_LOOP.md`, `.gitignore`) are **not**
+  carried (ledger migrate is separate). **Ignored** files are not carried. On success, those
+  same paths are **cleaned on launch** (tracked restored to `HEAD`; untracked carried files
+  removed) so launch stays merge-back-clean and isolation holds. Carry failure leaves launch
+  dirty, tears down the new worktree, exit **9**. Resume (`--resume`) does **not** re-carry.
 - `IMPROVE_LOOP.md` at **WORKSPACE** must not be gitignored. Check with
   `git -C "$WORKSPACE" check-ignore -q IMPROVE_LOOP.md` once WORKSPACE exists.
   If it is ignored, refuse clearly so the user can un-ignore it.
@@ -832,19 +839,19 @@ Fail fast in Phase 0. Do not half-run a cycle.
   (or any other external implementer).** The orchestrator implements natively (or via a
   generic agent) by default. Optional implementers are never required for the cycle to
   proceed.
-- **Launch ambient dirt (L3 — do not freehand-stash).** Agent home-dir checkouts (e.g.
-  `~/.hermes`) often have always-dirty runtime paths under `cron/` and `wiki/`. L3
-  `worktree-enter` / `merge-back` classify launch porcelain into:
+- **Launch dirt (L3 — carry, do not freehand-stash).** On **enter**, non-ignored launch WIP
+  (tracked + untracked) is **carried into WORKSPACE** then **cleaned from launch** (see
+  preconditions above). Isolation paths are never freehand-stashed or carried as WIP.
+  `merge-back` still classifies any *remaining* launch porcelain into:
   - **isolation** — `.gitignore`, `IMPROVE_LOOP.md`, `.worktrees/` (non-blocking)
   - **ambient** — paths under prefixes from env `IMPROVE_LOOP_AMBIENT_PREFIXES`
     (default when unset: `cron/,wiki/`; set to empty or `-` for strict no ambient)
-  - **code** — everything else (blocking)
+  - **code** — everything else (blocks merge-back if still dirty after enter)
 
-  Ambient and isolation dirt **must not** block enter or merge-back; L3 records them in
-  notes / JSON (`ignored_ambient`, `ignored-ambient-dirt:…`). **Real code dirt** still
-  hard-stops with reason `launch code-dirty` and lists blocking paths plus an ambient-prefix
-  hint. **Do not** `git stash` launch dirt to force the campaign — that bypasses the
-  written contract. Operator fix for code dirt: commit, discard, or move WIP off launch.
+  After a successful enter, launch should be free of carried product/ambient WIP. New dirt
+  that appears on launch **mid-campaign** still blocks merge-back (exit 3). **Do not**
+  `git stash` launch dirt to force enter or merge — use L3 carry on enter; for mid-run
+  launch dirt, operator commit/discard/move.
 
 ## Durable state: git commits (self-contained cycles)
 
@@ -991,9 +998,10 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    notes            = json.notes           # may include discarded-stale-campaign:…
    ```
 
-   Exit-code map (worktree-enter): `3` lock busy → stop; `4` launch code-dirty → stop
-   `launch code-dirty`; `5` tracked legacy ledger → stop (operator `git rm`); `6` path
-   traversal → stop; `7` worktree create/repair failed → stop; `8` bare → stop.
+   Exit-code map (worktree-enter): `3` lock busy → stop; `4` reserved (legacy dirty-block;
+   product dirt is now carried into WORKSPACE); `5` tracked legacy ledger → stop
+   (operator `git rm`); `6` path traversal → stop; `7` worktree create/repair failed → stop;
+   `8` bare → stop; `9` launch WIP carry failed (launch left dirty; worktree torn down) → stop.
 
    If `mode == merge-back-only`: run Phase 5 merge-back only (L3 `merge-back.js`); stop.
 

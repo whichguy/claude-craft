@@ -23,11 +23,12 @@
  *   1 usage
  *   2 shell/git probe failure (caller should run shell-probe first)
  *   3 lock / concurrent start
- *   4 dirty launch (cannot migrate/discard over code dirt)
+ *   4 reserved (legacy: dirty launch blocked enter — now carried into worktree)
  *   5 tracked legacy ledger (operator must git rm)
  *   6 path-traversal / invalid pointer
  *   7 worktree create/repair failed
  *   8 bare repo
+ *   9 launch WIP carry failed (launch left dirty; worktree torn down)
  *
  * Injectable: GIT_CMD, IMPROVE_LOOP_POINTER_DIR
  */
@@ -50,6 +51,7 @@ const {
   errMsg,
   randomHex,
 } = require('./lib-paths.js');
+const { carryLaunchWip } = require('./carry-launch-wip.js');
 
 function usage(msg) {
   if (msg) console.error(msg);
@@ -189,6 +191,33 @@ function coldStart(launch, commonGitDir, target, testCommand, notes) {
   const gi = ensureWorktreesGitignore(worktreePath);
   if (gi.changed) notes.push('gitignore-ensured-on-workspace');
 
+  // Snapshot non-ignored launch WIP into workspace, then clean those paths on launch.
+  // Fail-closed: on error tear down the new worktree/branch and leave launch dirty.
+  try {
+    const carry = carryLaunchWip(launch, worktreePath, { notes });
+    if (carry.carried && carry.carried.length) {
+      notes.push('carried-wip-at-enter');
+    }
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    console.error('worktree-enter: launch WIP carry failed: ' + msg);
+    try {
+      git(launch, ['worktree', 'remove', '--force', worktreePath]);
+    } catch {
+      try {
+        fs.rmSync(worktreePath, { recursive: true, force: true });
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      git(launch, ['branch', '-D', campaignBranch]);
+    } catch {
+      /* ignore */
+    }
+    process.exit(9);
+  }
+
   const lb = launchBranch(launch);
   const head = git(launch, ['rev-parse', 'HEAD']);
   const ptr = {
@@ -203,6 +232,7 @@ function coldStart(launch, commonGitDir, target, testCommand, notes) {
     test_command: testCommand || null,
     created_at: new Date().toISOString(),
     reintegrate_error: null,
+    carried_wip_at_enter: notes.some((n) => String(n).startsWith('carried-launch-wip:') && n !== 'carried-launch-wip:0'),
   };
   writePointer(commonGitDir, ptr);
   return { workspace: worktreePath, campaign_branch: campaignBranch, launch_branch: lb, pointer: pointerPaths(commonGitDir).pointer };
@@ -358,19 +388,12 @@ if (!mode) {
     if (classified.ambient.length) {
       notes.push('ignored-ambient-dirt:' + classified.ambient.slice(0, 12).join(','));
     }
+    // Product/ambient dirt is no longer a hard stop: coldStart carries non-ignored WIP
+    // into the worktree and cleans those paths on launch. Isolation ledger still special-cased.
     if (classified.code.length) {
-      const ambHint =
-        classified.ambient_prefixes.length > 0
-          ? ' (ambient prefixes non-blocking: ' +
-            classified.ambient_prefixes.join(',') +
-            '; override via IMPROVE_LOOP_AMBIENT_PREFIXES)'
-          : ' (set IMPROVE_LOOP_AMBIENT_PREFIXES=cron/,wiki/ to ignore runtime paths)';
-      console.error(
-        'worktree-enter: launch code-dirty; cannot migrate/discard over: ' +
-          classified.code.slice(0, 8).join(', ') +
-          ambHint
+      notes.push(
+        'launch-code-dirt-will-carry:' + classified.code.slice(0, 12).join(',')
       );
-      process.exit(4);
     }
 
     const ledgerText = fs.readFileSync(launchLedger, 'utf8');
