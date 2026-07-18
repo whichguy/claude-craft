@@ -506,8 +506,10 @@ status beat with a **reasoning beat** (considering / evaluates / about to) at th
   `· about to · execute | skip Phase 1 execute`.
 - **After test:** `Test · PASS|FAIL` + ≤2-line summary (or first error signature).
   Plus: `· evaluates · STATUS · CHANGED_PATHS empty|n · Outcome → …` /
-  on PASS also `· considering · docs stale? · scoped tech-debt/artifacts?` /
-  `· about to · apply post-PASS hygiene | no-op | delete completed item | leave open | revert`.
+  **only when hygiene gate open** (PASS + `confirmed`|`partial` + non-empty
+  `CHANGED_PATHS`): `· considering · docs stale? · scoped tech-debt/artifacts?` /
+  `· about to · apply post-PASS hygiene | no-op`; otherwise `· about to · skip hygiene
+  (gate closed) | delete completed item | leave open | revert`.
 - **Phase 3:** `Advisors · usable K/M` + `Round 2 · yes|skipped (<why>)` + one-line
   replan direction (or `Backlog unchanged`).
   Plus: `· evaluates · open after replan = k · streak m→m'` /
@@ -764,7 +766,9 @@ Shared family rules (both skills):
    land** (`confirmed`/`partial` + non-empty `CHANGED_PATHS`), **consider** updating consumer
    docs and cleaning scoped stale artifacts / tech-debt litter from this change. Fold into
    the same cycle’s `CHANGED_PATHS` when warranted; no-op is fine. Skip on empty no-ops,
-   `disproven`, FAIL, residual-only. **Not** a new phase banner or L2 step.
+   `disproven`, FAIL, residual-only. Hygiene re-run FAIL reverts **hygiene only** (product
+   land kept). Prefer new paths / deletes over editing already-landed product files.
+   **Not** a new phase banner or L2 step.
 
 **Sibling skill.** `grok-review-converge` implements the review/fix specialization of this
 family (Grok material/minor + clean-streak ×2). Improve-loop’s multi-cycle is L1 autonomous
@@ -1260,7 +1264,9 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   `STATUS` is **PASS**, Outcome is `confirmed` or `partial` (not `blocked` / not `disproven`),
   and pre-hygiene `CHANGED_PATHS` is **non-empty** (real product land — not a green no-op).
   **Skip** residual-only / empty-execute, empty-`CHANGED_PATHS` investigations, FAIL, and
-  disproven (do not document or polish a failed thesis). **Before Phase 2**, the orchestrator
+  disproven (do not document or polish a failed thesis). For **`partial`**, only hygiene that
+  documents *already-landed* behavior or removes litter the partial work created — never
+  aspirational docs for unfinished remaining work. **Before Phase 2**, the orchestrator
   **considers** (judgment only — not mandatory work every cycle):
 
   1. **Documentation** — did this cycle’s landed behavior leave any *consumed* docs stale or
@@ -1276,18 +1282,34 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
 
   **If action is warranted** (cheap, in-scope, clearly correct):
   1. Snapshot `HYGIENE_BASE := CHANGED_PATHS` (product paths before hygiene).
-  2. Apply the edits/deletes under WORKSPACE.
-  3. Re-parse porcelain and **extend** `CHANGED_PATHS` with any new hygiene paths (still drop
+  2. **Prefer hygiene that only adds new paths or deletes obsolete non-product litter** so
+     re-run FAIL can isolate cleanly. Avoid editing paths already in `HYGIENE_BASE` unless
+     you take a **pre-hygiene content snapshot** of each such path (bytes / temp copy) so FAIL
+     can restore product land without wiping the thesis edit.
+  3. Apply the edits/deletes under WORKSPACE. Track
+     `HYGIENE_TOUCHED` = every path created, deleted, or content-edited by this fold-in
+     (including any `HYGIENE_BASE` path you chose to edit after snapshotting).
+  4. Re-parse porcelain and **extend** `CHANGED_PATHS` with any new hygiene paths (still drop
      `IMPROVE_LOOP.md` and paths in `TEST_ARTIFACT_PATHS`). Let
-     `HYGIENE_PATHS := CHANGED_PATHS − HYGIENE_BASE` (paths this fold-in added).
-  4. Pure prose docs or deletes do **not** re-run the suite by default. If hygiene edits
+     `HYGIENE_PATHS := CHANGED_PATHS − HYGIENE_BASE` (net-new paths this fold-in added).
+  5. Pure prose docs or deletes do **not** re-run the suite by default. If hygiene edits
      **executable contract** sources the recorded command covers, re-run the suite **once**
      and re-apply the shared `TEST_ARTIFACT_PATHS` capture **before Phase 2**.
-  5. **Hygiene re-run FAIL:** do **not** treat the original green product thesis as FAIL.
-     Revert only `HYGIENE_PATHS` (`git restore -SW` / delete untracked for those paths);
-     restore `CHANGED_PATHS := HYGIENE_BASE`; keep STATUS **PASS** and the pre-hygiene Outcome;
-     Notes `post-PASS hygiene re-run FAIL — hygiene paths reverted; product land kept`. Do
-     **not** invent a second full FAIL revert of product code. Proceed to Phase 2.
+  6. **Hygiene re-run FAIL:** do **not** treat the original green product thesis as FAIL.
+     Revert hygiene isolation only:
+     - Every path in `HYGIENE_PATHS` (new): `git restore -SW` / delete untracked.
+     - Every `HYGIENE_BASE` path in `HYGIENE_TOUCHED`: restore from its **pre-hygiene content
+       snapshot** (not a blind `git restore` to HEAD — that would drop product land).
+     - Restore `CHANGED_PATHS := HYGIENE_BASE`; keep STATUS **PASS** and the pre-hygiene
+       Outcome; Notes
+       `post-PASS hygiene re-run FAIL — hygiene paths reverted; product land kept`.
+     - **Fail-closed if isolation is impossible** (`HYGIENE_PATHS` empty **and** hygiene
+       edited `HYGIENE_BASE` paths **without** a pre-hygiene content snapshot): do **not**
+       invent a full product FAIL revert. Leave the tree as-is, Notes
+       `post-PASS hygiene re-run FAIL — cannot isolate hygiene from product land; tree left;
+       product Outcome kept`; proceed to Phase 2 (operator may clean on next cycle). Prefer
+       never entering this state: skip product-path hygiene without a snapshot.
+     Do **not** invent a second full FAIL revert of product code. Proceed to Phase 2.
 
   **If nothing material:** optional Notes
   `post-PASS hygiene: considered docs + repo cleanup; no changes`. Do **not** invent P0/P1

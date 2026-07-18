@@ -178,6 +178,9 @@ const improveRequired = [
   ['hygiene not a separate phase', /not a separate phase|directive — not a separate phase|not a new phase/i],
   ['hygiene gate real product land', /non-empty.*CHANGED_PATHS|pre-hygiene.*non-empty|real product land/i],
   ['hygiene re-run FAIL keep product', /hygiene re-run FAIL|hygiene paths reverted|product land kept/i],
+  ['hygiene fail-closed isolation', /cannot isolate hygiene|HYGIENE_TOUCHED|pre-hygiene content snapshot/i],
+  ['hygiene mid-cycle gate open', /only when hygiene gate open|hygiene gate \(confirmed/i],
+  ['partial hygiene landed only', /partial[\s\S]{0,120}already-landed|partial[\s\S]{0,120}landed behavior/i],
 ];
 
 for (const [name, re] of improveRequired) {
