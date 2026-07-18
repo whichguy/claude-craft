@@ -201,3 +201,10 @@ Follow-up: `classifyUntilKind` (caller-side; single-source `DEFAULT_UNTIL`) sits
 **Catalog EC honesty (disk-only under hermes `.improve-catalog`, gitignored):** suite fail
 must use exit **20/21**, never 10/11 (enter carried/protect). Merge-back 3/4 passthrough.
 Wave `mark_fail` on suite; `mark_blocked` only on real protect family.
+
+## Decision package (post-Fable4 default slice)
+
+- **C1:** keep hermes `.improve-catalog` gitignored (do not allow-list unless multi-host catalog).
+- **G:** skip material pilot this arc; run product-mode dogfood only before a real product `/improve`.
+- **E3:** skipped — product residual + limitation waived + confirmation greps green.
+
