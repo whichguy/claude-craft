@@ -146,7 +146,7 @@ const improveRequired = [
   ['L1 campaign driver', /L1 — Campaign driver|campaign driver/i],
   ['autonomous default', /Default: one campaign per invocation|autonomous campaign/i],
   ['self-contained cycles', /Self-contained cycles|self-contained cycle/i],
-  ['git is the ledger', /Git is the only durable ledger|git commits only|git is the ledger/i],
+  ['git is the ledger', /Git is the durable ledger across campaigns|Git is the only durable ledger|git commits only|git is the ledger|durable ledger across/i],
   ['discard-stale default', /discard-stale|discards stale/i],
   ['Next backlog commit field', /Next backlog/i],
   ['Next deferred commit field', /Next deferred/i],
@@ -243,8 +243,13 @@ const improveRequired = [
   // Pilot follow-ups (carried-WIP discard + residual honesty)
   ['carried-wip-discard-blocked exit 10', /carried-wip-discard-blocked|exit \*\*10\*\*|`10`.*carried-wip/i],
   ['residual Outcome partial hard', /Outcome `partial` only|Outcome \*\*`partial`\*\* only|never\*\*[\s\S]{0,40}`confirmed`[\s\S]{0,80}empty `CHANGED_PATHS`|never.*confirmed.*no product land/i],
-  ['commit-body-only residual allow-empty', /Commit-body-only residual|allow-empty[\s\S]{0,80}residual|git commit --allow-empty/i],
+  ['residual allow-empty emergency or ledger path', /Emergency allow-empty residual|allow-empty[\s\S]{0,80}residual|git commit --allow-empty|ledger-only[\s\S]{0,40}residual/i],
   ['residual Next deferred required', /Residual empty-tree commits \*\*must still\*\*|every cycle \(including residual-only, empty-tree/i],
+  // Live ledger required mid-campaign (context survival)
+  ['live ledger required mid-campaign', /live ledger required|Live ledger is required mid-campaign|working memory/i],
+  ['must write IMPROVE_LOOP on cold-start', /Must write[\s\S]{0,40}IMPROVE_LOOP|must write[\s\S]{0,40}live ledger|Must write.*live ledger/i],
+  ['durable vs live ledger split', /Durable state vs live ledger|durable ledger across|Live ledger \(`IMPROVE_LOOP/i],
+  ['kickoff Live ledger row', /\*\*Live ledger\*\*|Live ledger.*IMPROVE_LOOP/i],
 ];
 
 for (const [name, re] of improveRequired) {

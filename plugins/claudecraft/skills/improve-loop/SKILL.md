@@ -50,14 +50,20 @@ after the first `active` cycle waiting for the user when mode is autonomous.
 campaign edits live in **one ephemeral worktree** on `improve/<slug>` under
 `LAUNCH/.worktrees/`. Launch is read-only mid-run. Merge-back once at end (terminal land).
 
-**Self-contained cycles (product default):** Each L2 cycle is self-contained. **Git commit
-bodies are the durable ledger and learnings store** (Thesis / Outcome / Test evidence /
-What landed / Advisor consolidation / Notes / open-only `Next backlog` / `Next deferred` /
-stop state). Phase 0 digests those fields for anti-reseed and replan. There is **no
-cross-invoke resume** by default: entry **discards stale** pointer/worktree, then cold-starts.
-In-session multi-cycle reuses the **same invoke’s** worktree only. Opt-in crash recovery:
-`--resume` on `worktree-enter` / invocation. Optional ephemeral `IMPROVE_LOOP.md` during a
-run for advisors — never the recovery surface.
+**Self-contained cycles (product default):** Each L2 cycle is self-contained.
+
+- **Git commit bodies** are the **durable ledger** across invokes (Thesis / Outcome / Test
+  evidence / What landed / Advisor consolidation / Notes / open-only `Next backlog` /
+  `Next deferred` / stop state). Phase 0 digests those fields for anti-reseed and replan.
+- **`IMPROVE_LOOP.md` is the live ledger (working memory)** — **required mid-campaign**
+  (must write on cold-start; maintain every cycle). Survives context-window compaction and
+  is the `--resume` recovery surface for **this** pointer/worktree. It is **not** required
+  on product `main` after terminal land (archived into the commit body, then removed).
+
+There is **no cross-invoke resume** by default: entry **discards stale** pointer/worktree,
+then cold-starts (new worktree + **new** live ledger from git digest). In-session multi-cycle
+reuses the **same invoke’s** worktree only. Opt-in crash recovery: `--resume` on
+`worktree-enter` / invocation.
 
 **Package paths** (resolve relative to this skill directory):
 
@@ -209,8 +215,10 @@ for “what we already learned”:
    **`Next backlog:`** (**open** P0/P1 only) / **`Next deferred:`** / stop state. Explicitly
    flag `disproven` outcomes and build **COMPLETED_SET** + **DISPROVEN_SET** from those
    fields (not from backlog `[x]` lines).
-2. **Live ledger** when `IMPROVE_LOOP.md` exists: Log + **open** `## Backlog` + open
-   `## Deferred (P2)` + stop counters (advisors get the path; orchestrator reads sections).
+2. **Live ledger** (`IMPROVE_LOOP.md` — **required while Status is active**): Log + **open**
+   `## Backlog` + open `## Deferred (P2)` + stop counters (advisors get the path;
+   orchestrator reads sections). Create on cold-start; do not run Phases 1–3 with only
+   in-memory backlog.
 3. Advisors / native-replanner produce **two bodies** (not whole-file rewrites):
    - **Backlog body** — **open only** `- [ ] P0:` / `- [ ] P1:` (material; residual streak).
      **Never** emit `- [x]` in Backlog. Do **not** re-propose COMPLETED_SET / DISPROVEN_SET
@@ -221,13 +229,14 @@ for “what we already learned”:
 5. **Do not auto-promote** Deferred → P0/P1. Promote only when residual survey / advisors
    judge an item newly material; Notes line `promoted P2→P1: <short>`.
 6. Disproven-thesis guard applies to open P0/P1 proposals (digest DISPROVEN_SET).
-7. Cold-start with no live ledger: seed **1–3 open** P0/P1 from target + digest, **minus**
-   COMPLETED_SET / unexcused DISPROVEN_SET. **Carry forward** prior open `Next deferred:`
-   only (dedupe). **Do not** seed done `[x]` lines into Backlog. Empty deferred is fine.
+7. Cold-start: **must write** live ledger, then seed **1–3 open** P0/P1 from target + digest,
+   **minus** COMPLETED_SET / unexcused DISPROVEN_SET. **Carry forward** prior open
+   `Next deferred:` only (dedupe). **Do not** seed done `[x]` lines into Backlog. Empty
+   deferred is fine.
 
 ### Residual streak
 
-Track in ephemeral ledger / commit body:
+Track in live ledger **and** commit body:
 
 ```text
 consecutive-non-material-cycles: <n>
@@ -245,7 +254,7 @@ counts as non-material for residual purposes). Status stays **`active`** until s
 Operator-facing phrasing: residual ×2 is **two consecutive post-replan empty P0/P1 cycles**,
 not necessarily two pure residual-only cycles after all work — the finishing cycle is streak 1.
 
-Recover streak from the latest improve commit body when ephemeral state is missing.
+Recover streak from the live ledger when present; else from the latest improve commit body.
 
 ### When Status becomes `complete`
 
@@ -486,6 +495,7 @@ operator knows what success looks like before any cycle runs.
 | **Test command** | `<cmd>` |
 | **Seed backlog** | open P0/P1 count · next: <short item or _(empty)_> |
 | **Deferred carried** | open P2 count from digest/seed · _(none)_ if empty |
+| **Live ledger** | `$WORKSPACE/IMPROVE_LOOP.md` · created yes (required mid-campaign) \| missing → STOP |
 | **Launch WIP carry** | none \| carried `<n>` paths into WORKSPACE then cleaned on launch (`carried-launch-wip:N`) — never freehand-stash |
 | **Session cwd (home)** | `<ORIGINAL_CWD>` |
 | **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE; not host session if different) |
@@ -856,29 +866,41 @@ Fail fast in Phase 0. Do not half-run a cycle.
   `git stash` launch dirt to force enter or merge — use L3 carry on enter; for mid-run
   launch dirt, operator commit/discard/move.
 
-## Durable state: git commits (self-contained cycles)
+## Durable state vs live ledger (self-contained cycles)
 
-**Git is the only durable ledger.** Each cycle’s Phase 4 commit body carries Thesis, Outcome,
-test evidence, What landed, advisor consolidation, Notes, stop-condition state (including
-**consecutive-non-material-cycles**), **`Next backlog:`** **open-only** `- [ ] P0/P1:` lines
-(or empty + streak — **no** done `[x]` lines in the work queue), and **`Next deferred:`**
-open P2 lines (or `Next deferred: (none)`). Finished work and *why* it was an improvement
-are recovered from **Thesis / Outcome / What landed / Notes** of prior improve commits — not
-from backlog checkboxes. Deferred is metadata only — no product code required. The next
-cycle rebuilds continuity from:
+Two layers — do not collapse them:
+
+| Layer | What | When required |
+|---|---|---|
+| **Durable (git commit bodies)** | Learnings + open Next backlog/deferred snapshot per cycle | Every Phase 4 land; sole source for **next invoke** cold-start seed / anti-reseed |
+| **Live ledger (`IMPROVE_LOOP.md`)** | Working memory: open Backlog, Deferred, stop counters, append-only Log | **Every active campaign** — create on cold-start; maintain every cycle; `--resume` for this worktree |
+
+**Git is the durable ledger across campaigns.** Each cycle’s Phase 4 commit body carries
+Thesis, Outcome, test evidence, What landed, advisor consolidation, Notes, stop-condition
+state (including **consecutive-non-material-cycles**), **`Next backlog:`** **open-only**
+`- [ ] P0/P1:` lines (or empty + streak — **no** done `[x]` lines in the work queue), and
+**`Next deferred:`** open P2 lines (or `Next deferred: (none)`). Finished work and *why* it
+was an improvement are recovered from **Thesis / Outcome / What landed / Notes** of prior
+improve commits — not from backlog checkboxes. Deferred is metadata only — no product code
+required. Cold-start / next cycle after compact rebuilds continuity from:
 
 ```bash
 git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%n%b%n---"
 ```
 
-**Not durable / not for recovery:**
+**Live ledger is required mid-campaign (context survival).** Context windows can run out
+mid-cycle or between cycles; chat is not a store. **`IMPROVE_LOOP.md` must be written** at
+WORKSPACE on cold-start (template below) and updated through Phase 2–4 so open queue,
+counters, and Log survive compaction and support `--resume` for **this** pointer. Terminal
+cycles archive the full file into the commit body and **remove** it from the tree — it must
+**not** be required on product `main` to start a later `/improve`.
+
+**Not durable across invokes / not the long-term store:**
 
 - Pointer `active.json` — **run lock for this invoke only**; discarded on entry of the next
   `/improve` (default) and cleared on exit.
-- `IMPROVE_LOOP.md` — **optional ephemeral** file during a run (advisors / local notes). May
-  be committed mid-campaign or terminal-archived, but **must not** be required to resume a
-  later invoke. Prefer deriving backlog from the latest commit’s `Next backlog:` block and
-  deferred from `Next deferred:` (or archived `## Deferred (P2)`).
+- `IMPROVE_LOOP.md` after terminal land — gone from tree; history lives in the terminal
+  archive block + iteration commit bodies. Next cold-start creates a **new** file.
 
 **Default entry:** `worktree-enter` **discards stale** isolation then **cold-starts**.  
 **Opt-in:** `--resume` only when the operator explicitly wants crash recovery of a live pointer.
@@ -1035,17 +1057,18 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    - See **Shell CWD discipline** (pin destination, homecoming on L1 exit).
 
 
-2. If this is a **new cold-start / discard-stale-cold-start** (default): seed an ephemeral
-   backlog **and Deferred** from the **git digest** (step 7) + target, even when main tip is
+2. If this is a **new cold-start / discard-stale-cold-start** (default): seed backlog
+   **and Deferred** from the **git digest** (step 7) + target, even when main tip is
    an old `improve-loop: … complete` archive. **Do not** refuse reseed because of historical
    terminal archives — those are prior campaigns' learnings, not this run's resume file.
-   Optionally write ephemeral `$WORKSPACE/IMPROVE_LOOP.md` for advisors; or keep state
-   in-memory and encode `Next backlog:` + `Next deferred:` in the cycle commit body. Seed
-   **1–3 P0/P1-tagged** items (see residual discipline); **also seed `## Deferred (P2)`** from
-   the digest’s union of prior `Next deferred:` / archived Deferred (dedupe, cap 8–12;
-   empty OK — see Seed). Never enter Phase 1 with zero open P0/P1 on cold-start (Deferred
-   alone does not satisfy that). Init `consecutive-non-material-cycles: 0` (or recover from
-   latest commit body if present). Set `N = 1`. Skip 3a–4; go to step 5.
+   **Must write** live ledger `$WORKSPACE/IMPROVE_LOOP.md` (template in Durable state
+   section) **before** Phase 1 — **live ledger required** for context survival; do **not**
+   keep backlog/counters only in-memory. Seed **1–3 P0/P1-tagged** items into `## Backlog`
+   (see residual discipline); **also seed `## Deferred (P2)`** from the digest’s union of
+   prior `Next deferred:` / archived Deferred (dedupe, cap 8–12; empty OK — see Seed). Never
+   enter Phase 1 with zero open P0/P1 on cold-start (Deferred alone does not satisfy that).
+   Init `consecutive-non-material-cycles: 0` (or recover from latest commit body if present).
+   Set `N = 1`. Skip 3a–4; go to step 5.
 
    If mode is **`--resume`** and ledger is absent after terminal land on **this** worktree:
    merge-back-only / stop (true same-campaign recovery).
@@ -1132,14 +1155,18 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    they were (do not apply PASS/partial reset). Set the header counter to `N`, then run
    Phase 3 normally.
 
-   **Commit-body-only residual (no `IMPROVE_LOOP.md`):** when the campaign keeps state only in
-   git commit bodies (ephemeral ledger never written), Phase 4 may use
-   `git commit --allow-empty` **only** for residual-only / empty-execute cycles, and **only**
-   with the full enumerated body (Thesis, Outcome **`partial`**, Test evidence, What landed
-   `no code landed`, Advisor consolidation, Notes, **Next backlog** empty+streak, **Next
-   deferred** required — list or `(none)`, stop state). Prefer an ephemeral ledger when
-   advisors need a file; allow-empty is allowed, not preferred. Never ship a residual commit
-   with a subject-only / empty message body.
+   **Residual / empty-execute land (normal path):** append the lightweight Log entry to the
+   **live ledger** (must already exist), replan on the file, then Phase 4 **ledger-only**
+   commit staging `IMPROVE_LOOP.md` (Outcome **`partial`**, full enumerated body including
+   **Next deferred**). Do not rely on chat-only state.
+
+   **Emergency allow-empty residual:** `git commit --allow-empty` is allowed **only** if the
+   live ledger truly cannot be written (filesystem error) and **only** for residual-only /
+   empty-execute, with the full enumerated body (Thesis, Outcome **`partial`**, Test
+   evidence, What landed `no code landed`, Advisor consolidation, Notes, **Next backlog**
+   empty+streak, **Next deferred** required — list or `(none)`, stop state). Notes must
+   record `ledger write failed — emergency allow-empty residual`. Never ship a residual
+   commit with a subject-only / empty message body.
 
 6. For turns that will run Phases 1–3, apply the dirty-tree guard (shared **code-dirty**
    definition, step 4): if anything code-dirty is present, stop and report — do not fold
