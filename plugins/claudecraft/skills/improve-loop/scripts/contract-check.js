@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Contract check for improve-loop package (+ optional grok-review-converge composition).
+ * Contract check for improve-loop package (+ optional review-converge composition).
  *
  * Usage:
  *   node contract-check.js
  *   node contract-check.js --skill-dir /path/to/improve-loop \
  *                          --mirror /path/to/mirror/SKILL.md \
- *                          --converge /path/to/grok-review-converge/SKILL.md
+ *                          --converge /path/to/review-converge/SKILL.md
  *
  * Exit 0 = all asserts pass; exit 1 = failures printed to stderr.
  */
@@ -34,10 +34,15 @@ const mirrorSkill = arg(
     '.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop/SKILL.md'
   )
 );
-const convergeSkill = arg(
-  '--converge',
-  path.join(home, '.claude/skills/grok-review-converge/SKILL.md')
-);
+function defaultConvergePath() {
+  const preferred = path.join(home, '.claude/skills/review-converge/SKILL.md');
+  const legacy = path.join(home, '.claude/skills/grok-review-converge/SKILL.md');
+  try {
+    if (fs.existsSync(preferred)) return preferred;
+  } catch (_) {}
+  return legacy;
+}
+const convergeSkill = arg('--converge', defaultConvergePath());
 
 const fails = [];
 function ok(cond, msg) {
@@ -145,7 +150,8 @@ const improveRequired = [
   ['L3 lists resolve-target-repo', /resolve-target-repo/],
   ['no primary ralph', /Do not\*\* wrap improve-loop in ralph|Do not wrap improve-loop in ralph/i],
   ['round 2 skip no resume', /Round 2 skipped \(no resume tool\)|Skip Round 2/i],
-  ['sibling grok-review-converge', /grok-review-converge/i],
+  ['sibling review-converge', /review-converge|grok-review-converge/i],
+  ['advisors optional native-first', /Advisors are optional|native-replanner|configurable optional advisor/i],
   ['improvement loop family', /Improvement loop family/i],
   ['worktrees path', /\.worktrees\//],
   ['status reporting section', /Status reporting \(user-facing/i],
@@ -230,77 +236,112 @@ ok(
   'goal template must state host /goal is optional / L1 primary multi-cycle'
 );
 
-// --- grok-review-converge dual-driver + family residual parity ---
+// --- review-converge dual-driver + family residual parity (model-agnostic) ---
 if (converge) {
-  ok(
-    /Preferred multi-round outer driver:\s*`?\/goal`?/i.test(converge) ||
-      /prefer \/goal for multi-round/i.test(converge),
-    'grok-review-converge missing preferred /goal multi-round'
-  );
-  ok(
-    /Optional legacy outer driver:\s*`?ralph-loop`?/i.test(converge) ||
-      /optional legacy.*ralph/i.test(converge),
-    'grok-review-converge missing optional ralph legacy note'
-  );
-  ok(
-    /## Running it multi-round|### Preferred: `?\/goal`?/i.test(converge),
-    'grok-review-converge missing multi-round /goal section'
-  );
-  ok(
-    /Consecutive clean rounds\s*>=\s*2|two consecutive clean|2 consecutive/i.test(converge),
-    'grok-review-converge missing 2 consecutive clean complete rule'
-  );
-  ok(
-    /material.*minor|minor.*material/i.test(converge),
-    'grok-review-converge missing material vs minor classification'
-  );
-  ok(
-    /git-history|git history|git log --grep/i.test(converge),
-    'grok-review-converge missing git-history-aware planning'
-  );
-  ok(
-    /Improvement loop family|same family as improve-loop|improve-loop/i.test(converge),
-    'grok-review-converge missing improve-loop family cross-reference'
-  );
-  ok(
-    /P0|P1/i.test(converge),
-    'grok-review-converge should map material plan bullets to P0/P1 family tags'
-  );
-  ok(
-    /Post-PASS hygiene|post-PASS hygiene/i.test(converge),
-    'grok-review-converge missing post-PASS hygiene family directive'
-  );
-  ok(
-    /HYGIENE_PATHS|hygiene paths reverted|product land kept/i.test(converge),
-    'grok-review-converge missing hygiene re-run FAIL keep-product rule'
-  );
-  ok(
-    /CONTAMINATED|left unstaged/i.test(converge),
-    'grok-review-converge missing CONTAMINATED / left-unstaged fail-closed isolation'
-  );
-  ok(
-    /HYGIENE_SNAPSHOTS|pre-hygiene content snapshot|skipped product-path edit without snapshot/i.test(
-      converge
-    ),
-    'grok-review-converge missing product-path snapshot hard rule'
-  );
-  ok(
-    /untracked junk|never `git rm` clean tracked/i.test(converge),
-    'grok-review-converge missing untracked-junk-only delete rule'
-  );
-  const head = converge.slice(0, 1200);
-  ok(
-    !/combine with ralph-loop when an unattended, hard-capped\s+outer quota is needed\.?$/im.test(
-      head
-    ),
-    'grok-review-converge description still ralph-only for unattended'
-  );
+  // Skip thin deprecation stubs (legacy grok-review-converge alias)
+  const isDeprecationStub =
+    /DEPRECATED alias|Superseded by/i.test(converge.slice(0, 800)) &&
+    converge.length < 2500;
+  if (!isDeprecationStub) {
+    ok(
+      /name:\s*review-converge/i.test(converge) || /# Review converge/i.test(converge),
+      'review-converge missing product name identity'
+    );
+    ok(
+      /Preferred multi-round outer driver:\s*`?\/goal`?/i.test(converge) ||
+        /prefer \/goal for multi-round/i.test(converge),
+      'review-converge missing preferred /goal multi-round'
+    );
+    ok(
+      /Optional legacy outer driver:\s*`?ralph-loop`?/i.test(converge) ||
+        /optional legacy.*ralph/i.test(converge),
+      'review-converge missing optional ralph legacy note'
+    );
+    ok(
+      /## Running it multi-round|### Preferred: `?\/goal`?/i.test(converge),
+      'review-converge missing multi-round /goal section'
+    );
+    ok(
+      /Consecutive clean rounds\s*>=\s*2|two consecutive clean|2 consecutive/i.test(converge),
+      'review-converge missing 2 consecutive clean complete rule'
+    );
+    ok(
+      /material.*minor|minor.*material/i.test(converge),
+      'review-converge missing material vs minor classification'
+    );
+    ok(
+      /git-history|git history|git log --grep/i.test(converge),
+      'review-converge missing git-history-aware planning'
+    );
+    ok(
+      /Improvement loop family|same family as improve-loop|improve-loop/i.test(converge),
+      'review-converge missing improve-loop family cross-reference'
+    );
+    ok(
+      /P0|P1/i.test(converge),
+      'review-converge should map material plan bullets to P0/P1 family tags'
+    );
+    ok(
+      /Post-PASS hygiene|post-PASS hygiene/i.test(converge),
+      'review-converge missing post-PASS hygiene family directive'
+    );
+    ok(
+      /HYGIENE_PATHS|hygiene paths reverted|product land kept/i.test(converge),
+      'review-converge missing hygiene re-run FAIL keep-product rule'
+    );
+    ok(
+      /CONTAMINATED|left unstaged/i.test(converge),
+      'review-converge missing CONTAMINATED / left-unstaged fail-closed isolation'
+    );
+    ok(
+      /HYGIENE_SNAPSHOTS|pre-hygiene content snapshot|skipped product-path edit without snapshot/i.test(
+        converge
+      ),
+      'review-converge missing product-path snapshot hard rule'
+    );
+    ok(
+      /untracked junk|never `git rm` clean tracked/i.test(converge),
+      'review-converge missing untracked-junk-only delete rule'
+    );
+    ok(
+      /Native first|native first|Native\*\* \(orchestrator\)|preferred default/i.test(converge),
+      'review-converge missing native-first role policy'
+    );
+    ok(
+      /REVIEW_CONVERGE\.md/.test(converge),
+      'review-converge missing REVIEW_CONVERGE.md ledger name'
+    );
+    ok(
+      /review-converge: round/.test(converge),
+      'review-converge missing generic commit subject marker'
+    );
+    ok(
+      /GROK_CONVERGE\.md/.test(converge) && /rename|migrate|legacy/i.test(converge),
+      'review-converge missing legacy GROK_CONVERGE.md migrate rule'
+    );
+    ok(
+      !/grok-cc:grok-rescue` must be available/i.test(converge) &&
+        !/must be available \(the `grok-cc` plugin/i.test(converge),
+      'review-converge still hard-requires grok-cc'
+    );
+    const head = converge.slice(0, 1200);
+    ok(
+      !/combine with ralph-loop when an unattended, hard-capped\s+outer quota is needed\.?$/im.test(
+        head
+      ),
+      'review-converge description still ralph-only for unattended'
+    );
+    ok(
+      !/Grok-driven review\/fix|asks Grok to review/i.test(head),
+      'review-converge description still Grok-product identity'
+    );
+  }
 }
 
 // improve-loop must declare family table / sibling converge
 ok(
-  /Improvement loop family|grok-review-converge/i.test(user),
-  'user improve-loop missing family / grok-review-converge sibling cross-reference'
+  /Improvement loop family/i.test(user) && /review-converge/i.test(user),
+  'user improve-loop missing family / review-converge sibling cross-reference'
 );
 
 if (fails.length) {

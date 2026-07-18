@@ -84,13 +84,13 @@ After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
 
 1. **Capture home cwd:** `ORIGINAL_CWD` = absolute path of the host shell CWD at entry
    (`/bin/pwd -P` or equivalent). This is often a **different** repo than the target (e.g.
-   Grok Build opened in `c-thru` while improving `backchain`). Never assume session cwd is
+   host session opened in `c-thru` while improving `backchain`). Never assume session cwd is
    `TARGET_REPO`.
 2. **Enter destination repo (durable sticky):** once `TARGET_REPO` is known and exists,
    outer sticky CWD **must** become the target checkout root for the whole campaign:
    `cd "$TARGET_REPO"` (or `LAUNCH` once known — same durable tree). Prefer running shell
    work **from that repo** so relative paths (`make test`, `git status`, fixture paths) are
-   not ambiguous with the Grok session repo. Still use absolute `SKILL_DIR` / `--repo` /
+   not ambiguous with the host session repo. Still use absolute `SKILL_DIR` / `--repo` /
    `git -C` when the path is not under the current sticky root.
 3. **Mode:** `autonomous` (default) unless the invocation has `--once` / `once` / “single cycle”
    / “one cycle only” → then `once`.
@@ -287,10 +287,10 @@ P2s just to fill the section — empty is fine. Never enter Phase 1 with an empt
 
 ## Shell CWD discipline (mandatory)
 
-Grok local sessions (≥0.2.102) **keep the current directory across** `run_terminal_command`
-calls. Two hazards:
+Some **host local sessions** (e.g. Grok Build ≥0.2.102) **keep the current directory across**
+`run_terminal_command` calls. Two hazards:
 
-1. **Wrong-repo stickiness:** session opens in repo A (Grok Build cwd) while `/improve`
+1. **Wrong-repo stickiness:** session opens in repo A (host cwd) while `/improve`
    targets skill/repo B elsewhere — relative `make`/`git`/`test` silently hit A.
 2. **Dead worktree stickiness:** sticky CWD under a later-deleted `.worktrees/<slug>` → bare
    ENOENT on every spawn while file tools still work.
@@ -299,7 +299,7 @@ calls. Two hazards:
 
 | Path | Role | Outer sticky CWD? |
 |---|---|---|
-| `ORIGINAL_CWD` | Where Grok was when `/improve` started (save at L1 entry) | Only **after** campaign exit (homecoming) |
+| `ORIGINAL_CWD` | Where the host session was when `/improve` started (save at L1 entry) | Only **after** campaign exit (homecoming) |
 | `TARGET_REPO` / `LAUNCH` | Destination git root for the improve target | **Yes — for the whole campaign** after resolve |
 | `WORKSPACE` | Disposable campaign worktree under `LAUNCH/.worktrees/` | **Never** as outer sticky |
 | `SKILL_DIR` | improve-loop package (may be under `~/.claude/skills/…`) | Never required as sticky; always absolute |
@@ -308,14 +308,14 @@ calls. Two hazards:
 
 1. Save `ORIGINAL_CWD` (absolute, preferably physical/`pwd -P`).
 2. Resolve `TARGET_REPO` (Invocation). If it differs from session cwd, treat that as expected —
-   **do not** run campaign ops from the Grok Build repo by accident.
+   **do not** run campaign ops from the host session repo by accident.
 3. Outer sticky: `cd "$TARGET_REPO"` (or `LAUNCH` once known). Mid-campaign host sticky stays
    on that durable root.
 4. Worktree ops: **subshell only** — `(cd "$WORKSPACE" && …)` or `git -C "$WORKSPACE"` /
    `make -C "$WORKSPACE"`. Never bare outer `cd "$WORKSPACE"`.
 5. After merge-back / teardown: sticky on `suggested_cwd`/`LAUNCH`/`TARGET_REPO` briefly if
    needed, then **homecoming** `cd "$ORIGINAL_CWD"` when L1 exits (path must still exist).
-6. Spawn ENOENT before any output → hard-stop `shell unavailable`; operator restarts Grok from
+6. Spawn ENOENT before any output → hard-stop `shell unavailable`; operator restarts the host from
    a real path.
 
 ### Command priority (during campaign, sticky already on TARGET_REPO/LAUNCH)
@@ -326,7 +326,7 @@ calls. Two hazards:
 4. Temporary WORKSPACE only via subshell `(cd "$WORKSPACE" && …)`.
 
 **Disallowed:** outer sticky under `.worktrees/*`; leaving sticky on TARGET after exit without
-attempting restore to `ORIGINAL_CWD`; assuming relative paths refer to the Grok session repo
+attempting restore to `ORIGINAL_CWD`; assuming relative paths refer to the host session repo
 when `TARGET_REPO` is different.
 
 **pushd/popd:** non-preferred. Prefer explicit `ORIGINAL_CWD` + outer `cd` for durable moves,
@@ -437,7 +437,7 @@ first L2 cycle starts). Examples:
 ▸ improve · Phase 0 · short-circuit: ledger-flush (not landed, clean tree)
 ▸ improve · Phase 1 · cycle 2/8 · execute: <first 80 chars of backlog item>
 ▸ improve · Phase 1 · cycle 2/8 · test: `make test-fast`
-▸ improve · Phase 3 · cycle 2/8 · advisors: Round 1 (codex + grok) | native-only
+▸ improve · Phase 3 · cycle 2/8 · advisors: Round 1 (optional tools) | native-only
 ▸ improve · Phase 4 · cycle 2/8 · commit improve-loop: iteration 3 — …
 ▸ improve · Phase 5 · cycle 3/8 · merge-back ff-only → main
 ```
@@ -489,7 +489,7 @@ operator knows what success looks like before any cycle runs.
 | **Deferred carried** | open P2 count from digest/seed · _(none)_ if empty |
 | **Launch ambient dirt** | none \| ignored `<paths>` (prefixes `IMPROVE_LOOP_AMBIENT_PREFIXES`, default `cron/,wiki/`) — never freehand-stash |
 | **Session cwd (home)** | `<ORIGINAL_CWD>` |
-| **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE; not Grok session if different) |
+| **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE; not host session if different) |
 | **Outer host goal** | yes \| no (optional observability only) |
 ```
 
@@ -728,8 +728,8 @@ a symlink pointed at a product repo. If resolution is ambiguous, **interactive:*
 exists, else report only.
 
 **Session vs destination conflict:** when `ORIGINAL_CWD` and `TARGET_REPO` differ, the
-campaign sticky CWD and product-relative commands must use **TARGET_REPO**, not the Grok
-Build tree. L1 still returns to `ORIGINAL_CWD` at exit.
+campaign sticky CWD and product-relative commands must use **TARGET_REPO**, not the host
+session tree. L1 still returns to `ORIGINAL_CWD` at exit.
 
 **Test command for skill/doc-only targets.** When the change set is a skill or markdown
 contract (no product suite), the recorded command may be a **structural smoke** the repo
@@ -746,7 +746,7 @@ instead of migrate (see Phase 0 step 1a.3). Default for Status `active` is **mig
 | Skill | Unit | Material unit | Complete when |
 |---|---|---|---|
 | **improve-loop** (`/improve`) | L2 cycle | Open **P0/P1** backlog items | **2 consecutive** cycles with zero open P0/P1 + green suite |
-| **grok-review-converge** | Review round | Grok **material** findings (vs minor) | **2 consecutive clean rounds** (zero material findings) |
+| **review-converge** (`/review-converge`; legacy `/grok-review-converge`) | Review round | Reviewer **material** findings (vs minor) | **2 consecutive clean rounds** (zero material findings) |
 
 Shared family rules (both skills):
 
@@ -760,7 +760,7 @@ Shared family rules (both skills):
    file changes** — ledger / commit-message metadata only.
 5. **Outer multi-unit drive** — improve-loop: L1 autonomous by default; converge: one round per
    invoke, multi-round under `/goal` (or optional ralph). Ralph never primary for improve-loop.
-6. **Destination CWD** — when the target repo ≠ Grok session cwd, sticky to the **target repo**
+6. **Destination CWD** — when the target repo ≠ host session cwd, sticky to the **target repo**
    for product commands; never sticky into disposable worktrees.
 7. **Post-PASS hygiene (directive, not a phase)** — after a green suite with **real product
    land** (`confirmed`/`partial` + non-empty `CHANGED_PATHS`), **consider** updating consumer
@@ -773,9 +773,10 @@ Shared family rules (both skills):
    Outcome **`partial`**. Prefer new paths / untracked-junk deletes.
    **Not** a new phase banner or L2 step.
 
-**Sibling skill.** `grok-review-converge` implements the review/fix specialization of this
-family (Grok material/minor + clean-streak ×2). Improve-loop’s multi-cycle is L1 autonomous
-campaign driver, not host re-drive.
+**Sibling skill.** `review-converge` implements the review/fix specialization of this
+family (material/minor + clean-streak ×2; native-first, optional tools). Improve-loop’s
+multi-cycle is L1 autonomous campaign driver, not host re-drive. Legacy invoke name
+`grok-review-converge` is a deprecation alias only.
 
 ## Preconditions
 
@@ -787,12 +788,12 @@ Fail fast in Phase 0. Do not half-run a cycle.
   `blocked (shell unavailable)`, include the host/probe error, and state that
   worktree/test/commit cannot proceed. Do **not** thrash: no scheduler loops, no
   multi-subagent delete cascades. File-only tools cannot complete this skill.
-  **Host sticky-CWD hazard (Grok ≥0.2.102):** local sessions **keep the current directory
-  across shell commands**. If a prior turn `cd`'d into a campaign worktree (or subagent
+  **Host sticky-CWD hazard:** some local sessions **keep the current directory
+  across shell commands** (e.g. Grok Build ≥0.2.102). If a prior turn `cd`'d into a campaign worktree (or subagent
   worktree) that was later **removed** (merge-back teardown, `git worktree remove`), the
   host may fail **every** later spawn with bare ENOENT — even `/bin/echo` — while file tools
-  still work. **Operator recovery:** fully quit Grok (not only `/clear`), restart from a
-  directory that exists (`cd /path/to/repo && grok`), probe with `/bin/pwd && /bin/echo ok`,
+  still work. **Operator recovery:** fully quit the host session (not only `/clear`), restart
+  from a directory that exists (`cd /path/to/repo && <host>`), probe with `/bin/pwd && /bin/echo ok`,
   then re-invoke. Closing **Next** on this stop must say so explicitly.
 - The working tree must be inside a **non-bare** git repository: `git rev-parse --show-toplevel`
   succeeds and `git rev-parse --is-bare-repository` is not `true`. Commits are the durable
@@ -801,7 +802,7 @@ Fail fast in Phase 0. Do not half-run a cycle.
 - **Paths** (resolved in Phase 0 step 1a):
   - `ORIGINAL_CWD` — host sticky path at `/improve` entry (L1); restored on L1 exit.
   - `TARGET_REPO` / `LAUNCH` — destination checkout; **outer sticky CWD for the campaign**
-    (may differ from Grok Build session). Prefer product-relative commands from here.
+    (may differ from host session). Prefer product-relative commands from here.
   - `WORKSPACE` — the **single** campaign worktree (`$LAUNCH/.worktrees/<slug>`). **This is
     where the entire `/improve` campaign tree lives** (ledger, code, tests, commits). Access
     via absolute paths + `git -C` / **subshells** only — never outer sticky into WORKSPACE.
@@ -1006,7 +1007,7 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    ```
 
    **After WORKSPACE is set:** outer sticky CWD stays on **LAUNCH / TARGET_REPO** (destination
-   repo). Do **not** bare-`cd` into WORKSPACE; do **not** leave sticky on the original Grok
+   repo). Do **not** bare-`cd` into WORKSPACE; do **not** leave sticky on the original host
    session repo if it differs.
    - Prefer product commands **from TARGET_REPO/LAUNCH** sticky root (reduces relative-path risk).
    - Campaign tree: `git -C "$WORKSPACE"` / `(cd "$WORKSPACE" && eval "$TEST_COMMAND")` /
@@ -1418,46 +1419,34 @@ Deferred (P2)** update. It prevents an unattended loop from drifting silently.
 
 #### Advisor configuration and non-edit authority
 
-Use a configurable advisor list. Defaults when those Agent types exist:
+Use a **configurable optional advisor list** (0..N tools). **Default: empty** — run
+Consolidation 1's **native-replanner fallback** only. When the operator or session has
+configured advisors (or clearly wants multi-model review this cycle), dispatch each available
+advisor; examples of fill-ins if installed: `general-purpose` (read-only ask),
+`codex:codex-rescue`, `grok-cc:grok-rescue`, or any other read-only agent/CLI. **Never**
+hard-fail Phase 3 because a named vendor plugin is missing.
 
-- `codex:codex-rescue` (optional — omit if unavailable)
-- `grok-cc:grok-rescue` (optional — omit if unavailable)
-
-**Advisors are optional.** Zero usable advisors is fine: Consolidation 1's
-**native-replanner fallback** still produces a Backlog. Do not hard-fail Phase 3 because
-Codex/Grok plugins are missing. Dispatch each available advisor through the **Agent tool**
-with the listed `subagent_type`, and let the Agent tool provide concurrency and async — do
-not hand-roll background jobs. Thin forwarders return review text as the agent result. They
-have full access to WORKSPACE and should see uncommitted diffs and the full `IMPROVE_LOOP.md`
-Log (this cycle's Phase 2 entry included). Scope: (a) advisors never edit, (b) consolidation
-keeps new Backlog items scoped to the stated target; (c) “consider later” / non-material
-follow-ups go in **Deferred (P2)** (preferred); out-of-scope one-offs may stay in Log Notes.
-The list may grow or shrink; the mechanism is unchanged.
+**Advisors are optional.** Zero usable advisors is fine: native-replanner still produces a
+Backlog. Dispatch each available advisor through the host's agent/CLI mechanism and let that
+mechanism provide concurrency — do not hand-roll background jobs. They have full access to
+WORKSPACE and should see uncommitted diffs and the full `IMPROVE_LOOP.md` Log (this cycle's
+Phase 2 entry included). Scope: (a) advisors never edit, (b) consolidation keeps new Backlog
+items scoped to the stated target; (c) “consider later” / non-material follow-ups go in
+**Deferred (P2)** (preferred); out-of-scope one-offs may stay in Log Notes. The list may grow
+or shrink; the mechanism is unchanged.
 
 **Read-only dispatch.** In every advisor prompt, ask for read-only behavior in plain
 language: `This is a read-only advisory review. Do not make any edits or run any write
-commands. Diagnose and recommend only.` That plain-language request — not a flag you pass —
-is what both tools key off, though they honor it differently:
-
-- `codex:codex-rescue` has **no `--read` flag**; its wrapper omits the underlying `--write`
-  when the prompt asks for read-only/review/no-edits, so the request above is what makes it
-  non-editing. Do not embed `--background`, `--fresh`, or `--resume` tokens: the codex-rescue
-  agent treats `--background` as Claude-side-only and **strips it** (so any "poll the job id"
-  instruction would never see a job), and a fresh Agent dispatch is already a fresh thread.
-  Leave `--effort`/`--model` unset unless the skill user asked for one.
-- `grok-cc:grok-rescue` has a real `--read` flag its wrapper adds when the prompt asks for
-  read-only. Don't embed `--fresh`/`--worktree`; a new dispatch is already fresh.
-
-The read-only ask is a natural-language heuristic, not a hard sandbox guarantee — the
-post-panel tree check further below is the backstop if it ever misfires and an advisor
-writes anyway.
+commands. Diagnose and recommend only.` Prefer tool-native read-only modes when available;
+do not require any specific vendor flag. The read-only ask is a natural-language heuristic,
+not a hard sandbox guarantee — the post-panel tree check further below is the backstop if it
+ever misfires and an advisor writes anyway.
 
 #### Budget and usability
 
-Let the **Agent tool own the async** — it runs advisors in the background and returns each
-one's text when it finishes, so there is no companion job to poll, no log file to tail, and
-no `--background`/`--resume` tokens to pass (the codex-rescue agent strips `--background`
-anyway, and a fresh Agent call is already a fresh advisor). Give each advisor round a soft
+Let the host **Agent/tool runtime own the async** — it runs advisors and returns each
+one's text when finished (no hand-rolled job polling). Prefer a fresh dispatch per advisor
+round unless the host provides a reliable resume handle. Give each advisor round a soft
 wall-clock budget of ~**180 s** (a documented skill constant may raise it). "Polling" is
 just waiting for the agent to return: if an advisor has not returned usable text within the
 budget, or returns an error, mark it **failed for that round** and proceed. Advisor
@@ -1926,7 +1915,7 @@ for operators who want session-level visibility/caps). Primary multi-cycle does 
 depend on “goal continues next turn.”
 
 **Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver (promise tags,
-`.claude/ralph-loop.local.md` are deprecated for this skill). Sibling `grok-review-converge`
+`.claude/ralph-loop.local.md` are deprecated for this skill). Sibling `review-converge`
 may still document ralph as optional legacy.
 
 **Hard caps:**
