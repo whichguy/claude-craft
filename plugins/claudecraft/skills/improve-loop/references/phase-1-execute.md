@@ -11,6 +11,11 @@ the Backlog despite Phase 3's guard. It reads the same disproven-theses list car
 Phase 0 step 7 (a thesis is "disproven" only if its most-recent recorded outcome was
 `disproven`) and judges semantically, not by substring match.
 
+**Confirm / empty-backlog verification:** when Phase 0 took the Confirm exception
+(`confirm: verification cycle required` despite empty backlog), this phase still owns the
+orchestrator suite run (or Phase 0 already ran it before lightweight Phase 2 — do not
+double-run). See phase-0-resume step 5 Confirm exception.
+
 Executor requirements (portable): **Read** `contracts/executor.md`. In short: implement
 without committing, staging for commit, or editing `IMPROVE_LOOP.md`.
 

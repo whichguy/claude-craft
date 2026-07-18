@@ -190,3 +190,14 @@ Follow-up: `classifyUntilKind` (caller-side; single-source `DEFAULT_UNTIL`) sits
 | H12 | agent-home allowlists path-qualified hermes_release_watch only | gif-search class |
 | H13 | Disk beats chat for control flow | learnings bank |
 | H14 | Package A ≠ B ≠ C; equalize B→hermes only | Fable series |
+
+## Post-E0–F1 land (Fable4)
+
+| SHA | Note |
+|---|---|
+| `84224e7` | classifyUntilKind + DEFAULT_UNTIL single-source; dual version pin 0.1.2→0.1.3 |
+| `e573f664` | hermes dual-home equalize protect / suite pins from B SoT |
+
+**Catalog EC honesty (disk-only under hermes `.improve-catalog`, gitignored):** suite fail
+must use exit **20/21**, never 10/11 (enter carried/protect). Merge-back 3/4 passthrough.
+Wave `mark_fail` on suite; `mark_blocked` only on real protect family.

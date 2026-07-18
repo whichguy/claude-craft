@@ -181,7 +181,16 @@ Then continue with the numbered steps below.
    After step 8 use lightweight Phase 2, then Phase 3, Phase 4, and Phase 5. Do not invent
    an ad-hoc code task to fill the cycle; replanning can reopen work or declare completion.
 
-   For the **lightweight Phase 2** empty-backlog/no-execute path, append an entry with
+   **Confirm exception:** if the latest Log entry Notes (or Status Notes) contain the exact
+   substring `confirm: verification cycle required`, do **not** take the no-suite lightweight
+   path. Run the recorded test command **once** this cycle (orchestrator-owned; same shared
+   `TEST_ARTIFACT_PATHS` capture as Phase 1) **despite empty backlog**, then continue
+   lightweight Phase 2/3 with that authoritative STATUS. Do not invent backlog items solely
+   to force Phase 1 execute. (Phase 3 Confirm path sets this Notes line when eligible but
+   suite was not current.)
+
+   For the **lightweight Phase 2** empty-backlog/no-execute path (when Confirm exception does
+   **not** apply), append an entry with
    `Committed: pending`, Thesis such as `empty-backlog replan (no Phase 1 execute)`, Test
    result `PASS` (the suite was intentionally not re-run because no change set exists),
    Outcome `partial`, and Error signature `none`. Hold both **stall** counters

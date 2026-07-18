@@ -482,6 +482,27 @@ describe('claudecraft improve skill structure', function () {
     expect(improveSkill).to.match(/until: <short>/);
   });
 
+  it('confirm verification: Phase 0 exception runs suite despite empty backlog', function () {
+    const p0 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),
+      'utf8'
+    );
+    const p1 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-1-execute.md'),
+      'utf8'
+    );
+    const p3 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-3-replan.md'),
+      'utf8'
+    );
+    expect(p0).to.match(/confirm: verification cycle required/);
+    expect(p0).to.match(/despite empty backlog|empty backlog/);
+    expect(p0).to.match(/Confirm exception|recorded test command/i);
+    expect(p0).to.match(/do \*\*not\*\* take the no-suite lightweight|not\*\* take the no-suite/i);
+    expect(p3).to.match(/confirm: verification cycle required/);
+    expect(p1).to.match(/confirm: verification cycle required|Confirm \/ empty-backlog/i);
+  });
+
   it('material backlog contract: six-clause seed, residual thin, handoff + replan fidelity', function () {
     const ledger = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/ledger-schema.md'),
