@@ -633,6 +633,34 @@ const {listCarryCandidates}=require('$CARRY_JS');
 const {isIsolationDirt}=require('$SCRIPTS/lib-paths.js');
 process.exit(isIsolationDirt('IMPROVE_LOOP.md')&&isIsolationDirt('.worktrees/x')?0:1)
 "
+assert "pathsFromPorcelainLine rename both sides" node -e "
+const {pathsFromPorcelainLine}=require('$CARRY_JS');
+const p=pathsFromPorcelainLine('R  oldname.txt -> newname.txt');
+process.exit(p.length===2&&p[0]==='oldname.txt'&&p[1]==='newname.txt'?0:1)
+"
+
+# rename carry: both sides in diff; old gone in ws; launch restored
+REPO_REN="$TMP/repo-rename"
+mkdir -p "$REPO_REN"
+git -C "$REPO_REN" init -q -b main
+git -C "$REPO_REN" config user.email "test@example.com"
+git -C "$REPO_REN" config user.name "Test"
+echo x >"$REPO_REN/README"
+echo body >"$REPO_REN/oldname.txt"
+git -C "$REPO_REN" add README oldname.txt
+git -C "$REPO_REN" commit -q -m init
+git -C "$REPO_REN" mv oldname.txt newname.txt
+echo extra >>"$REPO_REN/newname.txt"
+OUT_REN="$TMP/enter-ren.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_REN" --target "rename carry" --test-command "true" >"$OUT_REN"
+WS_REN="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT_REN")"
+assert "rename: newname in workspace" test -f "$WS_REN/newname.txt"
+assert "rename: oldname gone in workspace" test ! -f "$WS_REN/oldname.txt"
+assert "rename: content in workspace" grep -q extra "$WS_REN/newname.txt"
+assert "rename: oldname restored on launch" test -f "$REPO_REN/oldname.txt"
+assert "rename: newname gone on launch" test ! -f "$REPO_REN/newname.txt"
+assert "rename: launch no staged delete" bash -c \
+  '! git -C "'"$REPO_REN"'" status --porcelain | grep -q "oldname\|newname"'
 
 # --- review-converge / model-agnostic composition (contract pins + path preference) ---
 # These are isolated hermetic checks so rename fatals (migrate order, dual marker, hard

@@ -32,6 +32,38 @@ const {
 } = require('./lib-paths.js');
 
 /**
+ * Paths from one porcelain line. Renames (`R  old -> new` / `… old -> new`) yield
+ * **both** sides — carrying only the destination breaks delete-half of renames.
+ * @param {string} line
+ * @returns {string[]}
+ */
+function pathsFromPorcelainLine(line) {
+  const s = String(line || '');
+  let rest;
+  if (s.length >= 3 && s[2] === ' ') {
+    rest = s.slice(3);
+  } else if (s.length >= 2 && s[1] === ' ') {
+    rest = s.slice(2);
+  } else {
+    rest = s;
+  }
+  const unquote = (r) => {
+    let x = String(r || '').trim();
+    if (x.startsWith('"') && x.endsWith('"')) x = x.slice(1, -1);
+    return x;
+  };
+  if (rest.includes(' -> ')) {
+    return rest
+      .split(' -> ')
+      .map(unquote)
+      .filter(Boolean);
+  }
+  // Also handle porcelainPath rename-only (new side) for callers that already stripped
+  const single = unquote(rest);
+  return single ? [single] : [];
+}
+
+/**
  * Parse porcelain into tracked-dirty vs untracked paths (isolation excluded).
  * @param {string} launch
  * @returns {{ tracked: string[], untracked: string[], all: string[] }}
@@ -42,15 +74,14 @@ function listCarryCandidates(launch) {
   const untracked = [];
   if (!out) return { tracked, untracked, all: [] };
   for (const line of out.split('\n').filter(Boolean)) {
-    const p = porcelainPath(line);
-    if (!p || isIsolationDirt(p)) continue;
-    // XY status
     const x = line.length >= 1 ? line[0] : ' ';
     const y = line.length >= 2 ? line[1] : ' ';
-    if (x === '?' || y === '?' || line.startsWith('??')) {
-      untracked.push(p);
-    } else {
-      tracked.push(p);
+    const isUntracked = x === '?' || y === '?' || line.startsWith('??');
+    const paths = pathsFromPorcelainLine(line);
+    for (const p of paths) {
+      if (!p || isIsolationDirt(p)) continue;
+      if (isUntracked) untracked.push(p);
+      else tracked.push(p);
     }
   }
   // de-dupe
@@ -149,6 +180,72 @@ function rmPathRecursive(root, rel) {
 }
 
 /**
+ * Restore launch tracked path to HEAD, or remove if not in HEAD (new/renamed-to).
+ * @param {string} launch
+ * @param {string[]} tracked
+ */
+function cleanTrackedOnLaunch(launch, tracked) {
+  const cleanErrors = [];
+  for (const p of tracked) {
+    let done = false;
+    try {
+      git(launch, [
+        'restore',
+        '--source=HEAD',
+        '--staged',
+        '--worktree',
+        '--',
+        p,
+      ]);
+      done = true;
+    } catch {
+      /* not in HEAD or no restore */
+    }
+    if (!done) {
+      try {
+        git(launch, ['checkout', 'HEAD', '--', p]);
+        try {
+          git(launch, ['reset', 'HEAD', '--', p]);
+        } catch {
+          /* ignore */
+        }
+        done = true;
+      } catch {
+        /* still not in HEAD */
+      }
+    }
+    if (!done) {
+      // Added / renamed-to path: drop from index + worktree
+      try {
+        git(launch, ['rm', '-f', '--', p]);
+        done = true;
+      } catch {
+        try {
+          git(launch, ['reset', 'HEAD', '--', p]);
+        } catch {
+          /* ignore */
+        }
+        try {
+          rmPathRecursive(launch, p);
+          done = true;
+        } catch (e3) {
+          cleanErrors.push(p + ': ' + (e3.message || e3));
+        }
+      }
+    }
+  }
+  if (cleanErrors.length) {
+    const err = new Error(
+      'launch clean partial after carry: ' +
+        cleanErrors.slice(0, 5).join('; ') +
+        ' (workspace already has WIP — leave worktree; inspect both trees)'
+    );
+    err.code = 'LAUNCH_CLEAN_FAILED';
+    throw err;
+  }
+}
+
+/**
  * Snapshot non-ignored launch WIP into workspace, then clean launch.
  *
  * @param {string} launch
@@ -193,37 +290,11 @@ function carryLaunchWip(launch, workspace, opts = {}) {
     }
   }
 
-  // 3) success only now — clean launch for carried paths
+  // 3) success only now — clean launch for carried paths.
+  // Per-path: rename destinations / new files may not exist at HEAD (pathspec fails).
+  // Never use reset --hard (would wipe non-carried isolation dirt e.g. launch .gitignore).
   if (tracked.length > 0) {
-    try {
-      git(launch, [
-        'restore',
-        '--source=HEAD',
-        '--staged',
-        '--worktree',
-        '--',
-        ...tracked,
-      ]);
-    } catch (e) {
-      // older git without restore: fall back
-      try {
-        git(launch, ['checkout', 'HEAD', '--', ...tracked]);
-        // unstage if needed
-        try {
-          git(launch, ['reset', 'HEAD', '--', ...tracked]);
-        } catch {
-          /* ignore */
-        }
-      } catch (e2) {
-        const err = new Error(
-          'launch clean (tracked) failed after successful carry: ' +
-            errMsg(e2) +
-            ' (workspace already has WIP — do not re-run without inspecting)'
-        );
-        err.code = 'LAUNCH_CLEAN_FAILED';
-        throw err;
-      }
-    }
+    cleanTrackedOnLaunch(launch, tracked);
   }
   for (const rel of untracked) {
     rmPathRecursive(launch, rel);
@@ -250,7 +321,15 @@ function selfTest() {
   ok(isIsolationDirt('IMPROVE_LOOP.md') === true, 'isolation ledger');
   ok(isIsolationDirt('src/a.c') === false, 'product not isolation');
 
-  // listCarryCandidates needs a real repo — light integration in scripts.test.sh
+  // rename porcelain must yield both sides
+  const ren = pathsFromPorcelainLine('R  oldname.txt -> newname.txt');
+  ok(ren.length === 2 && ren[0] === 'oldname.txt' && ren[1] === 'newname.txt', 'rename both sides');
+  // Observed: git status --porcelain can emit RMold/new without a blank XY pair
+  const ren2 = pathsFromPorcelainLine('RM oldname.txt -> newname.txt');
+  ok(ren2.length === 2 && ren2[0] === 'oldname.txt' && ren2[1] === 'newname.txt', 'RM rename both sides');
+  const del = pathsFromPorcelainLine(' D keep.txt');
+  ok(del.length === 1 && del[0] === 'keep.txt', 'delete path');
+
   ok(typeof carryLaunchWip === 'function', 'carryLaunchWip export');
   ok(typeof listCarryCandidates === 'function', 'listCarryCandidates export');
   ok(typeof hasUnmerged === 'function', 'hasUnmerged export');
@@ -270,6 +349,7 @@ module.exports = {
   gitDiffHeadBinary,
   gitApplyBinary,
   copyPathRecursive,
+  pathsFromPorcelainLine,
 };
 
 if (require.main === module) {

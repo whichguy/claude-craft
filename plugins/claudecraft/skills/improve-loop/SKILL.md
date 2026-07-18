@@ -817,11 +817,14 @@ Fail fast in Phase 0. Do not half-run a cycle.
 - **Launch WIP is carried into WORKSPACE on cold-start (L3).** `worktree-enter` creates the
   campaign worktree from `HEAD`, then **snapshots non-ignored launch WIP** into WORKSPACE
   (`git diff HEAD --binary` + apply for tracked changes; copy untracked `exclude-standard`
-  files). Isolation paths (`.worktrees/`, `IMPROVE_LOOP.md`, `.gitignore`) are **not**
-  carried (ledger migrate is separate). **Ignored** files are not carried. On success, those
-  same paths are **cleaned on launch** (tracked restored to `HEAD`; untracked carried files
-  removed) so launch stays merge-back-clean and isolation holds. Carry failure leaves launch
-  dirty, tears down the new worktree, exit **9**. Resume (`--resume`) does **not** re-carry.
+  files). **Renames** include both old and new paths (porcelain `R`/`RM … -> …`) so the
+  delete half lands. Isolation paths (`.worktrees/`, `IMPROVE_LOOP.md`, `.gitignore`) are
+  **not** carried (ledger migrate is separate). **Ignored** files are not carried. On
+  success, those same paths are **cleaned on launch** (tracked restored to `HEAD` or removed
+  if not in HEAD; untracked carried files removed) so launch stays merge-back-clean. Apply
+  failure leaves launch dirty and tears down the new worktree (exit **9**). If launch clean
+  fails **after** a successful apply, WORKSPACE is **kept** (only copy of WIP) and exit **9**
+  without teardown. Resume (`--resume`) does **not** re-carry.
 - `IMPROVE_LOOP.md` at **WORKSPACE** must not be gitignored. Check with
   `git -C "$WORKSPACE" check-ignore -q IMPROVE_LOOP.md` once WORKSPACE exists.
   If it is ignored, refuse clearly so the user can un-ignore it.

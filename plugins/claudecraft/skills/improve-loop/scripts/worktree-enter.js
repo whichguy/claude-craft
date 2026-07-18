@@ -201,6 +201,17 @@ function coldStart(launch, commonGitDir, target, testCommand, notes) {
   } catch (e) {
     const msg = e && e.message ? e.message : String(e);
     console.error('worktree-enter: launch WIP carry failed: ' + msg);
+    // LAUNCH_CLEAN_FAILED: workspace already has WIP — do NOT tear it down (would lose
+    // the only copy). Leave pointer unwritten and exit 9 so operator can recover from WORKSPACE.
+    if (e && e.code === 'LAUNCH_CLEAN_FAILED') {
+      console.error(
+        'worktree-enter: workspace kept at ' +
+          worktreePath +
+          ' (launch clean failed after carry; inspect both trees)'
+      );
+      process.exit(9);
+    }
+    // Apply/copy failed before launch clean — safe to remove empty-ish worktree
     try {
       git(launch, ['worktree', 'remove', '--force', worktreePath]);
     } catch {
