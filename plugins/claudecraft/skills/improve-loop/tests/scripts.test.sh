@@ -589,9 +589,51 @@ assert "strict blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_ST"
 # These are isolated hermetic checks so rename fatals (migrate order, dual marker, hard
 # grok-cc require, stale template) cannot silently regress without the L3 suite noticing.
 CONTRACT="$SCRIPTS/contract-check.js"
+LEDGER_RESOLVE="$SCRIPTS/converge-ledger-resolve.js"
 CONVERGE_SKILL="${HOME}/.claude/skills/review-converge/SKILL.md"
 LEGACY_SKILL="${HOME}/.claude/skills/grok-review-converge/SKILL.md"
 CONVERGE_TMPL="${HOME}/.claude/skills/review-converge/completion-report.template.html"
+
+# Pure unit tests: ledger resolve decision table (executable, not prose-only)
+assert "converge-ledger-resolve.js exists" test -f "$LEDGER_RESOLVE"
+set +e
+node "$LEDGER_RESOLVE" --self-test >"$TMP/ledger-resolve-out.txt" 2>"$TMP/ledger-resolve-err.txt"
+LR_EC=$?
+set -e
+assert "ledger-resolve self-test exit 0" test "$LR_EC" -eq 0
+assert "ledger-resolve PASS banner" grep -q '^PASS:' "$TMP/ledger-resolve-out.txt"
+
+# Node require unit asserts (same matrix, independent of CLI)
+assert "ledger-resolve migrate when only grok" node -e "
+const r=require('$LEDGER_RESOLVE');
+process.exit(r.resolveLedgerAction({reviewExists:false,grokExists:true})==='migrate'?0:1)
+"
+assert "ledger-resolve create when neither" node -e "
+const r=require('$LEDGER_RESOLVE');
+process.exit(r.resolveLedgerAction({reviewExists:false,grokExists:false})==='create'?0:1)
+"
+assert "ledger-resolve recover-half-migrate" node -e "
+const r=require('$LEDGER_RESOLVE');
+const a=r.resolveLedgerAction({reviewExists:true,grokExists:true,reviewRoundCount:0,grokRoundCount:2});
+process.exit(a==='recover-half-migrate'?0:1)
+"
+assert "ledger-resolve both-conflict" node -e "
+const r=require('$LEDGER_RESOLVE');
+const a=r.resolveLedgerAction({reviewExists:true,grokExists:true,reviewRoundCount:1,grokRoundCount:1});
+process.exit(a==='both-conflict'?0:1)
+"
+assert "ledger-resolve legacy landed" node -e "
+const r=require('$LEDGER_RESOLVE');
+process.exit(r.isLandedForRound(['x grok-review-converge: round 2 — y'],2)?0:1)
+"
+assert "ledger-resolve no round-1/10 prefix" node -e "
+const r=require('$LEDGER_RESOLVE');
+process.exit(r.isLandedForRound(['x review-converge: round 10 — y'],1)?1:0)
+"
+assert "ledger-resolve countRoundHeadings" node -e "
+const r=require('$LEDGER_RESOLVE');
+process.exit(r.countRoundHeadings('### Round 1 — a\n### Round 2 — b')===2?0:1)
+"
 
 assert "contract-check.js exists" test -f "$CONTRACT"
 set +e
@@ -609,6 +651,8 @@ if [[ -f "$CONVERGE_SKILL" ]]; then
   assert "converge REVIEW_CONVERGE ledger" grep -q 'REVIEW_CONVERGE.md' "$CONVERGE_SKILL"
   assert "converge commit marker" grep -q 'review-converge: round' "$CONVERGE_SKILL"
   assert "converge migrate-before-create" grep -qiE 'migrate-before-create|Migrate first' "$CONVERGE_SKILL"
+  assert "converge recover-half-migrate" grep -qi 'recover-half-migrate' "$CONVERGE_SKILL"
+  assert "converge both-conflict" grep -qi 'both-conflict' "$CONVERGE_SKILL"
   assert "converge dual-marker landed grep" grep -q 'grok-review-converge: round' "$CONVERGE_SKILL"
   assert "converge native-first" grep -qiE 'Native first|native first' "$CONVERGE_SKILL"
   assert "converge no hard grok-cc require" bash -c \
@@ -657,6 +701,7 @@ printf '%s\n' '---' 'name: review-converge' '---' '# Review converge' \
   'review-converge: round' \
   'GROK_CONVERGE.md migrate rename legacy' \
   'migrate-before-create Migrate first' \
+  'recover-half-migrate both-conflict' \
   'landed-commit grep either marker grok-review-converge: round' \
   >"$FAKE_CC_HOME/.claude/skills/review-converge/SKILL.md"
 printf '%s\n' '---' 'name: grok-review-converge' '---' \

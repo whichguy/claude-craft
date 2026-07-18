@@ -83,10 +83,56 @@ const requiredFiles = [
   'scripts/campaign-teardown.js',
   'scripts/lib-paths.js',
   'scripts/contract-check.js',
+  'scripts/converge-ledger-resolve.js',
   'tests/scripts.test.sh',
 ];
 for (const rel of requiredFiles) {
   ok(exists(path.join(skillDir, rel)), `package missing: ${rel}`);
+}
+
+// Executable ledger-resolve decision table (fatal rename paths)
+const ledgerResolve = path.join(skillDir, 'scripts/converge-ledger-resolve.js');
+if (exists(ledgerResolve)) {
+  try {
+    const lr = require(ledgerResolve);
+    ok(
+      lr.resolveLedgerAction({ reviewExists: false, grokExists: true }) === 'migrate',
+      'ledger-resolve: absent+legacy must migrate'
+    );
+    ok(
+      lr.resolveLedgerAction({ reviewExists: false, grokExists: false }) === 'create',
+      'ledger-resolve: neither must create'
+    );
+    ok(
+      lr.resolveLedgerAction({
+        reviewExists: true,
+        grokExists: true,
+        reviewRoundCount: 0,
+        grokRoundCount: 2,
+      }) === 'recover-half-migrate',
+      'ledger-resolve: empty REVIEW + rich GROK must recover-half-migrate'
+    );
+    ok(
+      lr.resolveLedgerAction({
+        reviewExists: true,
+        grokExists: true,
+        reviewRoundCount: 1,
+        grokRoundCount: 1,
+      }) === 'both-conflict',
+      'ledger-resolve: dual rich ledgers must both-conflict'
+    );
+    ok(
+      lr.isLandedForRound(['x grok-review-converge: round 2 — y'], 2) === true,
+      'ledger-resolve: legacy commit subject must count as landed'
+    );
+    ok(
+      lr.isLandedForRound(['x review-converge: round 10 — y'], 1) === false,
+      'ledger-resolve: round 1 must not prefix-match round 10'
+    );
+    ok(lr.mustMigrateBeforeCreate(false, true) === true, 'ledger-resolve: mustMigrateBeforeCreate');
+  } catch (e) {
+    ok(false, `ledger-resolve require/run failed: ${e.message}`);
+  }
 }
 ok(
   !exists(path.join(skillDir, 'once-commit.sh')),
@@ -322,6 +368,10 @@ if (converge) {
     ok(
       /migrate-before-create|Migrate first/i.test(converge),
       'review-converge missing migrate-before-create order (fatal if create-first orphans legacy ledger)'
+    );
+    ok(
+      /recover-half-migrate|both-conflict/i.test(converge),
+      'review-converge missing both-present half-migrate recovery / conflict stop'
     );
     ok(
       /landed-commit grep|either marker|legacy marker/i.test(converge) &&
