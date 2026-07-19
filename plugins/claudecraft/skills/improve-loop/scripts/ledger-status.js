@@ -2,6 +2,8 @@
 /**
  * ledger-status.js — L3: parse IMPROVE_LOOP.md + landed check for goal progress
  *
+ * Live plan shape: ## Last cycle (preferred) dual-read with legacy ## Log / ### Iteration.
+ *
  * Usage:
  *   node ledger-status.js --workspace <path> [--json]
  *
@@ -30,6 +32,72 @@ function arg(name) {
   return process.argv[i + 1] ?? null;
 }
 
+/** Extract body of ## Section through next ## heading. */
+function sectionBody(text, headingRe) {
+  const m = text.split(headingRe);
+  if (m.length < 2) return '';
+  return (m[1] || '').split(/^## /m)[0] || '';
+}
+
+/**
+ * Prefer ## Last cycle; fall back to latest ### Iteration block.
+ * Returns { source, n, committed, outcome, log_iterations, last_cycle_n }.
+ */
+function parseCycleState(text) {
+  const out = {
+    source: 'none', // last_cycle | legacy_log | none
+    n: null,
+    committed: null,
+    outcome: null,
+    log_iterations: 0,
+    last_cycle_n: null,
+  };
+
+  const lastCycleBody = sectionBody(text, /^## Last cycle\s*$/m);
+  const nMatch = lastCycleBody.match(/^\*\*N:\*\*\s*(\d+)/m);
+  const hasLastFields =
+    Boolean(nMatch) ||
+    /\*\*Thesis:\*\*/.test(lastCycleBody) ||
+    /\*\*Committed:\*\*/.test(lastCycleBody);
+
+  // Legacy ### Iteration count (always compute for dual-emit)
+  const iterRe = /^### Iteration (\d+)\s*—/gm;
+  const ns = [];
+  let m;
+  while ((m = iterRe.exec(text)) !== null) {
+    ns.push(Number(m[1]));
+  }
+
+  if (hasLastFields) {
+    out.source = 'last_cycle';
+    out.n = nMatch ? Number(nMatch[1]) : null;
+    out.last_cycle_n = out.n;
+    // New shape: 0|1 meaning "is there cycle state", not diary length
+    out.log_iterations = out.n != null || hasLastFields ? 1 : 0;
+    const cm = lastCycleBody.match(/\*\*Committed:\*\*\s*(.+)/);
+    if (cm) out.committed = cm[1].trim();
+    const om = lastCycleBody.match(/\*\*Outcome:\*\*\s*(.+)/);
+    if (om) out.outcome = om[1].trim();
+    return out;
+  }
+
+  if (ns.length) {
+    out.source = 'legacy_log';
+    out.log_iterations = ns.length;
+    out.n = ns[ns.length - 1];
+    out.last_cycle_n = null;
+    const parts = text.split(/^### Iteration /m);
+    const last = parts[parts.length - 1] || '';
+    const cm = last.match(/\*\*Committed:\*\*\s*(.+)/);
+    if (cm) out.committed = cm[1].trim();
+    const om = last.match(/\*\*Outcome:\*\*\s*(.+)/);
+    if (om) out.outcome = om[1].trim();
+    return out;
+  }
+
+  return out;
+}
+
 const workspace = arg('--workspace');
 if (!workspace) usage();
 
@@ -49,6 +117,8 @@ const result = {
   status: null,
   iteration_counter: null,
   log_iterations: 0,
+  last_cycle_n: null,
+  cycle_state: 'none', // last_cycle | legacy_log | none
   open_backlog: 0,
   // Under open-only Backlog contract should be 0; non-zero = legacy [x] pollution
   checked_backlog: 0,
@@ -119,25 +189,15 @@ for (const line of deferredBody.split('\n')) {
   if (/^- \[[xX]\] /.test(line)) result.checked_deferred += 1;
 }
 
-// log iterations
-const iterRe = /^### Iteration (\d+)\s*—/gm;
-let m;
-const ns = [];
-while ((m = iterRe.exec(text)) !== null) {
-  ns.push(Number(m[1]));
-}
-result.log_iterations = ns.length;
-result.latest_n = ns.length ? ns[ns.length - 1] : null;
+const cycle = parseCycleState(text);
+result.cycle_state = cycle.source;
+result.log_iterations = cycle.log_iterations;
+result.last_cycle_n = cycle.last_cycle_n;
+result.latest_n = cycle.n;
+result.latest_committed = cycle.committed;
+result.latest_outcome = cycle.outcome;
 
 if (result.latest_n != null) {
-  // find latest entry block
-  const parts = text.split(/^### Iteration /m);
-  const last = parts[parts.length - 1] || '';
-  const cm = last.match(/\*\*Committed:\*\*\s*(.+)/);
-  if (cm) result.latest_committed = cm[1].trim();
-  const om = last.match(/\*\*Outcome:\*\*\s*(.+)/);
-  if (om) result.latest_outcome = om[1].trim();
-
   // landed = Committed yes AND git has the subject
   if (/^yes\b/i.test(result.latest_committed || '')) {
     try {

@@ -261,11 +261,44 @@ const improveRequired = [
   ['kickoff Live ledger row', /\*\*Live ledger\*\*|Live ledger.*IMPROVE_LOOP/i],
 ];
 
+// Planning enrichment pins — user skill only this arc (marketplace mirror may lag)
+const improvePlanningUserOnly = [
+  ['PLAN_TAG greppable form', /P1: \[defect\]|PLAN_TAG|P1: \[kind\]/i],
+  ['PLAN_CLAUSES six-clause heads', /Evidence:[\s\S]{0,120}Decision:[\s\S]{0,120}Preserve:[\s\S]{0,120}Unknown:[\s\S]{0,120}Acceptance:/],
+  ['PLAN_RESIDUAL thin no Decision invent', /Do \*\*not\*\* invent Decision\/Preserve for residual|no invented Decision\/Preserve on residual|\[residual\][\s\S]{0,300}Acceptance/i],
+  ['PLAN_BRIEF campaign brief', /## Campaign brief/],
+  ['PLAN_BRIEF Target line', /\*\*Target:\*\*/],
+  ['PLAN_VALIDATE section', /## Spec validation|PLAN_VALIDATE/],
+  ['PLAN_VALIDATE Phase 3v', /Phase 3v|spec validation gate/i],
+  [
+    'PLAN_VALIDATE R8 never terminal 3v fail',
+    /never treat 3v fail as terminal|3v fail is \*\*never\*\* a terminal|never.*L1 exit reason.*3v|R8.*3v fail/i,
+  ],
+  [
+    'PLAN_VALIDATE unintended-change check-in',
+    /Unintended-change check-in|Preserve.*[Rr]egression.*[Ss]cope|Preserve \/ regression \/ scope/i,
+  ],
+  ['PLAN_APPLY multi-line block delete', /contiguous block|title \+ clause|delete entire contiguous|title and its contiguous clause/i],
+  ['PLAN_CLASSIFY promote-class', /promote-class|classify: promote|keep P2/i],
+  ['plan tiers T0 T0p T2', /\bT0p\b|Plan tier|plan tier/i],
+  ['product residual survey header', /Product residual survey/i],
+  ['intent digest open intent', /open intent:/i],
+  ['backlog-blocks mini-parser', /backlog-blocks\.js/],
+  ['unknown gate one non-none', /at most \*\*one\*\*|at most one cold-start.*Unknown|Unknown gate/i],
+];
+
 for (const [name, re] of improveRequired) {
   ok(re.test(user), `user improve-loop missing: ${name}`);
 }
+for (const [name, re] of improvePlanningUserOnly) {
+  ok(re.test(user), `user improve-loop planning pin missing: ${name}`);
+}
+ok(
+  exists(path.join(skillDir, 'scripts/backlog-blocks.js')),
+  'scripts/backlog-blocks.js must ship in skill tree'
+);
 
-// Mirror: if present, require same contracts (marketplace may lag scripts — SKILL at least)
+// Mirror: if present, require same base contracts (marketplace may lag planning pins)
 if (mirror) {
   for (const [name, re] of improveRequired) {
     ok(re.test(mirror), `mirror improve-loop missing: ${name}`);
@@ -447,6 +480,42 @@ ok(
 ok(
   /Improvement loop family/i.test(user) && /review-converge/i.test(user),
   'user improve-loop missing family / review-converge sibling cross-reference'
+);
+
+// --- product / UX seed mode (Track B) ---
+ok(
+  /SEED_MODE/.test(user) && /--product/.test(user),
+  'user improve-loop missing SEED_MODE / --product product-mode invocation'
+);
+ok(
+  /Product \/ UX campaign mode/i.test(user) || /Product \/ UX campaign mode/.test(user),
+  'user improve-loop missing Product / UX campaign mode section'
+);
+ok(
+  /product residual survey/i.test(user),
+  'user improve-loop missing product residual survey gate'
+);
+ok(
+  /limitation waived/i.test(user),
+  'user improve-loop missing limitation waived Notes contract'
+);
+ok(
+  /SKIP/.test(user) && /PyYAML|proof spine|suite SKIP/i.test(user),
+  'user improve-loop missing suite SKIP-as-material rule'
+);
+ok(
+  /habitat probe/i.test(user) && /skillhub|hermes|docker/i.test(user),
+  'user improve-loop missing habitat probe for skillhub/docker targets'
+);
+ok(
+  /\*\*Seed mode:\*\*/.test(user) || /Seed mode:/.test(user),
+  'user improve-loop missing Seed mode in kickoff or ledger template'
+);
+ok(
+  /cannot.*cold-start with only residual survey|residual-survey-only seed is \*\*forbidden\*\*/i.test(
+    user
+  ),
+  'user improve-loop missing product-mode ban on residual-only cold-start seed'
 );
 
 if (fails.length) {

@@ -3,8 +3,10 @@ name: improve-loop
 description: >-
   Run a worktree-isolated improvement campaign until terminal, then emit one end report:
   default is autonomous multi-cycle in a single invoke (execute, test, learn, multi-model
-  replan, commit, loop). Use --once for a single gated cycle. Invoke for "/improve <target>",
-  "/improve --once <target>", "/claudecraft:improve-loop <target>", "/improve-loop <target>",
+  replan, commit, loop). Use --once for a single gated cycle; use --product / product / ux /
+  integration / roadmap for product/UX seed mode (limitations + deferred P2 + operator surfaces,
+  not residual-empty-only). Invoke for "/improve <target>", "/improve --once <target>",
+  "/improve --product <target>", "/claudecraft:improve-loop <target>", "/improve-loop <target>",
   "improve this project iteratively", or "run a tested improvement cycle".
 ---
 
@@ -55,10 +57,11 @@ campaign edits live in **one ephemeral worktree** on `improve/<slug>` under
 - **Git commit bodies** are the **durable ledger** across invokes (Thesis / Outcome / Test
   evidence / What landed / Advisor consolidation / Notes / open-only `Next backlog` /
   `Next deferred` / stop state). Phase 0 digests those fields for anti-reseed and replan.
-- **`IMPROVE_LOOP.md` is the live ledger (working memory)** — **required mid-campaign**
-  (must write on cold-start; maintain every cycle). Survives context-window compaction and
-  is the `--resume` recovery surface for **this** pointer/worktree. It is **not** required
-  on product `main` after terminal land (archived into the commit body, then removed).
+- **`IMPROVE_LOOP.md` is the live plan (working memory; aka live ledger in older pins)** —
+  **required mid-campaign** (must write on cold-start; maintain every cycle). Survives
+  context-window compaction and is the `--resume` recovery surface for **this**
+  pointer/worktree. It is **not** required on product `main` after terminal land (archived
+  into the commit body, then removed).
 
 There is **no cross-invoke resume** by default: entry **discards stale** pointer/worktree,
 then cold-starts (new worktree + **new** live ledger from git digest). In-session multi-cycle
@@ -98,8 +101,19 @@ After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
    work **from that repo** so relative paths (`make test`, `git status`, fixture paths) are
    not ambiguous with the host session repo. Still use absolute `SKILL_DIR` / `--repo` /
    `git -C` when the path is not under the current sticky root.
-3. **Mode:** `autonomous` (default) unless the invocation has `--once` / `once` / “single cycle”
-   / “one cycle only” → then `once`.
+3. **Cycle mode:** `autonomous` (default) unless the invocation has `--once` / `once` / “single
+   cycle” / “one cycle only” → then `once`.
+3b. **Seed mode (`SEED_MODE`):** resolve **before** Phase 0 seed (independent of once/autonomous):
+
+   | `SEED_MODE` | Triggers (same-turn invoke text) | Cold-start seed |
+   |---|---|---|
+   | `defect` | default; or `defect only` / `residual only` / `defect-mode` | Today’s gap/residual rules; residual-empty seed OK when no material gaps |
+   | `product` | `--product` / `--ux` or words `product`, `ux`, `integration`, `roadmap` (not only inside a quoted path) | **Must** seed 1–3 open P0/P1 from documented limitations, open Deferred P2, operator/UX surfaces, habitat integration — **cannot** cold-start with only residual survey |
+   | `mixed` | target is a **skill** (path under `skills/`, named skill, or `SKILL.md`) **and** no explicit defect-only — default for skills | Prefer product seed rules; operator may force `defect` |
+
+   Kickoff card **Setup** row: **Seed mode** = `defect|product|mixed`. Record `SEED_MODE` in the
+   live ledger header (e.g. `**Seed mode:** product`) and every Phase 4 body as
+   `Seed mode: <mode>`.
 4. **Caps:** `MAX_CYCLES` = env `IMPROVE_LOOP_MAX_CYCLES` if a positive integer, else **8**.
    Also honor ledger stop counters (no-progress ×3, same-error ×3 → Status stopped inside L2).
 5. **Optional host goal:** if a compatible improve `/goal` is already Active, or `update_goal`
@@ -119,17 +133,76 @@ After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
      - If `once` mode → **exit loop** after this cycle (even if Status still `active`).
      - If Status still `active` and mode is **autonomous** → **immediately run another L2
        cycle** — **DO NOT stop for the user**, do not ask “continue?”, do not end the turn.
+       **R8:** this includes after Phase 3v Spec validation **fail** (seeded `validate V<k>`
+       items). 3v fail is **never** a terminal Status and **never** an L1 exit reason —
+       keep coding/fixing until Spec validation is clean (header pass or vacuous n/a)
+       **and** residual×2 complete, **or** hard stop (same-error/no-progress/max-cycles/blocked).
 7. **When the loop exits:** emit the **Campaign report** once (goal restated, cycles-at-a-glance,
    summary — see Status reporting). Optional `update_goal(completed: true)` only if
    terminal+landed and a goal is Active (ignore tool errors if goal was never Active).
-8. **Always teardown isolation for this invoke:**
-   - Terminal+landed → `merge-back.js` (FF + worktree/branch/pointer remove).
-   - Blocked / capped / fail → `campaign-teardown.js --repo "$TARGET_REPO"` best-effort
-     (no FF; clear pointer + remove worktree/branch so next `/improve` is clean).
+8. **Isolation teardown (ordered — do not collapse into “always teardown”):**
+   ```text
+   if terminal Status AND PHASE4_COMMIT_OK (landed):
+     run merge-back.js
+     if merge_back in {ok, ok_teardown_advisory, teardown_partial}:
+       done  # merge-back already tore down; do NOT campaign-teardown
+     if merge_back in {blocked, skipped_detached}
+        OR process exit in {3, 4}
+        OR pointer.state == reintegrate_blocked after merge-back:
+       STOP; keep pointer/worktree/branch
+       print: --resume → merge-back-only, or campaign-teardown --force-drop-reintegrate
+       DO NOT call campaign-teardown.js
+   elif mid-campaign block / cap / fail:
+     if reintegrate-protected (unmerged improve-loop commits on campaign tip
+        OR reintegrate_blocked with non-empty improve range):
+       keep pointer; report; DO NOT teardown unless --force-drop-reintegrate
+     else:
+       campaign-teardown.js --repo "$TARGET_REPO"  # best-effort clear
+   ```
+   **Rationale:** merge-back exit 3/4 (and `skipped_detached`) already set
+   `reintegrate_blocked` and keep the recovery surface. Calling `campaign-teardown`
+   next destroys pointer/worktree and forces cherry-pick archaeology. Detached launch
+   (`skipped_detached`, exit 0) is still protected — do not teardown.
 9. **Homecoming:** `cd "$ORIGINAL_CWD"` when it still exists; else leave sticky on
    `TARGET_REPO`/`LAUNCH`. Never leave sticky under deleted `.worktrees/*`.
 
 Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
+
+
+
+## Planning contracts (tiers + multi-line backlog)
+
+Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
+
+| Pin | Meaning |
+|---|---|
+| **PLAN_TAG** | Greppable titles: `P0:` / `P1:` + kind `[defect]`…`[residual]` |
+| **PLAN_CLAUSES** | Material six-clause: Evidence, Decision, Preserve, Unknown, Acceptance |
+| **PLAN_RESIDUAL** | Residual thin Evidence+Acceptance only — no invented Decision/Preserve |
+| **PLAN_BRIEF** | `## Campaign brief` after Isolation, before Backlog; Target; skill-law Done when |
+| **PLAN_VALIDATE** | `## Spec validation` after brief; V-rows + Proofs; Phase **3v** prove gate |
+| **PLAN_APPLY** | Multi-line contiguous blocks; complete = delete title+clauses; `backlog-blocks.js` |
+| **PLAN_CLASSIFY** | promote / keep P2 / waive + Notes `classify: …` |
+
+**Plan tiers:** T0 (defect residual thin cold-start), T0p (product post-scan empty promote), T2 (promote-class or `--plan-deep`), T1 (mid-campaign replan). Mid-campaign residual×2 may empty open P0/P1 (H11).
+
+**Spec-first spine (PLAN_VALIDATE):** (1) Plan brief + backlog (2) Spec validation + tests
+(quarantined if red-first) (3) Code (4) Phase **3v** prove — fail seeds
+`- [ ] P1: [defect] validate V<k>: …`. **R8:** autonomous L1 **auto-continues** next cycle
+until evaluation runs clean (or stop counters). residual×2 remains sole `complete` law
+(never “all V pass ⇒ complete” alone). Rules R1–R8 + quarantine: package A
+`contracts/planning.md` / `phase-3v-validate.md` (normative).
+
+**Unintended-change check-in (planning-time):** when writing `## Spec validation`, cover more
+than the new feature — **Preserve** (from material item Preserve clauses), **Regression**
+(recorded Test command / suite green), and **Scope** (brief Out of scope / waived). Prefer
+executable Proofs; pure `manual` Scope never alone blocks complete. Not a second complete
+predicate (R7). Example intention prefixes: `Preserve: …`, `Regression: …`, `Scope: …`.
+
+**R2 mechanical:** if open product Acceptance refs `V<k>` and Proof artifact missing on disk,
+select test-authoring item for `V<k>` first (T0 may skip).
+
+**Open-count (B):** unchecked **title** lines under `## Backlog` matching `^- \[ \] .*P[01]:` (not sub-bullets).
 
 ## P0/P1 residual discipline (default)
 
@@ -149,16 +222,31 @@ knowledge (what improved, why, what failed) lives in **git commit bodies** and t
 | `- [x] …` in Backlog | **Legacy / invalid** — strip on sight (do not keep) | never | does not count |
 
 ```text
-- [ ] P1: <item> — <why this is material>     ← only form allowed in live ## Backlog
+- [ ] P1: [defect|product-choice|architecture|implementation] <change> (<path>) — <why>
+  - Evidence: …
+  - Decision: …
+  - Preserve: …
+  - Unknown: none | …
+  - Acceptance: …
+- [ ] P1: [residual] <finding> (<path>)
+  - Evidence: …
+  - Acceptance: …
 ```
+
+**Only open (`- [ ]`) forms are allowed in live `## Backlog`.** Material kinds use **six clauses**
+(PLAN_CLAUSES); residual uses thin Evidence+Acceptance only — **Do not** invent Decision/Preserve
+for residual. Prefer greppable `P0:`/`P1:` title tokens (open-count). See [Planning contracts](#planning-contracts-tiers--multi-line-backlog).
 
 **Complete-item rule (Phase 2 — delete from work queue):** when STATUS is PASS, Outcome is
 `confirmed`, and `CHANGED_PATHS` is non-empty, the orchestrator **removes** the selected
-open line from `## Backlog` entirely (do not flip to `[x]` and leave it). Record the finish
-in the Log entry (Thesis / Outcome / Notes) so Phase 4’s commit body banks the learning.
-Leave the line **open** (`[ ]`) on FAIL, `disproven`, `blocked`, or `partial` so replan can
-refine remaining work. Deleting only on confirmed+landed paths prevents re-select this cycle;
-anti-reseed across cycles is **git digest**, not a done checkbox.
+item's **entire contiguous block** (title line **and** its clause sub-bullets) from
+`## Backlog` — do not flip to `[x]` and leave it; do not leave orphan `Evidence:` lines.
+Prefer `node "$SKILL_DIR/scripts/backlog-blocks.js" delete --body-file … --title-substr …`
+for mechanical delete (PLAN_APPLY). Record the finish in **## Last cycle** (Thesis / Outcome /
+Notes) so Phase 4's commit body banks the learning. Leave the item **open** (`[ ]`) on FAIL,
+`disproven`, `blocked`, or `partial` so replan can refine remaining work. Deleting only on
+confirmed+landed paths prevents re-select this cycle; anti-reseed across cycles is **git
+digest**, not a done checkbox.
 
 **Done memory = git commit metadata (mandatory, not backlog `[x]`).** Every improve commit
 body already carries the durable learnings surface. Phase 0 step 7 **must** pull and use:
@@ -203,7 +291,7 @@ git + Notes):
 Unchecked `P2:` lines are **not** material, are **never** selected for Phase 1 execute, and
 **do not** reset or block `consecutive-non-material-cycles`. Cap ~8–12 open deferred lines;
 dedupe/drop stale with a Notes line. One-off observations that are not “consider later” may
-stay in Log Notes only.
+stay in Last cycle Notes only.
 
 ### Planning (every Phase 3) — live open queue **and** git history (mandatory)
 
@@ -215,10 +303,10 @@ for “what we already learned”:
    **`Next backlog:`** (**open** P0/P1 only) / **`Next deferred:`** / stop state. Explicitly
    flag `disproven` outcomes and build **COMPLETED_SET** + **DISPROVEN_SET** from those
    fields (not from backlog `[x]` lines).
-2. **Live ledger** (`IMPROVE_LOOP.md` — **required while Status is active**): Log + **open**
-   `## Backlog` + open `## Deferred (P2)` + stop counters (advisors get the path;
-   orchestrator reads sections). Create on cold-start; do not run Phases 1–3 with only
-   in-memory backlog.
+2. **Live plan** (`IMPROVE_LOOP.md` — **required while Status is active**): **## Last cycle**
+   + **## Next** + open `## Backlog` + open `## Deferred (P2)` + stop counters (advisors get
+   the path; orchestrator reads sections). Create on cold-start; do not run Phases 1–3 with
+   only in-memory backlog.
 3. Advisors / native-replanner produce **two bodies** (not whole-file rewrites):
    - **Backlog body** — **open only** `- [ ] P0:` / `- [ ] P1:` (material; residual streak).
      **Never** emit `- [x]` in Backlog. Do **not** re-propose COMPLETED_SET / DISPROVEN_SET
@@ -277,20 +365,116 @@ completion-gate rules).
 
 ### Seed (cold-start)
 
-Seed **1–3 open (`[ ]`) P0/P1-tagged** items from digest + target. Prefer concrete material
-gaps that are **not** semantic duplicates of **COMPLETED_SET** / unexcused **DISPROVEN_SET**
-built from prior improve **commit bodies** (Thesis / Outcome / What landed / Notes). If none
-are obvious, seed at least:
+**Decision order:** (1) SEED_MODE (2) inspect + digest + habitat (3) classify each candidate
+`promote|keep P2|waive` with Notes `classify: … — <why>` (PLAN_CLASSIFY) (4) choose plan tier
+T0/T0p/T2 (5) write `## Campaign brief` when required (6) seed Backlog.
+
+**Promote-class** = candidates that (a) appear in scan, (b) not COMPLETED_SET/unexcused DISPROVEN,
+(c) not `limitation waived:` this campaign, (d) implementable in ≤1 cycle under the suite.
+**T2** if promote-class non-empty or `--plan-deep`. **T0p** if product/mixed and promote-class
+empty after full scan. **T0** if defect and no promote-class.
+
+Seed **1–3 open (`[ ]`) P0/P1-tagged** items from digest + target (T2 seed cap for six-clause
+material). Prefer concrete material gaps that are **not** semantic duplicates of
+**COMPLETED_SET** / unexcused **DISPROVEN_SET**. **Cold-start never leaves open P0/P1 empty.**
+
+**When `SEED_MODE` is `defect` and promote-class empty (T0):** seed thin residual (not empty):
 
 ```text
-- [ ] P1: Residual survey — classify any remaining material P0/P1 for <target>
+- [ ] P1: [residual] Residual survey — classify any remaining material P0/P1 for <target>
+  - Evidence: inspect found no promote-class gaps beyond COMPLETED_SET
+  - Acceptance: residual×2 may complete when open hits 0 mid-campaign after replan
 ```
+
+**When `SEED_MODE` is `product` or `mixed`:** scan is mandatory (see product mode). Residual-only
+*without scan* is **forbidden**. If promote-class non-empty → T2 six-clause seeds (1–3).
+If every candidate is COMPLETED_SET or waived → **T0p** (not six-clause theater):
+
+```text
+- [ ] P1: [residual] Product residual survey — operator/UX/integration gaps for <target>
+  - Evidence: post-scan promote-class empty; waivers: …
+  - Acceptance: mid-campaign product residual gate still pending until open hits 0
+```
+
+Header: `**Product residual survey:** pending | done | n/a (defect)`. T0p leaves **pending**
+(T0p seed does **not** consume the one mid-campaign product residual survey budget).
+
+**Unknown gate:** at most **one** cold-start seed may have `Unknown:` other than `none`; that
+item → investigation Thesis first (no fabricated Decision).
 
 **Do not** seed `- [x]` done lines into `## Backlog` — finished work is remembered via the
 git digest, not as backlog clutter. **Also seed Deferred (P2)** from the digest’s union of
 prior **open** `Next deferred:` / archived open Deferred (dedupe; cap 8–12). Do not invent
 P2s just to fill the section — empty is fine. Never enter Phase 1 with an empty open
 **P0/P1** list on a fresh cold-start (Deferred alone does not satisfy that rule).
+
+### Product / UX campaign mode (`SEED_MODE`)
+
+Defect residual answers: *“any remaining bug/gap under a green suite?”*  
+Product mode answers: *“what should we build next for authors/operators/integration?”*
+
+#### Documented limitations → seed candidates (not auto-skip)
+
+On cold-start and every Phase 3 replan when `SEED_MODE` ∈ {`product`,`mixed`}, scan the
+target for:
+
+- headings `## Current limitations` / `## Known limitations` (and similar) under the target tree
+- open `Next deferred:` / ledger `## Deferred (P2)` from the digest
+- operator-facing surfaces: CLI entrypoints, doctor/setup scripts, inspect/status UX, habitat
+  tables, skillhub/docker paths named in SKILL/README
+
+For each candidate line, classify:
+
+| Class | Action |
+|---|---|
+| **promote** | cheap, in-scope, not COMPLETED_SET → open `- [ ] P1:` (or P0 if broken proof) |
+| **keep P2** | real but deferred → `- [ ] P2:` under Deferred with why |
+| **drop / waive** | intentional forever (security boundary, out-of-scope substrate) → Notes `limitation waived: <short>` — required before product-mode residual×2 complete if promote-class was skipped |
+
+**Forbidden:** Status `complete` in product/mixed mode while any **promote**-class limitation
+remains open **without** a Notes `limitation waived: …` this campaign (or a landed commit
+whose What landed clearly addresses it → COMPLETED_SET).
+
+#### Suite SKIP is material (not green)
+
+When evaluating STATUS for product/mixed mode **or** when the target is skillhub/docker/hermes:
+
+- A suite that prints `SKIP …` for a **claimed proof spine** (e.g. `SKIP test_prompt_workflow.py
+  (PyYAML unavailable…)`) while the habitat *could* run that spine (venv present, docker
+  skillhub, `HERMES_PYTHON`) → treat as **open P1 material** until fixed or waived.
+  Do **not** call that a clean residual complete.
+- Catalog gates that only `test -f SKILL.md` / smoke without habitat probe are **invalid
+  product-mode complete** for skillhub skills — reseed habitat/proof P1 or Notes waive.
+
+#### Habitat probe (skillhub / docker / hermes targets)
+
+When target path is under `skills/`, `~/.hermes`, or the invoke mentions `docker` /
+`skillhub` / `hermes`, Phase 0 **must** run a cheap habitat probe (inline shell OK):
+
+- bare `python3 -c "import yaml"` vs known venv (`/opt/hermes/.venv/bin/python`,
+  `$HERMES_PYTHON`, `/opt/data/.venv/bin/python`)
+- whether the recorded test command is host vs `docker exec …`
+- optional: container running (`docker ps`) when docker is claimed
+
+Record probe facts in kickoff **Setup** and the first Last cycle Notes (or kickoff Notes). Gaps → open P0/P1, not
+silent residual.
+
+#### Product residual survey (before residual×2 complete)
+
+When open defect-style P0/P1 hit **0** after replan and `SEED_MODE` ∈ {`product`,`mixed`}:
+
+1. If `consecutive-non-material-cycles` would become **1** (or is already 1) and a product
+   residual survey has **not** run this campaign, do **not** treat the next cycle as pure
+   empty residual. Run **one** cycle with Thesis  
+   `product residual survey — operator/UX/integration gaps beyond COMPLETED_SET`  
+   (may skip code execute if inspection-only; Outcome `partial` if no code).
+2. Survey asks: remaining promote-class limitations? deferred P2 newly material? habitat
+   SKIP? CLI/docs/doctor/inspect gaps?
+3. If material items found → open P0/P1, **reset** `consecutive-non-material-cycles` → 0.
+4. If none → Notes `product residual survey: none`; streak may advance; residual×2 still
+   required.
+5. Cap: **one** product residual survey per campaign (unless new evidence lands).  
+   `SEED_MODE=defect`: skip this step (catalog residual-only remains valid).
 
 ### Caps
 
@@ -391,7 +575,7 @@ after key evaluations). Use stable labels so operators can skim:
 | Phase 0 residual branch | open P0/P1 vs residual-only | open count = k; streak = m | execute item **or** skip Phase 1 execute |
 | Phase 1 select | open P0/P1 candidates; COMPLETED_SET / DISPROVEN_SET from git | selected = …; skipped reseed of completed/disproven = … | implement / investigate |
 | Phase 1 post-test | STATUS + CHANGED_PATHS + suggested Outcome | PASS\|FAIL; paths empty? → reconcile Outcome; hygiene gate (confirmed\|partial + non-empty)? | on gate: **post-PASS hygiene** then delete/leave open; on FAIL: revert |
-| Phase 2 counters | STATUS × Outcome matrix row | no-progress / same-error / non-material after update | append Log; **remove** completed item from Backlog |
+| Phase 2 counters | STATUS × Outcome matrix row | no-progress / same-error / non-material after update | replace Last cycle; **remove** completed item from Backlog |
 | Phase 3 replan | digest + ledger + advisors usable K/M | Round 2 yes\|skip; open P0/P1 after = k; streak → m | surgical Backlog/Deferred apply |
 | Phase 3 complete gate | residual ×2 + suite green | streak ≥ 2? open = 0? suite gate a\|b\|c | set Status complete\|active\|stopped |
 | Phase 4 | ledger-only vs code paths; secret scan | code-dirty veto? secret? | commit **or** refuse + report |
@@ -495,11 +679,14 @@ operator knows what success looks like before any cycle runs.
 | **Repo** | `<TARGET_REPO>` |
 | **Install path** | `<CAND under ~/.claude if any>` · symlink followed yes\|no · resolved `<REAL>` (omit row if n/a) |
 | **Mode** | cold-start \| discard-stale → cold-start \| resume \| migrate \| merge-back-only \| short-circuit \| stop |
+| **Seed mode** | `defect` \| `product` \| `mixed` |
+| **Plan tier** | `0` \| `0p` \| `1` \| `2` · brief one-liner (kickoff is chat summary only; complete predicates stay skill law) |
 | **Launch** | `<LAUNCH>` · branch `<launch_branch\|detached>` |
 | **Workspace** | `<WORKSPACE>` |
 | **Campaign branch** | `improve/<slug>` |
 | **Pointer** | `<POINTER>` · state `active\|reintegrate_blocked` |
 | **Test command** | `<cmd>` |
+| **Habitat probe** | n/a \| bare yaml yes/no · venv yaml yes/no · docker … (skillhub/hermes targets) |
 | **Seed backlog** | open P0/P1 count · next: <short item or _(empty)_> |
 | **Deferred carried** | open P2 count from digest/seed · _(none)_ if empty |
 | **Live ledger** | `$WORKSPACE/IMPROVE_LOOP.md` · created yes (required mid-campaign) \| missing → STOP |
@@ -654,7 +841,7 @@ target? what remains? why did we stop (complete vs residual×2 vs cap vs block)?
 3. …
 N. Exit: Result … because …
 
-**Learnings** (3–8 bullets from this run’s commit bodies / Log Notes; **always call out
+**Learnings** (3–8 bullets from this run’s commit bodies / Last cycle Notes; **always call out
 any `disproven` theses**):
 - …
 - …
@@ -686,18 +873,29 @@ When Result is `blocked` or `stopped`, **Next** must be a concrete operator acti
 ```
 /improve <target, described in plain language>
 /improve --once <target>
+/improve --product <target>
+/improve --product --once <target>
 ```
 
 Also: `/improve-loop`, `/claudecraft:improve-loop` (plugin namespace). Examples:
-`/improve "error handling in scripts/ingest.py, tests via pytest"` (autonomous campaign);
+`/improve "error handling in scripts/ingest.py, tests via pytest"` (autonomous, defect seed);
+`/improve --product "resumable-script skillhub UX"` (autonomous, product seed);
 `/improve --once "…"` (single L2 cycle).
 
-**Flags:** `--once` / word `once` in the same turn → single cycle. Cap override: env
-`IMPROVE_LOOP_MAX_CYCLES` (positive int; default 8). Test command: reuse from invocation,
-goal objective, pointer, or existing ledger. If still missing — **interactive:** ask once;
-**cannot ask** (headless / unattended): `Status: stopped (no test command)`, write a Log
-entry (Thesis `no test command supplied…`, Outcome `blocked`, `Committed: pending`), Phase 4
-land (ledger-only), Phase 5. Prefer seeding the command in the goal objective or invocation.
+**Flags:**
+
+| Flag / words | Effect |
+|---|---|
+| `--once` / `once` / “single cycle” / “one cycle only” | Cycle mode `once` |
+| `--product` / `--ux` / words `product`, `ux`, `integration`, `roadmap` | `SEED_MODE=product` |
+| `defect only` / `residual only` / `defect-mode` | Force `SEED_MODE=defect` (even for skills) |
+
+Cap override: env `IMPROVE_LOOP_MAX_CYCLES` (positive int; default 8). Test command: reuse from
+invocation, goal objective, pointer, or existing ledger. If still missing — **interactive:**
+ask once; **cannot ask** (headless / unattended): `Status: stopped (no test command)`, write a
+Last cycle (Thesis `no test command supplied…`, Outcome `blocked`, `Committed: pending`),
+Phase 4 land (ledger-only), Phase 5. Prefer seeding the command in the goal objective or
+invocation.
 
 **Target repository (do not assume session cwd is the campaign repo).** Resolve the **target
 repo root** before Phase 0 step 1a, in this order:
@@ -768,7 +966,7 @@ Shared family rules (both skills):
 
 1. **Git history–aware planning** — digest prior loop **commit bodies** (Thesis / Outcome /
    What landed / Notes / open Next backlog — *why* things improved or failed) **and** the
-   live open Log/ledger before inventing work (both when available).
+   live plan (Last cycle + open queue) before inventing work (both when available).
 2. **Material vs non-material** — only material work blocks complete; minor / prompt-depth /
    “consider later” goes to a structured **Deferred (P2)** list (and Notes), not open P0/P1.
 3. **Two consecutive non-material passes** before `complete` (not one empty residual).
@@ -862,12 +1060,21 @@ Fail fast in Phase 0. Do not half-run a cycle.
   preconditions above). Isolation paths are never freehand-stashed or carried as WIP.
   `merge-back` still classifies any *remaining* launch porcelain into:
   - **isolation** — `.gitignore`, `IMPROVE_LOOP.md`, `.worktrees/` (non-blocking)
-  - **ambient** — paths under prefixes from env `IMPROVE_LOOP_AMBIENT_PREFIXES`
-    (default when unset: `cron/,wiki/`; set to empty or `-` for strict no ambient)
+  - **ambient** — runtime noise (non-blocking):
+    - If `IMPROVE_LOOP_AMBIENT_PREFIXES` is **set** (incl. empty/`-`): that list fully
+      overrides profile prefixes **and** path allowlists (`-` = strict, no ambient).
+    - If PREFIXES **unset**: `IMPROVE_LOOP_AMBIENT_PROFILE` applies:
+      - `none` (default) → legacy prefixes `cron/`, `wiki/` only
+      - `agent-home` → `cron/`, `wiki/`, `memories/` plus path-qualified
+        `scripts/hermes_release_watch.py` (not that basename anywhere else)
+    - **Never** ambient: `skills/**`, arbitrary `scripts/*`
   - **litter** — ephemeral temps via `IMPROVE_LOOP_LITTER_GLOBS` (default:
     `.bundled_manifest_*.tmp`, `*~`, `.*.tmp` basenames; Hermes skill bundle temps).
     Untracked litter is **auto-cleaned** before the blocking check. Non-blocking.
   - **code** — everything else (blocks merge-back if still dirty after enter)
+
+  Ambient ≠ not carried: enter still carries non-isolation launch WIP; ambient only
+  affects merge-back/enter **block** classification.
 
   After a successful enter, launch should be free of carried product/ambient WIP. New
   **unexpected product** dirt on launch mid-campaign still blocks merge-back (exit 3).
@@ -886,7 +1093,7 @@ Fail fast in Phase 0. Do not half-run a cycle.
 | **Isolation plumbing** | `.worktrees/`, campaign `.gitignore` for worktrees |
 | **Enter-carried baseline** | Paths launch WIP brought into WORKSPACE at cold-start (`pointer.carried_paths`); expected; left unstaged unless this cycle’s thesis intentionally changes them |
 | **This turn’s test litter** | `TEST_ARTIFACT_PATHS` — suite side effects, not product work |
-| **Launch ambient** (merge-back) | default `cron/`, `wiki/` — runtime noise |
+| **Launch ambient** (merge-back) | profile `none`: `cron/`, `wiki/`; `agent-home` adds `memories/` + `scripts/hermes_release_watch.py`; PREFIXES overrides |
 | **Launch litter** (merge-back) | untracked temps (`.bundled_manifest_*.tmp`, `*~`, `.*.tmp`) — auto-cleaned / non-blocking |
 
 | Is dirty (blocks) | Why |
@@ -929,7 +1136,7 @@ Two layers — do not collapse them:
 | Layer | What | When required |
 |---|---|---|
 | **Durable (git commit bodies)** | Learnings + open Next backlog/deferred snapshot per cycle | Every Phase 4 land; sole source for **next invoke** cold-start seed / anti-reseed |
-| **Live ledger (`IMPROVE_LOOP.md`)** | Working memory: open Backlog, Deferred, stop counters, append-only Log | **Every active campaign** — create on cold-start; maintain every cycle; `--resume` for this worktree |
+| **Live plan (`IMPROVE_LOOP.md`)** | Working memory: Campaign brief, open Backlog/Deferred, stop counters, **## Next** (soft), **## Last cycle** (replace each cycle — not append-only diary) | **Every active campaign** — create on cold-start; maintain every cycle; `--resume` for this worktree |
 
 **Git is the durable ledger across campaigns.** Each cycle’s Phase 4 commit body carries
 Thesis, Outcome, test evidence, What landed, advisor consolidation, Notes, stop-condition
@@ -947,7 +1154,7 @@ git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%
 **Live ledger is required mid-campaign (context survival).** Context windows can run out
 mid-cycle or between cycles; chat is not a store. **`IMPROVE_LOOP.md` must be written** at
 WORKSPACE on cold-start (template below) and updated through Phase 2–4 so open queue,
-counters, and Log survive compaction and support `--resume` for **this** pointer. Terminal
+counters, Next, and Last cycle survive compaction and support `--resume` for **this** pointer. Terminal
 cycles archive the full file into the commit body and **remove** it from the tree — it must
 **not** be required on product `main` to start a later `/improve`.
 
@@ -970,17 +1177,49 @@ complete commit on `main` tip must **not** prevent a new campaign from seeding (
 
 **Test command:** `<cmd>`
 **Started:** <date>          **Status:** active | complete | stopped (<reason>)
-**Iteration counter:** N     <!-- derived; next cycle uses N+1; must match Log -->
+**Iteration counter:** N     <!-- sole live N; must match Last cycle **N:** after Phase 2 -->
+**Seed mode:** defect | product | mixed
+**Product residual survey:** pending | done | n/a (defect)
+**Plan tier:** 0 | 0p | 1 | 2
+**Spec validation:** n/a | pending | pass
 
 ## Isolation
 - **launch_root:** <LAUNCH>
 - **campaign_branch:** improve/<slug>
 - **worktree_path:** <WORKSPACE>
 
+## Campaign brief
+<!-- After ## Isolation, before ## Backlog (PLAN_BRIEF). Orchestrator-only surgical rewrite
+     through next ## . Success/Done when restates skill law only — no new complete predicates. -->
+- **Target:** <plain-language target>
+- **Problem / opportunity:** …
+- **In scope:** …
+- **Out of scope / waived:** …
+- **Constraints:** test command, package rules…
+- **Sources inspected:** …
+- **Success / Done when:** residual×2 + green suite (+ product residual gate when product/mixed)
+- **Open questions:** none | …
+- **Plan tier:** 0 | 0p | 1 | 2
+
+## Spec validation
+<!-- PLAN_VALIDATE — after brief, before Backlog. Optional T0; required T2/design-change.
+     Phase 3v when open P0/P1 = 0. Quarantine red-first proofs; Proof cells un-skip.
+     Unintended-change check-in: Preserve / regression / scope — not only the new feature. -->
+| ID | Intention | Kind | Artifact(s) | Proof | Status |
+|---|---|---|---|---|---|
+| V1 | Feature: … | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
+| V2 | Preserve: … | suite \| prose-sweep \| skill-law | path(s) | cmd / rg | pending |
+| V3 | Regression: recorded suite green | suite | — | `<Test command>` exit 0 | pending |
+
 ## Backlog
-<!-- open P0/P1 only — completed items are deleted; memory is git commit bodies -->
-- [ ] P0: <item> — <why material>
-- [ ] P1: <item> — <why material>
+<!-- open P0/P1 only — completed items are deleted as title+clause contiguous block;
+     memory is git commit bodies; use backlog-blocks.js for mechanical parse/delete -->
+- [ ] P1: [defect] <change> (<path>) — <why material>
+  - Evidence: …
+  - Decision: …
+  - Preserve: …
+  - Unknown: none
+  - Acceptance: …
 
 ## Deferred (P2)
 <!-- open P2 only -->
@@ -991,29 +1230,31 @@ complete commit on `main` tip must **not** prevent a new campaign from seeding (
 - consecutive-same-error: 0 (signature: none)
 - consecutive-non-material-cycles: 0
 
-## Log
-(append-only — newest entry at the bottom; earlier entries are never edited.
- Two narrow exceptions, both on the *latest, not-yet-committed* entry only:
- (1) as Phase 4 specifies — set `Committed: yes` *before* the commit attempt so a
- successful commit freezes the truth (active cycles keep it on disk; terminal cycles
- freeze it in the commit-message archive after the file is removed); on commit failure
- restore the file if needed, correct that same entry to `no — <reason>`, and append Notes;
- never patch after a successful commit.
- (2) as Phase 3's completion gate specifies — when a completion-confirmation suite
- fails, correct that entry's `Test result` / `Outcome` / `Error signature` and the
- Stop-condition tracking lines in place. No other field, and no already-committed
- entry, is ever edited.)
+## Next
+<!-- Soft hint only — not authority for flush / residual / stop. Rewrite after Phase 1
+     select and Phase 3 replan; recompute if missing/stale. -->
+- **Action:** execute | residual survey | product residual survey | ledger-flush | stop
+- **Item:** <open title or _(none)_>
+- **Why:** <≤1 line>
 
-### Iteration 1 — <date>
+## Last cycle
+<!-- REPLACE entire section each Phase 2 (and residual lightweight) — not append-only.
+     Field form only; no ### Iteration headings. History lives in git commit bodies.
+     Narrow in-place edits (latest cycle only, before land):
+     (1) Phase 4: set Committed: yes before commit attempt; on failure → no — <reason>
+     (2) Phase 3 completion-gate FAIL: correct Test result / Outcome / Error signature
+         and Stop-condition tracking lines. -->
+**N:** <integer — same as Iteration counter>
+**Date:** <date>
 **Thesis:** what we tried and why we thought it would help
-**Test result:** PASS | FAIL
+**Test result:** PASS | FAIL | n/a
 **Outcome:** confirmed | disproven | partial | blocked
 **Error signature:** <none | exact short string — see Phase 2>
 **Committed:** pending | yes | no — <reason>
 **Notes for next cycle:** …
 ```
 
-Do not put an iteration's own commit SHA in its Backlog line or Log entry. That SHA does
+Do not put an iteration's own commit SHA in its Backlog line or Last cycle. That SHA does
 not exist when the file is written (and a terminal iteration's commit **deletes** the
 resume file rather than leaving it in the tree tip). Instead, always use the commit
 subject `improve-loop: iteration N — <summary>` and look it up with the stable marker
@@ -1021,14 +1262,33 @@ subject `improve-loop: iteration N — <summary>` and look it up with the stable
 `… iteration N` is a prefix of longer numbers under git's default basic regex, so
 iteration `1` could falsely match `10`, `11`, and later iterations.
 
-Compute `N` deterministically, never freehand:
+Compute `N` deterministically via **allocate_N**, never freehand from host
+`cycle_count` / `MAX_CYCLES`:
 
 ```
-N = (number of `### Iteration` headings already in the Log) + 1
+cold-start / discard-stale-cold-start → N := 1
+else:
+  n_header := parse **Iteration counter:** if integer else null
+  n_last   := parse ## Last cycle **N:** if integer else null
+  n_git    := max N from campaign-branch subjects matching
+              /improve-loop: iteration (\d+) —/   (optional safety; null if none)
+  n_base   := max(non-null among n_header, n_last, n_git) else 0
+  if latest NOT landed (Committed pending|no|repaired no):
+    reuse that N (ledger-flush / continue repair) — do not allocate
+  else:
+    N := n_base + 1   # if n_base==0 → N := 1
+
+ledger-flush / leftover-archive: never allocate; use Last cycle **N:**
 ```
 
-At the start of Phase 2, rewrite `**Iteration counter:**` to that same `N` so the header
-and Log cannot drift. `N` comes only from Log headings — never from host turn counts.
+At the start of Phase 2: **replace** entire `## Last cycle` body with fields for this `N`
+and `Committed: pending`, then set header `**Iteration counter:**` to the same `N`.
+Header and Last cycle must not drift.
+
+**Legacy Log collapse (Phase 0, orchestrator only — before 3a/3b):** if `## Log` with
+`### Iteration` exists: parse latest by max N → write `## Last cycle` field form → set
+header counter ≥ that N → delete `## Log` → Notes `legacy Log collapsed to Last cycle`
+(+ dropped unlanded count if any) → then 3a/3b. L3 enter may copy legacy Log; does not collapse.
 
 ## The cycle
 
@@ -1089,12 +1349,17 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    are kept.** Operator must `--resume` the same campaign, or recover WIP from the worktree
    then `campaign-teardown` / merge-back. **Never** re-invoke bare `worktree-enter` without
    `--resume` while a post-carry pointer is active **for that same target**.
+   **`11` `reintegrate-protected-discard-blocked`** — default discard would destroy the
+   reintegrate recovery path (unmerged `improve-loop:` commits and/or non-empty-range
+   `reintegrate_blocked`). **Same or different target.** Use `--resume` (merge-back-only)
+   or `--force-drop-reintegrate` to abandon. Distinct from exit 10 (carried WIP only).
 
    **Different target:** if the live pointer's `target` (normalized) differs from this
-   invoke's `--target`, L3 **does not** exit 10 — it runs discard-stale (restore WIP to
-   launch, then force-remove worktree) then cold-starts, with notes
-   `discard-stale-different-target:<old>→<new>`. Catalog skill-by-skill `/improve` must
-   not require a manual teardown between targets.
+   invoke's `--target`, L3 **does not** exit 10 for carried WIP alone — it runs discard-stale
+   (restore WIP to launch, then force-remove worktree) then cold-starts, with notes
+   `discard-stale-different-target:<old>→<new>` — **unless** reintegrate-protected (exit 11).
+   Catalog skill-by-skill `/improve` must recover or pass `--force-drop-reintegrate` when
+   a prior skill left reintegrate_blocked with unmerged improve commits.
 
    If `mode == merge-back-only`: run Phase 5 merge-back only (L3 `merge-back.js`); stop.
 
@@ -1123,12 +1388,15 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    **and Deferred** from the **git digest** (step 7) + target, even when main tip is
    an old `improve-loop: … complete` archive. **Do not** refuse reseed because of historical
    terminal archives — those are prior campaigns' learnings, not this run's resume file.
-   **Must write** live ledger `$WORKSPACE/IMPROVE_LOOP.md` (template in Durable state
-   section) **before** Phase 1 — **live ledger required** for context survival; do **not**
-   keep backlog/counters only in-memory. Seed **1–3 P0/P1-tagged** items into `## Backlog`
-   (see residual discipline); **also seed `## Deferred (P2)`** from the digest’s union of
-   prior `Next deferred:` / archived Deferred (dedupe, cap 8–12; empty OK — see Seed). Never
-   enter Phase 1 with zero open P0/P1 on cold-start (Deferred alone does not satisfy that).
+   **Must write** live plan `$WORKSPACE/IMPROVE_LOOP.md` (template in Durable state
+   section) **before** Phase 1 — **live plan required** for context survival; do **not**
+   keep backlog/counters only in-memory. On T2/design-change: write `## Spec validation` +
+   header `**Spec validation:**` (**primary**; 3v U6 seed is fallback only). Prefer
+   test-authoring seeds for missing Proof artifacts before product (R2). Seed **1–3
+   P0/P1-tagged** items into `## Backlog` (see residual discipline); **also seed
+   `## Deferred (P2)`** from the digest’s union of prior `Next deferred:` / archived Deferred
+   (dedupe, cap 8–12; empty OK — see Seed). Never enter Phase 1 with zero open P0/P1 on
+   cold-start (Deferred alone does not satisfy that).
    **Always** init `consecutive-non-material-cycles: 0` on cold-start / discard-stale-cold-start
    — **never** inherit streak from a prior campaign’s terminal `complete` commit body (that
    would short-circuit residual×2 and impede a clean re-run on the same target). Recover
@@ -1139,18 +1407,14 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    merge-back-only / stop (true same-campaign recovery).
 
 3. Otherwise read the Backlog, **Deferred (P2)** (create empty section if missing),
-   Stop-condition block, and last two or three Log entries.
-   If the Log has zero entries, the file was created by an earlier invocation that crashed
-   before Phase 1 produced a Log entry. This is not the same-turn fresh-create case, but
-   needs identical treatment: skip 3a–4 and go to step 5 with `N = 1`. There is no latest
-   Log entry for 3a, 3b, or 4 to inspect; running those steps would incorrectly enter the
-   ledger-flush branch instead of reaching this fallback. Otherwise, do not allocate a new
-   `N` yet. First decide whether the turn repairs the ledger, short-circuits terminally,
-   or starts a real cycle in steps 3a–4. Allocate
-   `N = (number of ### Iteration headings) + 1` only when entering a new Phase 1–3 cycle
-   after step 4 clears continuation.
+   Stop-condition block, **## Next**, and **## Last cycle** (after any legacy Log collapse).
+   If **## Last cycle** is empty / missing `**N:**` and no Thesis/Committed (zero cycle
+   state — including cold template), treat like a crash-before-Phase-2 create: skip 3a–4
+   and go to step 5 with `N = 1`. There is no latest cycle block for 3a/3b/4. Otherwise do
+   not allocate a new `N` yet. First decide repair / short-circuit / real cycle in steps
+   3a–4. Allocate via **allocate_N** only when entering a new Phase 1–3 cycle after step 4.
 
-   3a. **Orphaned `Committed: yes` recovery.** If the latest Log entry says
+   3a. **Orphaned `Committed: yes` recovery.** If **## Last cycle** says
    `Committed: yes` but
    `git -C "$WORKSPACE" log --grep="improve-loop: iteration <that entry's N> —" -n 1`
    finds no commit, the previous cycle wrote pre-commit `yes` but never landed a commit
@@ -1159,7 +1423,7 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    backfill commit here: this is an honesty repair only, and step 4 may still need a
    ledger flush.
 
-   3b. **Stuck `Committed: pending` recovery.** If the latest Log entry still says
+   3b. **Stuck `Committed: pending` recovery.** If **## Last cycle** still says
    `pending`, the cycle died after Phase 2 wrote it but before Phase 4's pre-commit `yes`
    write, including a Phase-4 code-dirty veto that never staged. Correct it to
    `Committed: no — cycle interrupted before commit` and append one Notes line. This is
@@ -1204,8 +1468,7 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
      commit/discard/finish the prior diff — do not ledger-flush over abandoned code.
    - **Not landed + not code-dirty:** **ledger flush** — skip Phases 1–3; Phase 4 with the
      latest entry's `N` (no new allocation); then Phase 5.
-   - **Landed + Status `active`:** continue to step 5; allocate next `N` then. (Zero-Log
-     already went to step 5 from step 3.)
+   - **Landed + Status `active`:** continue to step 5; allocate next `N` then. (Zero Last cycle already went to step 5 from step 3.)
 
 5. If the Backlog has no unchecked **P0/P1** items while Status is `active`, skip **Phase 1
    execute only** (residual-only cycle — common when non-material streak is 1). Do not skip
@@ -1213,17 +1476,25 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    `N` if needed. After step 7 use lightweight Phase 2, then Phase 3, Phase 4, and Phase 5.
    Do **not** invent fake P0/P1 to force execute work.
 
-   For the **lightweight Phase 2** residual/empty-execute path, append an entry with
-   `Committed: pending`, Thesis such as `residual survey (non-material streak k→k+1)` or
+   **Product residual survey gate:** when `SEED_MODE` ∈ {`product`,`mixed`}, open P0/P1 = 0,
+   and this campaign has **not** yet run a product residual survey, use Thesis  
+   `product residual survey — operator/UX/integration gaps beyond COMPLETED_SET`  
+   (not bare `residual survey (non-material streak …)`). Phase 3 must classify limitations /
+   deferred / habitat SKIP / operator surfaces; may open new P0/P1 (reset streak) or Notes
+   `product residual survey: none` then allow streak advance. One survey per campaign max.
+
+   For the **lightweight Phase 2** residual/empty-execute path, **replace** entire
+   `## Last cycle` with `Committed: pending`, Thesis such as
+   `residual survey (non-material streak k→k+1)`, `product residual survey — …`, or
    `empty-backlog replan (no Phase 1 execute)`, Test result `PASS` (suite not re-run for
    execute; Phase 3 may run confirmation), **Outcome `partial` only** (hard — **never**
    `confirmed` when no product land / empty `CHANGED_PATHS`; residual is bookkeeping, not a
    proven fix), Error signature `none`. Hold no-progress / same-error counters *exactly* as
-   they were (do not apply PASS/partial reset). Set the header counter to `N`, then run
-   Phase 3 normally.
+   they were (do not apply PASS/partial reset). Set header counter and Last cycle `**N:**` to
+   `N`, then run Phase 3 normally.
 
-   **Residual / empty-execute land (normal path):** append the lightweight Log entry to the
-   **live ledger** (must already exist), replan on the file, then Phase 4 **ledger-only**
+   **Residual / empty-execute land (normal path):** **replace** the lightweight Last cycle entry on the
+   **live plan** (must already exist), replan on the file, then Phase 4 **ledger-only**
    commit staging `IMPROVE_LOOP.md` (Outcome **`partial`**, full enumerated body including
    **Next deferred**). Do not rely on chat-only state.
 
@@ -1277,11 +1548,11 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    - **Supplement, don't prefer-git.** Use the git body as the primary source, but for any
      field absent or clearly incomplete in the body — notably commits written before the
      Phase 4 enumerated-body rule, whose bodies are thin prose while the `IMPROVE_LOOP.md`
-     Log entry for the same iteration has the structured Thesis/Outcome/Error-signature/Notes
-     — supplement that field from the Log. Only if git and the Log *conflict on a factual
-     claim* (Thesis or Outcome) do you note the discrepancy in this cycle's Log Notes; mere
-     verbosity differences are not a conflict. The Log is already visible to advisors via
-     `IMPROVE_LOOP.md`, so they see both sources regardless. When the live ledger has
+     Last cycle for the same iteration N has the structured Thesis/Outcome/Error-signature/Notes
+     — supplement that field from **## Last cycle only when Last cycle `**N:**` equals the
+     commit's iteration N**. Else use git body alone. Only if git and Last cycle *conflict on a
+     factual claim* (Thesis or Outcome) note it in this cycle's Last cycle Notes. Multi-entry
+     in-file diary is not a recovery store — git bodies are durable history. When the live ledger has
      `## Deferred (P2)`, treat it as authoritative for *this* run and merge with digest
      deferred (ledger wins on conflicts for open P2 lines).
    - Carry this digest forward into Phase 3 (Round 1 and the consolidation guard) and Phase 1
@@ -1296,14 +1567,26 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
 
 ### Phase 1 — Execute
 
-Select the next **open** (`- [ ]`) **Backlog** item (`P0:` / `P1:` only). If any legacy
-`- [x]` line still appears in Backlog, strip it first (memory is git digest) and do not
-select it. **Never** select a `## Deferred (P2)` / `P2:` line for execute. As a backstop,
+Select the next **open** (`- [ ]`) **Backlog** item (`P0:` / `P1:` only — title line).
+
+**R2 mechanical:** if any open product Acceptance refs `V<k>` and that V-row’s Proof artifact
+is not on disk, select the open test-authoring item for `V<k>` first (T0 may skip).
+**Pure-test:** `confirmed` when artifact exists + quarantine-respecting suite green.
+**`validate V<k>`:** may fix product **or** proof.
+
+If any
+legacy `- [x]` line still appears in Backlog, strip it first (memory is git digest) and do
+not select it. **Never** select a `## Deferred (P2)` / `P2:` line for execute. As a backstop,
 before selecting, skip any open Backlog item that re-asserts **COMPLETED_SET** work or a
 prior **disproven** thesis **unless** the item's rationale explicitly re-opens it with a
 stated reason (per Phase 3). This catches reseed that survived replan. It reads
 COMPLETED_SET / DISPROVEN_SET from Phase 0 step 7 (git commit-body metadata) and judges
 semantically, not by substring match.
+
+**Material intent handoff:** for six-clause material kinds, pass **Decision**, **Preserve**,
+and **Acceptance** into the executor **unchanged** (do not silently reinterpret). Residual
+thin / non-none Unknown → investigation path with Evidence + Acceptance only. Malformed
+material (missing clauses) → **block execute** (do not soft-invent Decision during code).
 
 **Implementation is native by default — this skill does not depend on `codex-worker`.**
 Execute the selected item in WORKSPACE using whichever of these is available, in order:
@@ -1315,7 +1598,7 @@ Execute the selected item in WORKSPACE using whichever of these is available, in
 3. **Optional external implementer (never required):** only if the operator or session
    explicitly wants one *and* such an agent is available (e.g. `codex-worker`, Grok rescue,
    or another coding agent). Missing or failing optional implementers **must not** block the
-   cycle — fall back to (1) or (2) and note the fallback in the Log.
+   cycle — fall back to (1) or (2) and note the fallback in Last cycle Notes.
 
 **Hard rules for every executor path (native or agent):**
 
@@ -1326,7 +1609,7 @@ Execute the selected item in WORKSPACE using whichever of these is available, in
 - When the item names an existing skill and the Skill tool is available, use it; otherwise
   read the skill file and do the equivalent work. Do not block on Skill-tool availability.
 - If using a subagent, pass `cwd`/paths under WORKSPACE. If it returns a structured scope
-  report, honor mismatches: any changed path outside a declared file scope → Log
+  report, honor mismatches: any changed path outside a declared file scope → in-memory then Last cycle Notes
   `scope violation: <path>…` and set Outcome `blocked` (Phase 4 code-dirty veto applies).
 - Optional implementers that support clarify-and-resume may use that protocol **within this
   same Phase 1** (cap two rounds), then return; never thread open questions across cycles.
@@ -1358,7 +1641,7 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   process CWD = **WORKSPACE**, without sticking the host session there — e.g.
   `(cd "$WORKSPACE" && eval "$TEST_COMMAND")` or `make -C "$WORKSPACE" …` — even if the
   executor believes nothing changed. Capture full output to a temp file; keep a tail
-  (e.g. last 80 lines) for the Log. From that authoritative run derive `STATUS`
+  (e.g. last 80 lines) for Last cycle Notes (tail only — not suite dump). From that authoritative run derive `STATUS`
   (`PASS`/`FAIL`) and the `ERROR_SIGNATURE` (`none` on PASS; see Phase 2), and finalize
   `OUTCOME` by reconciling the executor's suggestion against STATUS — e.g. an executor's
   `confirmed` cannot stand if the authoritative run is FAIL. Reconciliation only ever
@@ -1456,7 +1739,7 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
           the next Phase 0 dirty-tree guard surfaces them — do **not** fold contaminated
           content into the iteration commit.
        4. Keep STATUS **PASS**. **Set Outcome to `partial`** whenever `CONTAMINATED` is
-          non-empty (never leave pre-hygiene `confirmed` when isolation failed — the Log must
+          non-empty (never leave pre-hygiene `confirmed` when isolation failed — Last cycle must
           not claim full land while contaminated product is unstaged). Notes
           `post-PASS hygiene re-run FAIL — cannot isolate <paths>; left unstaged; Outcome
           partial`. Do **not** invent a full product FAIL revert.
@@ -1486,22 +1769,25 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
 
 ### Phase 2 — Learn and deterministic bookkeeping (native)
 
-Append a Log entry from Phase 1's report with `Committed: pending`, or the lightweight
-empty-backlog entry defined in Phase 0 step 5. Set the header iteration counter to this
-cycle's `N`. Update stop-condition counters using plain comparison and arithmetic, never
-by asking an LLM to freehand-edit them. The empty-backlog path holds counters exactly as
-specified and does not apply the PASS/partial reset row.
+**Replace** entire `## Last cycle` from Phase 1's report with `Committed: pending`, or the
+lightweight empty-backlog entry defined in Phase 0 step 5. Set header `**Iteration counter:**`
+and Last cycle `**N:**` to this cycle's `N`. Update stop-condition counters using plain
+comparison and arithmetic, never by asking an LLM to freehand-edit them. The empty-backlog
+path holds counters exactly as specified and does not apply the PASS/partial reset row.
+Mid-cycle notes (scope violation, lint record, test tail) carried in-memory from Phase 1
+land here in Notes / fields — not in a multi-entry diary.
 
 If STATUS was PASS, Outcome was `confirmed`, **and `CHANGED_PATHS` was non-empty** (real
-code actually landed this cycle), **remove** the selected open line from `## Backlog`
-entirely (open-only work queue — do **not** flip to `[x]` and leave it). Capture Thesis /
-Outcome / What landed / Notes on the Log entry so Phase 4 banks the learning in the
-**commit body** (that is the durable done memory). Without the delete, Phase 1 could
-re-select the same open line later this campaign; without the commit-body fields, the next
-invoke would lose *why* it was improved. Leave the line **open** (`[ ]`) on FAIL,
-`disproven`, `blocked`, or `partial` — for `partial`, progress landed but the item is not
-fully done, so it stays for the Phase 3 panel to refine (rewrite remaining work) or a later
-cycle to finish. Never delete a `partial` item as if complete.
+code actually landed this cycle), **remove** the selected item’s **entire contiguous block**
+(title + clause sub-bullets) from `## Backlog` (open-only work queue — do **not** flip to
+`[x]`; use `backlog-blocks.js` delete when practical). Capture Thesis / Outcome / What
+landed / Notes on **## Last cycle** so Phase 4 banks the learning in the **commit body** (that
+is the durable done memory). Without the delete, Phase 1 could re-select the same open
+line later this campaign; without the commit-body fields, the next invoke would lose *why*
+it was improved. Leave the item **open** (`[ ]`) on FAIL, `disproven`, `blocked`, or
+`partial` — for `partial`, progress landed but the item is not fully done, so it stays for
+the Phase 3 panel to refine (rewrite remaining work) or a later cycle to finish. Never
+delete a `partial` item as if complete.
 
 Use this explicit matrix:
 
@@ -1510,8 +1796,8 @@ Use this explicit matrix:
 | PASS | confirmed / partial, **`CHANGED_PATHS` non-empty** | reset → 0 | reset → 0, signature → none |
 | PASS | **`CHANGED_PATHS` empty** (no code landed; reconciled to `partial`) | **+1** (a no-op is not progress) | reset → 0, signature → none |
 | PASS | disproven (tests still green but thesis wrong) | +1 | reset → 0 |
-| FAIL | any, signature **equals** prior entry's signature | +1 | +1 (keep signature) |
-| FAIL | any, signature **differs** from prior (or prior was none) | +1 | reset → 1 with new signature |
+| FAIL | any, signature **equals** stop-counter signature (at Phase 2 start) | +1 | +1 (keep signature) |
+| FAIL | any, signature **differs** from stop-counter (or stop-counter was none) | +1 | reset → 1 with new signature |
 | — | blocked (could not run meaningfully) | +1 | hold counter and signature exactly as they were — neither increment nor reset |
 
 **Precedence (evaluate top to bottom; first match wins):**
@@ -1536,8 +1822,10 @@ Derive an error signature deterministically. Prefer the first failing test node 
 file+line greppable from `TEST_OUTPUT_TAIL`, using language-agnostic lines matching
 `FAIL`, `ERROR`, `Error:`, `failed`, or `AssertionError`. Otherwise use the first 12 hex
 characters of the SHA-256 of the last 20 non-empty tail lines. Store the exact string in
-the Log's `**Error signature:**` field; the next cycle compares by string equality, not
-fuzzy “same-ish” judgment.
+Last cycle's `**Error signature:**` for in-cycle display. **Cross-cycle** same-error compare
+uses **## Stop-condition tracking** `consecutive-same-error: … (signature: …)` as of **start
+of Phase 2** (before this cycle's matrix write) — not a prior diary entry (there is only one
+Last cycle). String equality, not fuzzy “same-ish” judgment.
 
 ### Phase 3 — Advisor Panel and replan
 
@@ -1559,10 +1847,10 @@ hard-fail Phase 3 because a named vendor plugin is missing.
 **Advisors are optional.** Zero usable advisors is fine: native-replanner still produces a
 Backlog. Dispatch each available advisor through the host's agent/CLI mechanism and let that
 mechanism provide concurrency — do not hand-roll background jobs. They have full access to
-WORKSPACE and should see uncommitted diffs and the full `IMPROVE_LOOP.md` Log (this cycle's
-Phase 2 entry included). Scope: (a) advisors never edit, (b) consolidation keeps new Backlog
+WORKSPACE and should see uncommitted diffs and the live plan `IMPROVE_LOOP.md` (Last cycle + open queue; this cycle's
+Phase 2 Last cycle included). Scope: (a) advisors never edit, (b) consolidation keeps new Backlog
 items scoped to the stated target; (c) “consider later” / non-material follow-ups go in
-**Deferred (P2)** (preferred); out-of-scope one-offs may stay in Log Notes. The list may grow
+**Deferred (P2)** (preferred); out-of-scope one-offs may stay in Last cycle Notes. The list may grow
 or shrink; the mechanism is unchanged.
 
 **Read-only dispatch.** In every advisor prompt, ask for read-only behavior in plain
@@ -1591,7 +1879,7 @@ ask (not an error stack, not an empty string).
 Launch every configured advisor **in parallel — put all the Agent calls in a single
 message** so they run concurrently — as a fresh dispatch (never continue a prior cycle's
 advisor). Give each the target description; the path to `IMPROVE_LOOP.md` (**live ledger** —
-**open** Backlog, **open Deferred (P2)**, Log, counters for this run); the
+**open** Backlog, **open Deferred (P2)**, **## Next**, **## Last cycle**, counters for this run); the
 **prior-learnings digest** built in Phase 0 step 7 from **git commit bodies** (last 15
 iterations' Thesis / Outcome / Test evidence / What landed / Advisor consolidation /
 Notes / open **Next backlog** / **Next deferred**, plus **COMPLETED_SET** and
@@ -1599,17 +1887,23 @@ Notes / open **Next backlog** / **Next deferred**, plus **COMPLETED_SET** and
 (`git log --oneline -20`); and this cycle's Phase 1 report, or the lightweight empty-backlog
 Thesis/Outcome. Planning **must** use both the open work queue and git learnings metadata.
 Pass pointers and paths rather than inlining all content; each advisor has repository access.
-Ask independently:
+**Advisor throttle (B):** Residual / T0 / T0p / T1 steady cycles default to **native-replanner
+only** (same 5-block schema). Full multi-model panel only on T2 cold-start, `--plan-deep`,
+stall, or disagreement — no periodic K this arc. Soft input cap: open Backlog + Deferred + Campaign brief + ## Next + ## Last cycle
++ compact COMPLETED/DISPROVEN (not full diary dump).
 
-> Does the recent work—and the open Backlog's direction—still serve the stated purpose?
-> What do you recommend next as **material open P0/P1**? What belongs only in **Deferred
-> (P2)** (consider later)? What risks or concerns exist? Review the **git commit-body
-> learnings** in the digest (Thesis, Outcome, What landed, Notes — why something improved
-> or was disproven). Do **not** re-propose work in COMPLETED_SET or a most-recent disproven
-> thesis unless you give a concrete re-open reason (new evidence, changed conditions, or
-> flawed prior disproof). Do not auto-promote Deferred to P0/P1 without stating why it is
-> now material. Propose **open checklist lines only** (`- [ ] P0/P1` / `- [ ] P2`) — never
-> `- [x]` done lines in Backlog or Deferred.
+Ask independently (structured **5-block** preferred):
+
+> 1. Purpose fit — does recent work + open Backlog still serve the stated purpose?
+> 2. Material recommendations — each with class `must-fix|decision|simplify|defer`, kind
+>    `defect|product-choice|architecture|implementation|residual`, and full six-clause or
+>    residual thin (Evidence+Acceptance only — no invented Decision/Preserve on residual).
+> 3. Deferred P2 — one-line each.
+> 4. Risks / stop concerns.
+> 5. Anti-reseed — COMPLETED_SET / DISPROVEN_SET considered and rejected (or none).
+> Do **not** re-propose COMPLETED_SET or most-recent disproven theses without re-open reason.
+> Do not auto-promote Deferred without stating why newly material. Open checklist only —
+> never `- [x]` in Backlog or Deferred. Prefer greppable `P0:`/`P1:` titles + clause sub-bullets.
 
 The **native-replanner fallback** (Consolidation 1, below) receives the same inputs as Round
 1, so it gets the digest **and** ledger automatically; COMPLETED_SET / DISPROVEN_SET guards
@@ -1627,7 +1921,7 @@ Do this synthesis in the orchestrating context, not another dispatch. Identify a
 disagreement, and the range of recommendations. If zero advisors produced usable Round-1
 text, skip Round 2 and use the **native-replanner fallback** for this cycle only. Give that
 single native replanner the same inputs Round 1 received and require a **Backlog body** (P0/P1)
-**and** a **Deferred body** (P2 or none). Append one line to the latest Log Notes recording
+**and** a **Deferred body** (P2 or none). Append one line to **## Last cycle** Notes recording
 the full-panel failure. Do not allow advisor infrastructure flakiness to stall the loop.
 
 When usable Round-1 advisors show strong agreement—all recommend the same direction, have
@@ -1669,15 +1963,24 @@ than merely backlog priority.
 The final product—Consolidation 2, Consolidation 1 on early exit, or native-replanner
 fallback—must be **two section bodies** (not a free-form essay or whole-file rewrite):
 
-1. **Backlog body** — **open only** `- [ ]` lines tagged `P0:` or `P1:` (empty OK when residual
-   complete path). **Never** include `- [x]` lines.
+1. **Backlog body** — **open only** multi-line item blocks: title `- [ ]` with `P0:`/`P1:` plus
+   kind, then clause sub-bullets (six-clause material or residual thin). Empty OK when
+   residual complete path. **Never** include `- [x]` lines.
 2. **Deferred body** — **open only** `- [ ] P2:` for `## Deferred (P2)`, or explicit empty
    (`(none)` / no open P2 lines). Cap ~8–12 open P2s; dedupe.
 
+**Multi-line grammar (PLAN_APPLY):** a contiguous **item block** = title + immediate
+sub-bullets matching `Evidence:|Decision:|Preserve:|Unknown:|Acceptance:` (2–4 spaces).
+Block ends at next title, next `## `, or blank then non-clause. Residual may not carry
+Decision/Preserve (strip + Notes). Orphan clause lines strip on apply. One line per clause
+(≤200 chars soft). Prefer `backlog-blocks.js` parse/open-count/residual-forbidden.
+
 Apply surgically and natively: replace only the `## Backlog` body through the next `## `
 heading, and only the `## Deferred (P2)` body through the next `## ` heading (create the
-Deferred heading if missing). Never ask an advisor or fallback replanner to rewrite the
-whole file; that can clobber deterministic counters and the append-only Log.
+Deferred heading if missing). **`## Campaign brief`** (if present) is also rewritable by
+orchestrator only through next `## ` — advisors recommend deltas, never whole-file rewrite.
+Never ask an advisor or fallback replanner to rewrite the whole file; that can clobber
+deterministic counters and **## Last cycle** / stop tracking.
 
 **Open-only + anti-reseed strip (native, before surgical apply).** Before applying:
 
@@ -1713,7 +2016,7 @@ not to work:
   whether its rationale states a concrete reason the prior disproof no longer holds. This is
   a judgment call; a naive substring check would miss paraphrases and must not be used.
 - If the item re-asserts a disproven thesis **without** a stated reason: drop or rewrite the
-  item and append one line to the latest Log Notes:
+  item and append one line to **## Last cycle** Notes:
   `replanner proposed re-attempt of disproven thesis (iter K): <short> — dropped/rewritten`.
 - If the item re-asserts a disproven thesis **with** a stated reason: keep the item and
   **write that reason into the surviving Backlog line's rationale phrase**, e.g.
@@ -1743,10 +2046,28 @@ treat it as an infrastructure fault: do not stage it; Notes
 `unexpected dirty paths after advisor panel: …`. Never fold advisor-side product into the
 cycle commit (pathspec only).
 
-Immediately after surgical apply or deliberate non-apply, and without a subagent, update
-**residual streak** then Status *in this exact order*:
+Immediately after surgical apply or deliberate non-apply, and without a subagent:
 
-0. **Open P0/P1 count** after replan = number of unchecked **Backlog** lines containing
+**Phase 3v — Spec validation gate (before complete rules).** When open P0/P1 = 0 after replan
+and same-error/no-progress stops have not fired: if product residual survey still pending
+(product/mixed), run that first. Else run Spec validation Proofs (orchestrator-native;
+`scripts/spec-validate.js` for parse/seed/dedupe). Suite-kind Proofs reuse this cycle’s suite
+or one Confirm run (never two). Capture proof litter into `TEST_ARTIFACT_PATHS`. Write V-row
+Status cells + header `**Spec validation:**`. On executable fail: seed deduped
+`- [ ] P1: [defect] validate V<k>: <short> (<artifact>)` (never uncheck done items); on
+re-seed Notes `fix target: product | proof`. Manual rows never block unattended. Vacuous
+pass if section missing/all n/a; T2 missing section → seed write-section once (fallback).
+Re-run all executable rows every firing.
+
+**R8 — never treat 3v fail as terminal:** Status stays `active` after seeds; in
+**autonomous** mode L1 **immediately** starts the next L2 cycle (do not ask the user, do not
+emit campaign “done”). Exit only when Spec validation pass/n/a **and** residual×2 complete,
+or hard stop. **`--once`:** seed + active + exit (operator re-invokes). Pulse/discovery:
+`Validation fail → seeded V… → continuing cycle K+1`.
+
+Then update **residual streak** then Status *in this exact order*:
+
+0. **Open P0/P1 count** after replan **and 3v seeds** = number of unchecked **Backlog** lines containing
    `P0:` or `P1:` (**ignore** `## Deferred (P2)` / `P2:` lines entirely).
    - If count = 0 → `consecutive-non-material-cycles` **+1**.
    - If count ≥ 1 → `consecutive-non-material-cycles` **reset → 0**.
@@ -1764,7 +2085,8 @@ Immediately after surgical apply or deliberate non-apply, and without a subagent
      cycle's not-yet-committed lightweight entry in place: `Test result` → `FAIL`,
      `Outcome` → `blocked`, `Error signature` → real signature; apply completion-gate counter
      rule once here: `consecutive-no-progress` **+1**; `consecutive-same-error` by FAIL-row
-     semantics; **reset `consecutive-non-material-cycles` → 0** (open P0/P1 reopened).
+     semantics against **stop-counter signature** (not a prior diary entry); **reset
+     `consecutive-non-material-cycles` → 0** (open P0/P1 reopened).
    - **(c) FAIL cycle, successful revert, open P0/P1 = 0, streak ≥ 2, tree not code-dirty:**
      run confirmation suite on reverted baseline (shared capture). PASS → `complete` without
      resetting no-progress. FAIL → leave `active`, append P1 regression item, do not
@@ -1785,10 +2107,9 @@ still use that single commit: archive the full ledger in the **commit message bo
 **remove** `IMPROVE_LOOP.md` from the tree in the same commit (see staging and body rules
 below). No second clear commit.
 
-- Use this cycle's Log iteration number for `N`: the number just written in Phase 2 for a
-  normal cycle, including empty-backlog lightweight Phase 2; or the latest existing entry's
-  number for a Phase-0 step-4 ledger flush. Never use `count + 1` on a flush, which would
-  orphan the greppable marker from the existing Log heading.
+- Use this cycle's Last cycle / header `N`: the number just written in Phase 2 for a
+  normal cycle, including empty-backlog lightweight Phase 2; or the existing Last cycle `**N:**`
+  for a Phase-0 step-4 ledger flush. Never allocate a new N on a flush.
 
 - Apply the **code-dirty veto before staging**. Classify a turn with the same staging rule
   below. A **ledger-only** turn stages only the resume-file path (an add/modify of
@@ -1817,8 +2138,8 @@ below). No second clear commit.
   patterns: `AKIA[0-9A-Z]{16}`, `ghp_[A-Za-z0-9]{36}`, `sk-[A-Za-z0-9]{20,}`,
   `AIza[0-9A-Za-z_-]{35}`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`, and similar.
 
-  1. **Pre-commit `Committed: yes`.** Set the latest Log entry's `Committed:` to `yes` in
-     the on-disk file (narrow append-only exception). Skip when the code-dirty veto already
+  1. **Pre-commit `Committed: yes`.** Set **## Last cycle** `Committed:` to `yes` in
+     the on-disk file (narrow in-place exception on the current cycle only). Skip when the code-dirty veto already
      wrote `Committed: no`. Leave the file on disk until step 5 succeeds.
   2. **Snapshot.** Read the full final `IMPROVE_LOOP.md` text into memory (`LEDGER_SNAPSHOT`).
      Required for terminal archive and for commit-fail restore.
@@ -1865,7 +2186,7 @@ below). No second clear commit.
 
   - **Target** — required stable line `Target: <TARGET>` (plain-language target from the
     invoke / pointer). Phase 0 digests filter multi-skill repos on this field.
-  - **Thesis** — what was tried and why (from the Log `Thesis`); state it whether it was
+  - **Thesis** — what was tried and why (from Last cycle `Thesis`); state it whether it was
     ultimately proven or disproven.
   - **Outcome** — `confirmed` / `disproven` / `partial` / `blocked`; for `disproven`, state
     what the disproof showed (the evidence that the thesis was wrong) — this negative result
@@ -1873,7 +2194,8 @@ below). No second clear commit.
     `CHANGED_PATHS` bookkeeping → `partial` only** (never `confirmed` without real product
     land).
   - **Test evidence** — STATUS plus a one- or two-line summary of the suite result; the
-    `Error signature` on FAIL.
+    `Error signature` on FAIL; when Phase 3v fired:
+    `Validation: N pass / M fail (V…) / K n/a [unverified manual: k]`.
   - **What landed** — `CHANGED_PATHS`, or `no code landed` for a no-op / ledger-only cycle.
   - **Advisor consolidation** — Phase 3's key agreements, disagreements/risks, and the
     chosen next direction. **Every cycle that runs Phase 3 has a real panel**, including
@@ -1882,16 +2204,18 @@ below). No second clear commit.
     `no panel this cycle (ledger flush)` plus a one-line rationale. Never write
     `no panel this cycle` for an empty-backlog lightweight cycle — that would drop its real
     advisor consolidation.
-  - **Notes for next cycle** — the Log `Notes for next cycle` field, verbatim or closely
+  - **Notes for next cycle** — the Last cycle `Notes for next cycle` field, verbatim or closely
     paraphrased.
-  - **Next backlog** — required. **Open work queue only** — `- [ ] P0:` / `- [ ] P1:` lines
-    still open after replan. **Do not** emit `- [x]` done lines here (finished work + *why*
-    are already in Thesis / Outcome / What landed / Notes above; next cycle’s COMPLETED_SET
-    is built from those fields):
+  - **Next backlog** — required. **Open work queue only** — `- [ ] P0:` / `- [ ] P1:` **title
+    lines** still open after replan (clause blocks may be title-only in the commit body this
+    arc). **Do not** emit `- [x]` done lines here (finished work + *why* are already in
+    Thesis / Outcome / What landed / Notes above; next cycle’s COMPLETED_SET is built from
+    those fields). For each still-open **six-clause material** title, also put in Notes/body:
+    `open intent: <short> | Decision: … | Preserve: …` (intent digest for next cold-start).
 
     ```
     Next backlog:
-    - [ ] P1: <still open> — <rationale>
+    - [ ] P1: [defect] <still open> — <rationale>
     ```
 
     When open P0/P1 count = 0:
@@ -1948,7 +2272,7 @@ below). No second clear commit.
   already ran or the worktree file is missing:**
   `git -C "$WORKSPACE" restore --staged --worktree -- IMPROVE_LOOP.md` when git still
   knows the path; if that cannot recreate the file, rewrite
-  `$WORKSPACE/IMPROVE_LOOP.md` from `LEDGER_SNAPSHOT`. Then correct the latest Log entry
+  `$WORKSPACE/IMPROVE_LOOP.md` from `LEDGER_SNAPSHOT`. Then correct **## Last cycle**
   to `Committed: no — <raw error>` and append the raw failure to Notes. Leave this
   correction uncommitted. Never leave a successful-looking terminal deletion without a
   commit object.
@@ -1987,8 +2311,8 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
 |---|---|
 | Terminal + landed | Merge-back; emit **Merge-back card**; best-effort `update_goal(completed)` if goal Active; L1 exits → Campaign report |
 | Terminal + not landed | Do **not** complete host goal; L1 exits → report blocked/stopped |
-| Active after cycle, **autonomous** | Cycle discovery card + progress line; **L1 continues next L2 cycle now** (do not stop for user) |
-| Active after cycle, **`--once`** | Cycle discovery / closing card; L1 exits → Campaign report (Result once-active) |
+| Active after cycle, **autonomous** | Cycle discovery card + progress line; **L1 continues next L2 cycle now** (do not stop for user) — **including after 3v Spec validation fail** (R8) |
+| Active after cycle, **`--once`** | Cycle discovery / closing card; L1 exits → Campaign report (Result once-active); if 3v seeded, report pending validation (R8c) |
 | Dirty/veto before Phase 5 | Discovery card (blocked) + report; never invent terminal Status over dirty code; L1 exits if blocked |
 
 `stopped (...)` and `complete` are both **finished campaigns** once landed.
@@ -2016,6 +2340,16 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   `.worktrees/*`. **Never freehand-stash** launch dirt to force merge — L3 ignores ambient
   prefixes; real code dirt requires operator commit/discard.
 
+  **Diverged launch (main moved mid-campaign):** if `--ff-only` fails, L3 may
+  **rebase-then-FF** when the campaign range is a **linear** stack of only
+  `improve-loop: iteration …` / `improve-loop: archive …` commits, with a shared
+  merge-base, and at most `IMPROVE_LOOP_MERGE_REBASE_MAX` commits (default 24).
+  JSON sets `rebase_then_ff: true`; notes include `rebase-then-ff:rebased …` +
+  `rebase-then-ff:ff-ok`. Refuse (stay `reintegrate_blocked`, exit 4) on:
+  non-safe subjects, merge commits, no merge-base, range over cap, rebase
+  conflicts, or `IMPROVE_LOOP_MERGE_REBASE=0`. Do **not** freehand `rebase`
+  outside L3 unless recovering a blocked pointer.
+
   **Teardown is housekeeping after product land (not product recovery):** merge-back and
   campaign-teardown (1) **restore** borrowed non-isolation WIP onto launch best-effort
   ("give mail/keys back to the counter"), then (2) **always remove the worktree** with
@@ -2034,6 +2368,7 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   | | |
   |---|---|
   | **Result** | ok \| ok_teardown_advisory \| blocked \| skipped_detached \| teardown_partial |
+  | **Rebase-then-FF** | yes (diverged launch, improve-only range) \| no |
   | **FF into** | `<launch_branch>` · campaign `<campaign_branch>` |
   | **SHAs** | `<short tip after FF or —>` |
   | **Worktree removed** | yes (expected) \| no only if remove failed |
@@ -2044,12 +2379,22 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
   | **Litter cleaned/ignored** | <paths or _(none)_> |
   | **Blocking dirt** | <paths or _(none)_> |
   | **Error** | <one line or —> |
-  | **Next if blocked** | clean/commit blocking paths · re-run `merge-back.js` / `/improve` merge-back-only |
+  | **Next if blocked** | clean/commit blocking paths · `worktree-enter --resume` → merge-back-only · re-run `merge-back.js` · **do not** `campaign-teardown` without `--force-drop-reintegrate` |
   | **Next if worktree kept** | product already landed — run operator `git worktree remove --force <path>` from notes |
   ```
 
+  **Reintegrate protect (L3):** `campaign-teardown` and default `worktree-enter` (same **or**
+  different target) **refuse** when the pointer is reintegrate-protected — unmerged
+  `improve-loop: iteration|archive` commits on the campaign tip, or `state:
+  reintegrate_blocked` that is not an empty-range exception. Teardown refuse → exit **3**
+  (`teardown: refused_reintegrate_blocked`). Enter refuse → exit **11**. Abandon only with
+  explicit `--force-drop-reintegrate` (notes record branch + commit count). Empty-range
+  exception: `reintegrate_blocked` but tip already ancestor of launch → discard/teardown OK.
+  Exit **10** remains carried-WIP only (not reintegrate).
+
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
-  Phases 1–4; run `merge-back.js` on the same pointer. Success clears pointer.
+  Phases 1–4; run `merge-back.js` on the same pointer. Success clears pointer. Requires
+  `--resume` on enter (default enter does **not** auto merge-back-only).
 
 - **Active + autonomous:** do **not** end the user turn waiting for re-invoke; L1 driver
   starts the next L2 cycle immediately (under `MAX_CYCLES`); sticky stays on TARGET_REPO/LAUNCH.

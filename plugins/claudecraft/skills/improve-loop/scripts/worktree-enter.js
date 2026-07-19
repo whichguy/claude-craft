@@ -8,7 +8,8 @@
  *
  * Usage:
  *   node worktree-enter.js --repo <path> --target <text> \
- *        [--test-command <cmd>] [--discard-legacy] [--resume] [--json]
+ *        [--test-command <cmd>] [--discard-legacy] [--resume] \
+ *        [--force-drop-reintegrate] [--json]
  *
  * Prints JSON:
  *   {
@@ -32,8 +33,10 @@
  *     failure; worktree KEPT on LAUNCH_CLEAN_FAILED so WIP is not destroyed)
  *  10 carried-wip-discard-blocked: default discard-stale would destroy the only copy of
  *     carried launch WIP (or non-isolation campaign dirt) for the **same** target.
- *     Different --target always discards-stale (advisory restore) then cold-starts.
  *     Same-target: use --resume, or recover WIP then campaign-teardown / merge-back.
+ *  11 reintegrate-protected-discard-blocked: default discard would destroy recovery
+ *     path for reintegrate_blocked / unmerged improve-loop commits (same or different
+ *     target). Use --resume for merge-back-only, or --force-drop-reintegrate to abandon.
  *
  * Injectable: GIT_CMD, IMPROVE_LOOP_POINTER_DIR
  */
@@ -56,6 +59,7 @@ const {
   isTracked,
   errMsg,
   randomHex,
+  isReintegrateProtected,
 } = require('./lib-paths.js');
 // classifyLaunchDirt used by wouldLoseCarriedWip for campaign worktree porcelain
 const { carryLaunchWip } = require('./carry-launch-wip.js');
@@ -63,7 +67,7 @@ const { carryLaunchWip } = require('./carry-launch-wip.js');
 function usage(msg) {
   if (msg) console.error(msg);
   console.error(
-    'usage: node worktree-enter.js --repo <path> --target <text> [--test-command <cmd>] [--discard-legacy] [--resume] [--json]'
+    'usage: node worktree-enter.js --repo <path> --target <text> [--test-command <cmd>] [--discard-legacy] [--resume] [--force-drop-reintegrate] [--json]'
   );
   process.exit(1);
 }
@@ -380,14 +384,47 @@ if (ptr) {
     notes.push('invalid-pointer-cleared');
   } else {
     // Default product path: discard stale isolation, then cold-start below.
-    // Fail-closed only for the **same** target when discard would destroy the only
-    // copy of carried/campaign WIP (pilot: second enter wiped WIP after launch clean).
-    // Different --target is a new campaign: advisory-restore + soft discard + cold-start
-    // so catalog skill-by-skill /improve does not require manual campaign-teardown.
+    // Order: reintegrate-protect (exit 11) → carried-WIP (exit 10) → discard.
+    // Different --target still cannot silently shred reintegrate recovery path.
     const prevT = normalizeTarget(ptr.target);
     const nextT = normalizeTarget(target);
-    const sameTarget =
-      !prevT || !nextT || prevT === nextT;
+    const sameTarget = !prevT || !nextT || prevT === nextT;
+    const forceDropReintegrate = has('--force-drop-reintegrate');
+
+    const protect = isReintegrateProtected(launch, ptr);
+    if (protect.protected && !forceDropReintegrate) {
+      console.error(
+        'worktree-enter: reintegrate_blocked — pass --resume for merge-back-only, ' +
+          'or --force-drop-reintegrate to abandon unmerged improve tip'
+      );
+      console.error(
+        'worktree-enter: refusing discard-stale (' +
+          (protect.reason || 'protected') +
+          (protect.unmergedImproveCount
+            ? '; unmerged_improve=' + protect.unmergedImproveCount
+            : '') +
+          ')'
+      );
+      if (ptr.campaign_branch) {
+        console.error(
+          'worktree-enter: campaign_branch=' + ptr.campaign_branch
+        );
+      }
+      if (ptr.worktree_path) {
+        console.error('worktree-enter: workspace kept at ' + ptr.worktree_path);
+      }
+      process.exit(11);
+    }
+    if (protect.protected && forceDropReintegrate) {
+      notes.push(
+        'force-drop-reintegrate: abandoned unmerged improve tip ' +
+          (ptr.campaign_branch || '(none)') +
+          ' ' +
+          (protect.unmergedImproveCount || 0) +
+          ' commits'
+      );
+    }
+
     if (wouldLoseCarriedWip(ptr) && sameTarget) {
       console.error(
         'worktree-enter: carried-wip-discard-blocked — default discard-stale would destroy ' +
@@ -467,14 +504,20 @@ if (!mode) {
     const ledgerText = fs.readFileSync(launchLedger, 'utf8');
     const statusMatch = ledgerText.match(/\*\*Status:\*\*\s*(.+)/);
     const status = (statusMatch ? statusMatch[1] : '').trim();
-    const hasLog = /^### Iteration /m.test(ledgerText);
+    // Plan-file shape: cycle state is Last cycle **N:** / counter≥1 / legacy ### Iteration.
+    // Cold template (heading-only ## Last cycle, counter 0) is NOT cycle state → discard.
+    const hasLegacyLog = /^### Iteration /m.test(ledgerText);
+    const hasLastCycleN =
+      /(?:^|\n)## Last cycle\s*\n[\s\S]*?^\*\*N:\*\*\s*\d+/m.test(ledgerText);
+    const hasCounterGe1 = /\*\*Iteration counter:\*\*\s*[1-9]\d*/.test(ledgerText);
+    const hasCycleState = hasLegacyLog || hasLastCycleN || hasCounterGe1;
     const tracked = isTracked(launch, 'IMPROVE_LOOP.md');
 
     let doDiscard = discardLegacy;
     if (
       status.startsWith('complete') ||
       status.startsWith('stopped') ||
-      (!hasLog && !tracked)
+      (!hasCycleState && !tracked)
     ) {
       doDiscard = true;
     }

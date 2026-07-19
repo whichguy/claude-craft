@@ -133,7 +133,104 @@ assert "open backlog 1" grep -q '"open_backlog": 1' "$LS"
 assert "open deferred 1" grep -q '"open_deferred": 1' "$LS"
 assert "checked deferred 1" grep -q '"checked_deferred": 1' "$LS"
 assert "log iterations 1" grep -q '"log_iterations": 1' "$LS"
+assert "legacy cycle_state" grep -q '"cycle_state": "legacy_log"' "$LS"
 assert "not landed pending" grep -q '"landed": false' "$LS"
+
+# plan-file shape: ## Last cycle only
+cat >"$WS/IMPROVE_LOOP.md" <<'EOF'
+# Improve Loop: last-cycle shape
+
+**Test command:** `true`
+**Started:** 2026-07-18          **Status:** active
+**Iteration counter:** 2
+
+## Isolation
+- **launch_root:** x
+
+## Backlog
+- [ ] P1: next item — why
+
+## Deferred (P2)
+- [ ] P2: later — why
+
+## Stop-condition tracking
+- consecutive-no-progress: 0
+- consecutive-same-error: 0 (signature: none)
+- consecutive-non-material-cycles: 0
+
+## Next
+- **Action:** execute
+- **Item:** P1: next item
+- **Why:** top open
+
+## Last cycle
+**N:** 2
+**Date:** 2026-07-18
+**Thesis:** t2
+**Test result:** PASS
+**Outcome:** confirmed
+**Error signature:** none
+**Committed:** pending
+**Notes for next cycle:** n2
+EOF
+node "$SCRIPTS/ledger-status.js" --workspace "$WS" >"$LS"
+assert "last_cycle source" grep -q '"cycle_state": "last_cycle"' "$LS"
+assert "last_cycle_n 2" grep -q '"last_cycle_n": 2' "$LS"
+assert "latest_n 2" grep -q '"latest_n": 2' "$LS"
+assert "log_iterations 0|1 for new shape" grep -qE '"log_iterations": 1' "$LS"
+assert "last cycle outcome" grep -q '"latest_outcome": "confirmed"' "$LS"
+assert "last cycle not landed pending" grep -q '"landed": false' "$LS"
+
+# dual: Last cycle + legacy Log → prefer Last cycle
+cat >"$WS/IMPROVE_LOOP.md" <<'EOF'
+# Improve Loop: dual
+
+**Status:** active
+**Iteration counter:** 3
+
+## Backlog
+- [ ] P1: x — y
+
+## Last cycle
+**N:** 3
+**Outcome:** partial
+**Committed:** pending
+
+## Log
+### Iteration 1 — d
+**Outcome:** confirmed
+**Committed:** yes
+### Iteration 2 — d
+**Outcome:** confirmed
+**Committed:** yes
+EOF
+node "$SCRIPTS/ledger-status.js" --workspace "$WS" >"$LS"
+assert "dual prefer last_cycle" grep -q '"cycle_state": "last_cycle"' "$LS"
+assert "dual latest_n is 3 not 2" grep -q '"latest_n": 3' "$LS"
+
+# C8.3: legacy multi-iter only → true log_iterations count (not 0|1)
+cat >"$WS/IMPROVE_LOOP.md" <<'EOF'
+# Improve Loop: legacy multi-iter only
+
+**Status:** active
+**Iteration counter:** 2
+
+## Backlog
+- [ ] P1: x — y
+
+## Log
+### Iteration 1 — d
+**Outcome:** confirmed
+**Committed:** yes
+### Iteration 2 — d
+**Outcome:** partial
+**Committed:** pending
+EOF
+node "$SCRIPTS/ledger-status.js" --workspace "$WS" >"$LS"
+assert "legacy multi cycle_state" grep -q '"cycle_state": "legacy_log"' "$LS"
+assert "legacy multi log_iterations 2" grep -q '"log_iterations": 2' "$LS"
+assert "legacy multi latest_n 2" grep -q '"latest_n": 2' "$LS"
+assert "legacy multi last_cycle_n null" grep -q '"last_cycle_n": null' "$LS"
 
 # pointer read via pointer.js
 GCD="$(git -C "$REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || git -C "$REPO" rev-parse --git-common-dir)"
@@ -184,6 +281,85 @@ WSM="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1
 assert "migrated ledger in workspace" test -f "$WSM/IMPROVE_LOOP.md"
 assert "launch ledger removed" test ! -f "$REPO2/IMPROVE_LOOP.md"
 assert "isolation injected" grep -q '## Isolation' "$WSM/IMPROVE_LOOP.md"
+
+# migrate: active plan with ## Last cycle **N:** (no ### Iteration)
+REPO2b="$TMP/repo2b"
+mkdir -p "$REPO2b"
+git -C "$REPO2b" init -q -b main
+git -C "$REPO2b" config user.email "test@example.com"
+git -C "$REPO2b" config user.name "Test"
+echo x >"$REPO2b/README"
+git -C "$REPO2b" add README
+git -C "$REPO2b" commit -q -m "init"
+cat >"$REPO2b/IMPROVE_LOOP.md" <<'EOF'
+# Improve Loop: last-cycle migrate
+
+**Test command:** `true`
+**Started:** 2026-07-18          **Status:** active
+**Iteration counter:** 1
+
+## Backlog
+- [ ] P1: open — why
+
+## Last cycle
+**N:** 1
+**Thesis:** prior
+**Outcome:** partial
+**Committed:** yes
+**Notes for next cycle:** n
+EOF
+OUTM2="$TMP/migrate2.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO2b" --target "last-cycle migrate" >"$OUTM2"
+assert "last-cycle migrate mode" grep -q '"mode": "migrate"' "$OUTM2"
+assert "last-cycle launch removed" test ! -f "$REPO2b/IMPROVE_LOOP.md"
+
+# discard: complete Status + Last cycle present
+REPO2c="$TMP/repo2c"
+mkdir -p "$REPO2c"
+git -C "$REPO2c" init -q -b main
+git -C "$REPO2c" config user.email "test@example.com"
+git -C "$REPO2c" config user.name "Test"
+echo x >"$REPO2c/README"
+git -C "$REPO2c" add README
+git -C "$REPO2c" commit -q -m "init"
+cat >"$REPO2c/IMPROVE_LOOP.md" <<'EOF'
+# Improve Loop: complete leftover
+
+**Status:** complete
+**Iteration counter:** 3
+
+## Last cycle
+**N:** 3
+**Outcome:** partial
+**Committed:** yes
+EOF
+OUTM3="$TMP/discard-complete.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO2c" --target "complete leftover" >"$OUTM3"
+assert "complete+Last → discard-cold-start" grep -q '"mode": "discard-cold-start"' "$OUTM3"
+assert "complete leftover removed" test ! -f "$REPO2c/IMPROVE_LOOP.md"
+
+# discard: cold template (heading-only Last cycle, counter 0) → no cycle state
+REPO2d="$TMP/repo2d"
+mkdir -p "$REPO2d"
+git -C "$REPO2d" init -q -b main
+git -C "$REPO2d" config user.email "test@example.com"
+git -C "$REPO2d" config user.name "Test"
+echo x >"$REPO2d/README"
+git -C "$REPO2d" add README
+git -C "$REPO2d" commit -q -m "init"
+cat >"$REPO2d/IMPROVE_LOOP.md" <<'EOF'
+# Improve Loop: cold stub
+
+**Status:** active
+**Iteration counter:** 0
+
+## Last cycle
+<!-- empty until first Phase 2 -->
+EOF
+OUTM4="$TMP/discard-cold-template.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO2d" --target "cold stub" >"$OUTM4"
+assert "cold template → discard-cold-start" grep -q '"mode": "discard-cold-start"' "$OUTM4"
+assert "cold template removed" test ! -f "$REPO2d/IMPROVE_LOOP.md"
 
 # discard phrase
 REPO3="$TMP/repo3"
@@ -340,7 +516,7 @@ assert "different target new workspace" test "$WS6d" != "$WS6"
 assert "different target WIP not lost" bash -c "test -f \"$REPO6/extra.c\" || test -f \"$WS6d/extra.c\""
 assert "different target old worktree gone" bash -c "test ! -d \"$WS6\""
 
-# reintegrate_blocked → merge-back-only mode
+# reintegrate_blocked → merge-back-only mode (--resume)
 REPO7="$TMP/repo7"
 mkdir -p "$REPO7"
 git -C "$REPO7" init -q -b main
@@ -355,18 +531,17 @@ if [[ -z "$GCD7" || "$GCD7" != /* ]]; then
 fi
 node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test" >/dev/null
 OUT7="$TMP/enter7.json"
-# merge-back-only only with --resume (default discards stale)
+# merge-back-only only with --resume
 node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p --resume >"$OUT7"
 assert "reintegrate → merge-back-only" grep -q '"mode": "merge-back-only"' "$OUT7"
-# default enter discards reintegrate_blocked instead of resume
+# T6: reintegrate_blocked + empty improve range (no unmerged improve commits) → discard OK
 node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test2" >/dev/null 2>/dev/null || true
-# re-create pointer blocked state after resume path may still hold it
 PTR7="$GCD7/improve-loop/active.json"
 if [[ -f "$PTR7" ]]; then
   node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test2" >/dev/null
   OUT7b="$TMP/enter7b.json"
   node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p >"$OUT7b"
-  assert "default discards reintegrate" grep -qE 'discard-stale-cold-start|cold-start' "$OUT7b"
+  assert "T6 empty-range reintegrate discards" grep -qE 'discard-stale-cold-start|cold-start' "$OUT7b"
 fi
 
 # --- resolve-target-repo.js ---
@@ -671,6 +846,128 @@ set -e
 assert "merge-back blocks code dirt exit 3" test "$MB_MIX_EC" -eq 3
 assert "merge-back blocked mode" grep -q '"merge_back": "blocked"' "$OUT_MB_MIX"
 assert "merge-back error lists extra.c" grep -q 'extra.c' "$OUT_MB_MIX"
+# T1: exit 3 keeps recovery surface
+assert "T1 pointer not cleared on block" grep -q '"pointer_cleared": false' "$OUT_MB_MIX" || \
+  assert "T1 pointer_cleared absent/false" bash -c "! grep -q '\"pointer_cleared\": true' \"$OUT_MB_MIX\""
+PTR_MIX="$TMP/ptr-mix.json"
+node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+if (ptr.state !== 'reintegrate_blocked') process.exit(2);
+if (!ptr.worktree_path || !fs.existsSync(ptr.worktree_path)) process.exit(3);
+console.log(JSON.stringify({state:ptr.state,worktree:ptr.worktree_path,campaign:ptr.campaign_branch}));
+" "$REPO_MIX" >"$PTR_MIX"
+assert "T1 state reintegrate_blocked" grep -q reintegrate_blocked "$PTR_MIX"
+assert "T1 worktree still exists" bash -c "test -d \"\$(node -e 'console.log(JSON.parse(require(\"fs\").readFileSync(process.argv[1],\"utf8\")).worktree)' \"$PTR_MIX\")\""
+
+# T2: campaign-teardown refuses reintegrate-protected (unmerged improve commits)
+OUT_TD_REFUSE="$TMP/teardown-refuse.json"
+set +e
+node "$SCRIPTS/campaign-teardown.js" --repo "$REPO_MIX" >"$OUT_TD_REFUSE" 2>"$TMP/teardown-refuse.err"
+TD_REFUSE_EC=$?
+set -e
+assert "T2 teardown refuse exit 3" test "$TD_REFUSE_EC" -eq 3
+assert "T2 teardown refused JSON" grep -q 'refused_reintegrate_blocked' "$OUT_TD_REFUSE"
+assert "T2 pointer still present after refuse" bash -c "test -f \"\$(git -C \"$REPO_MIX\" rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json\""
+assert "T2 worktree still present after refuse" bash -c "test -d \"\$(node -e 'const fs=require(\"fs\");const p=require(\"path\");const gcd=require(\"child_process\").execFileSync(\"git\",[\"-C\",process.argv[1],\"rev-parse\",\"--path-format=absolute\",\"--git-common-dir\"],{encoding:\"utf8\"}).trim();console.log(JSON.parse(fs.readFileSync(p.join(gcd,\"improve-loop\",\"active.json\"),\"utf8\")).worktree_path)' \"$REPO_MIX\")\""
+
+# T5: default enter same target on reintegrate+unmerged → exit 11
+set +e
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_MIX" --target "mix dirt" >"$TMP/enter-t5.json" 2>"$TMP/enter-t5.err"
+T5_EC=$?
+set -e
+assert "T5 default enter exit 11" test "$T5_EC" -eq 11
+assert "T5 stderr reintegrate" grep -q reintegrate_blocked "$TMP/enter-t5.err"
+
+# T7: different target also exit 11 without force
+set +e
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_MIX" --target "other skill" >"$TMP/enter-t7.json" 2>"$TMP/enter-t7.err"
+T7_EC=$?
+set -e
+assert "T7 different-target exit 11" test "$T7_EC" -eq 11
+
+# T3: force-drop clears recovery path
+OUT_TD_FORCE="$TMP/teardown-force.json"
+set +e
+node "$SCRIPTS/campaign-teardown.js" --repo "$REPO_MIX" --force-drop-reintegrate >"$OUT_TD_FORCE" 2>"$TMP/teardown-force.err"
+TD_FORCE_EC=$?
+set -e
+assert "T3 force teardown exit 0" test "$TD_FORCE_EC" -eq 0
+assert "T3 force-drop notes" grep -q 'force-drop-reintegrate' "$OUT_TD_FORCE"
+assert "T3 pointer cleared after force" bash -c "test ! -f \"\$(git -C \"$REPO_MIX\" rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json\""
+
+# T8: mid-campaign active + unmerged improve → teardown refuse
+REPO_T8="$TMP/repo-t8-active"
+mkdir -p "$REPO_T8"
+git -C "$REPO_T8" init -q -b main
+git -C "$REPO_T8" config user.email "test@example.com"
+git -C "$REPO_T8" config user.name "Test"
+echo base >"$REPO_T8/README"
+git -C "$REPO_T8" add README && git -C "$REPO_T8" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_T8" --target "active unmerged" --test-command "true" >/dev/null
+WS_T8="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_T8")"
+echo camp >"$WS_T8/README"
+[[ -f "$WS_T8/.gitignore" ]] && git -C "$WS_T8" add .gitignore || true
+git -C "$WS_T8" add README
+git -C "$WS_T8" commit -q -m "improve-loop: iteration 1 — active unmerged"
+# leave state active (default pointer)
+OUT_T8="$TMP/teardown-t8.json"
+set +e
+node "$SCRIPTS/campaign-teardown.js" --repo "$REPO_T8" >"$OUT_T8" 2>"$TMP/teardown-t8.err"
+T8_EC=$?
+set -e
+assert "T8 active unmerged teardown refuse exit 3" test "$T8_EC" -eq 3
+assert "T8 refused JSON" grep -q 'refused_reintegrate_blocked' "$OUT_T8"
+# force clean for hygiene
+node "$SCRIPTS/campaign-teardown.js" --repo "$REPO_T8" --force-drop-reintegrate >/dev/null 2>&1 || true
+
+# Ambient profile agent-home (T9–T12)
+node -e '
+const lp = require(process.argv[1]);
+process.env.IMPROVE_LOOP_AMBIENT_PROFILE = "agent-home";
+delete process.env.IMPROVE_LOOP_AMBIENT_PREFIXES;
+const c = lp.classifyLaunchDirt([
+  "memories/MEMORY.md",
+  "scripts/hermes_release_watch.py",
+  "skills/foo/SKILL.md",
+  "src/app.js",
+  "cron/jobs.json",
+  "other/hermes_release_watch.py",
+]);
+if (!c.ambient.includes("memories/MEMORY.md")) process.exit(2);
+if (!c.ambient.includes("scripts/hermes_release_watch.py")) process.exit(3);
+if (!c.ambient.includes("cron/jobs.json")) process.exit(4);
+if (!c.code.includes("skills/foo/SKILL.md")) process.exit(5);
+if (!c.code.includes("src/app.js")) process.exit(6);
+if (!c.code.includes("other/hermes_release_watch.py")) process.exit(7);
+// T10: PREFIXES=- disables all
+process.env.IMPROVE_LOOP_AMBIENT_PREFIXES = "-";
+const c2 = lp.classifyLaunchDirt(["cron/jobs.json", "memories/x", "scripts/hermes_release_watch.py"]);
+if (c2.ambient.length !== 0) process.exit(8);
+if (!c2.code.includes("cron/jobs.json")) process.exit(9);
+// T11: PREFIXES set overrides profile (only listed)
+delete process.env.IMPROVE_LOOP_AMBIENT_PREFIXES;
+process.env.IMPROVE_LOOP_AMBIENT_PREFIXES = "cron/";
+process.env.IMPROVE_LOOP_AMBIENT_PROFILE = "agent-home";
+const c3 = lp.classifyLaunchDirt(["cron/jobs.json", "memories/x", "scripts/hermes_release_watch.py"]);
+if (!c3.ambient.includes("cron/jobs.json")) process.exit(10);
+if (c3.ambient.includes("memories/x")) process.exit(11);
+if (c3.ambient.includes("scripts/hermes_release_watch.py")) process.exit(12);
+// T12 already covered: basename outside scripts/ is code
+// legacy none still has cron/wiki
+delete process.env.IMPROVE_LOOP_AMBIENT_PREFIXES;
+process.env.IMPROVE_LOOP_AMBIENT_PROFILE = "none";
+const c4 = lp.classifyLaunchDirt(["cron/jobs.json", "memories/x"]);
+if (!c4.ambient.includes("cron/jobs.json")) process.exit(13);
+if (c4.ambient.includes("memories/x")) process.exit(14);
+' "$SCRIPTS/lib-paths.js"
+assert "T9-T12 ambient profile matrix" true
 
 # New product file on campaign branch must FF onto launch (landing > clean tree)
 REPO_NEW="$TMP/repo-newfile"
@@ -807,6 +1104,182 @@ MB_ST_EC=$?
 set -e
 assert "strict ambient empty blocks cron exit 3" test "$MB_ST_EC" -eq 3
 assert "strict blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_ST"
+
+# --- merge-back: rebase-then-FF when launch advanced mid-campaign (improve-only range) ---
+REPO_RB="$TMP/repo-rebase-ff"
+mkdir -p "$REPO_RB"
+git -C "$REPO_RB" init -q -b main
+git -C "$REPO_RB" config user.email "test@example.com"
+git -C "$REPO_RB" config user.name "Test"
+echo base >"$REPO_RB/README"
+git -C "$REPO_RB" add README
+git -C "$REPO_RB" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_RB" --target "rebase ff" --test-command "true" >/dev/null
+WS_RB="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_RB")"
+echo camp >"$WS_RB/README"
+[[ -f "$WS_RB/.gitignore" ]] && git -C "$WS_RB" add .gitignore || true
+git -C "$WS_RB" add README
+git -C "$WS_RB" commit -q -m "improve-loop: iteration 1 — campaign edit"
+# launch advances with a disjoint file so histories diverge (FF impossible)
+echo other >"$REPO_RB/other.txt"
+git -C "$REPO_RB" add other.txt
+git -C "$REPO_RB" commit -q -m "feat: concurrent main advance"
+OUT_MB_RB="$TMP/mergeback-rebase.json"
+set +e
+node "$SCRIPTS/merge-back.js" --repo "$REPO_RB" >"$OUT_MB_RB" 2>"$TMP/mergeback-rebase.err"
+MB_RB_EC=$?
+set -e
+assert "rebase-then-ff exit 0" test "$MB_RB_EC" -eq 0
+assert "rebase-then-ff ok" grep -qE '"merge_back": "ok"|"merge_back": "ok_teardown_advisory"' "$OUT_MB_RB"
+assert "rebase-then-ff flag true" grep -q '"rebase_then_ff": true' "$OUT_MB_RB"
+assert "rebase-then-ff notes rebased" grep -q 'rebase-then-ff:rebased' "$OUT_MB_RB"
+assert "rebase-then-ff notes ff-ok" grep -q 'rebase-then-ff:ff-ok' "$OUT_MB_RB"
+assert "rebase-then-ff landed campaign README" grep -q camp "$REPO_RB/README"
+assert "rebase-then-ff kept launch other" grep -q other "$REPO_RB/other.txt"
+assert "rebase-then-ff history has concurrent" \
+  bash -c 'git -C "$1" log --oneline --grep="concurrent main advance" -n1 | grep -q .' _ "$REPO_RB"
+assert "rebase-then-ff history has improve" \
+  bash -c 'git -C "$1" log --oneline --grep="improve-loop: iteration 1" -n1 | grep -q .' _ "$REPO_RB"
+assert "rebase-then-ff pointer cleared" test ! -f "$(git -C "$REPO_RB" rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json"
+
+# Non-improve commit on campaign → refuse rebase, stay blocked (exit 4)
+REPO_RB2="$TMP/repo-rebase-refuse"
+mkdir -p "$REPO_RB2"
+git -C "$REPO_RB2" init -q -b main
+git -C "$REPO_RB2" config user.email "test@example.com"
+git -C "$REPO_RB2" config user.name "Test"
+echo base >"$REPO_RB2/README"
+git -C "$REPO_RB2" add README
+git -C "$REPO_RB2" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_RB2" --target "rebase refuse" --test-command "true" >/dev/null
+WS_RB2="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_RB2")"
+echo bad >"$WS_RB2/README"
+[[ -f "$WS_RB2/.gitignore" ]] && git -C "$WS_RB2" add .gitignore || true
+git -C "$WS_RB2" add README
+git -C "$WS_RB2" commit -q -m "not-an-improve-loop commit"
+echo other >"$REPO_RB2/other.txt"
+git -C "$REPO_RB2" add other.txt
+git -C "$REPO_RB2" commit -q -m "feat: concurrent main advance"
+OUT_MB_RB2="$TMP/mergeback-rebase-refuse.json"
+set +e
+node "$SCRIPTS/merge-back.js" --repo "$REPO_RB2" >"$OUT_MB_RB2" 2>/dev/null
+MB_RB2_EC=$?
+set -e
+assert "rebase refuse non-improve exit 4" test "$MB_RB2_EC" -eq 4
+assert "rebase refuse blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_RB2"
+assert "rebase refuse reason non-safe subject" grep -q 'non-safe improve subject' "$OUT_MB_RB2"
+assert "rebase refuse flag false" grep -q '"rebase_then_ff": false' "$OUT_MB_RB2"
+assert "rebase refuse pointer kept" test -f "$(git -C "$REPO_RB2" rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json"
+
+# Opt-out IMPROVE_LOOP_MERGE_REBASE=0 keeps classic blocked exit 4
+REPO_RB3="$TMP/repo-rebase-optout"
+mkdir -p "$REPO_RB3"
+git -C "$REPO_RB3" init -q -b main
+git -C "$REPO_RB3" config user.email "test@example.com"
+git -C "$REPO_RB3" config user.name "Test"
+echo base >"$REPO_RB3/README"
+git -C "$REPO_RB3" add README
+git -C "$REPO_RB3" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_RB3" --target "rebase optout" --test-command "true" >/dev/null
+WS_RB3="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_RB3")"
+echo camp >"$WS_RB3/README"
+[[ -f "$WS_RB3/.gitignore" ]] && git -C "$WS_RB3" add .gitignore || true
+git -C "$WS_RB3" add README
+git -C "$WS_RB3" commit -q -m "improve-loop: iteration 1 — optout"
+echo other >"$REPO_RB3/other.txt"
+git -C "$REPO_RB3" add other.txt
+git -C "$REPO_RB3" commit -q -m "feat: concurrent main advance"
+OUT_MB_RB3="$TMP/mergeback-rebase-optout.json"
+set +e
+IMPROVE_LOOP_MERGE_REBASE=0 node "$SCRIPTS/merge-back.js" --repo "$REPO_RB3" >"$OUT_MB_RB3" 2>/dev/null
+MB_RB3_EC=$?
+set -e
+assert "rebase opt-out exit 4" test "$MB_RB3_EC" -eq 4
+assert "rebase opt-out blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_RB3"
+assert "rebase opt-out reason disabled" grep -q 'IMPROVE_LOOP_MERGE_REBASE=0' "$OUT_MB_RB3"
+
+# Cap: campaign-only commits above IMPROVE_LOOP_MERGE_REBASE_MAX refuse auto-rebase
+REPO_CAP="$TMP/repo-rebase-cap"
+mkdir -p "$REPO_CAP"
+git -C "$REPO_CAP" init -q -b main
+git -C "$REPO_CAP" config user.email "test@example.com"
+git -C "$REPO_CAP" config user.name "Test"
+echo base >"$REPO_CAP/README"
+git -C "$REPO_CAP" add README
+git -C "$REPO_CAP" commit -q -m init
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO_CAP" --target "rebase cap" --test-command "true" >/dev/null
+WS_CAP="$(node -e "
+const fs=require('fs'); const p=require('path');
+const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
+const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+console.log(ptr.worktree_path);
+" "$REPO_CAP")"
+[[ -f "$WS_CAP/.gitignore" ]] && git -C "$WS_CAP" add .gitignore || true
+echo a >"$WS_CAP/README"
+git -C "$WS_CAP" add README
+git -C "$WS_CAP" commit -q -m "improve-loop: iteration 1 — a"
+echo b >"$WS_CAP/README"
+git -C "$WS_CAP" add README
+git -C "$WS_CAP" commit -q -m "improve-loop: iteration 2 — b"
+echo other >"$REPO_CAP/other.txt"
+git -C "$REPO_CAP" add other.txt
+git -C "$REPO_CAP" commit -q -m "feat: concurrent main advance"
+OUT_MB_CAP="$TMP/mergeback-rebase-cap.json"
+set +e
+IMPROVE_LOOP_MERGE_REBASE_MAX=1 node "$SCRIPTS/merge-back.js" --repo "$REPO_CAP" >"$OUT_MB_CAP" 2>/dev/null
+MB_CAP_EC=$?
+set -e
+assert "rebase cap exit 4" test "$MB_CAP_EC" -eq 4
+assert "rebase cap blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_CAP"
+assert "rebase cap reason too large" grep -q 'too large for auto-rebase' "$OUT_MB_CAP"
+
+# Host GIT_DIR/GIT_WORK_TREE must not hijack L3 git -C (lib-paths strips them)
+REPO_GITENV="$TMP/repo-gitenv"
+mkdir -p "$REPO_GITENV"
+git -C "$REPO_GITENV" init -q -b main
+git -C "$REPO_GITENV" config user.email "test@example.com"
+git -C "$REPO_GITENV" config user.name "Test"
+echo base >"$REPO_GITENV/README"
+git -C "$REPO_GITENV" add README
+git -C "$REPO_GITENV" commit -q -m init
+# Outer "host" repo that polluting env would wrongly target
+OUTER_GITENV="$TMP/outer-gitenv"
+mkdir -p "$OUTER_GITENV"
+git -C "$OUTER_GITENV" init -q -b main
+git -C "$OUTER_GITENV" config user.email "test@example.com"
+git -C "$OUTER_GITENV" config user.name "Test"
+echo outer >"$OUTER_GITENV/OUTER"
+git -C "$OUTER_GITENV" add OUTER
+git -C "$OUTER_GITENV" commit -q -m outer-init
+OUTER_GIT_DIR="$(git -C "$OUTER_GITENV" rev-parse --path-format=absolute --git-dir)"
+set +e
+GIT_DIR="$OUTER_GIT_DIR" GIT_WORK_TREE="$OUTER_GITENV" \
+  node -e "
+const fs=require('fs'); const {git}=require(process.argv[1]);
+const want=fs.realpathSync(process.argv[2]);
+const top=fs.realpathSync(git(process.argv[2], ['rev-parse','--show-toplevel']));
+if (top !== want) { console.error('hijacked:', top, 'want', want); process.exit(1); }
+console.log('ok');
+" "$SCRIPTS/lib-paths.js" "$REPO_GITENV" >"$TMP/gitenv.out" 2>"$TMP/gitenv.err"
+GITENV_EC=$?
+set -e
+assert "lib-paths git ignores host GIT_DIR" test "$GITENV_EC" -eq 0
+assert "lib-paths git -C stays on fixture" grep -q '^ok$' "$TMP/gitenv.out"
 
 # --- Carry launch WIP into worktree (diff/apply + untracked copy + clean launch) ---
 CARRY_JS="$SCRIPTS/carry-launch-wip.js"
@@ -1150,6 +1623,56 @@ assert "improve-loop SKILL names review-converge sibling" \
   grep -q 'review-converge' "$ROOT/SKILL.md"
 assert "improve-loop advisors optional native-first" \
   grep -qiE 'Advisors are optional|native-replanner|optional advisor' "$ROOT/SKILL.md"
+
+
+# --- backlog-blocks.js mini-parser ---
+assert "backlog-blocks.js exists" test -f "$SCRIPTS/backlog-blocks.js"
+assert "backlog-blocks self-test" node "$SCRIPTS/backlog-blocks.js" self-test
+BB_BODY="$TMP/bb-body.md"
+cat >"$BB_BODY" <<'BB'
+- [ ] P1: [defect] fix foo (a.js) — bar
+  - Evidence: e
+  - Decision: d
+  - Preserve: p
+  - Unknown: none
+  - Acceptance: a
+
+- [ ] P1: [residual] survey
+  - Evidence: r
+  - Acceptance: ok
+BB
+assert "backlog-blocks open-count 2" bash -c \
+  'test "$(node "'"$SCRIPTS"'/backlog-blocks.js" open-count --body-file "'"$BB_BODY"'")" = "2"'
+assert "backlog-blocks residual clean exit 0" \
+  node "$SCRIPTS/backlog-blocks.js" residual-forbidden --body-file "$BB_BODY"
+BB_BAD="$TMP/bb-bad.md"
+cat >"$BB_BAD" <<'BB'
+- [ ] P1: [residual] bad
+  - Evidence: e
+  - Decision: no
+  - Acceptance: a
+BB
+set +e
+node "$SCRIPTS/backlog-blocks.js" residual-forbidden --body-file "$BB_BAD" >/dev/null 2>&1
+BB_EC=$?
+set -e
+assert "backlog-blocks residual+Decision exit 2" test "$BB_EC" -eq 2
+BB_DEL_OUT="$TMP/bb-del.json"
+node "$SCRIPTS/backlog-blocks.js" delete --body-file "$BB_BODY" --title-substr "fix foo" >"$BB_DEL_OUT"
+assert "backlog-blocks delete ok" grep -q '"deleted": true' "$BB_DEL_OUT"
+assert "backlog-blocks delete removes title" bash -c \
+  '! grep -q "fix foo" <(node -e "console.log(JSON.parse(require(\"fs\").readFileSync(process.argv[1],\"utf8\")).body)" "'"$BB_DEL_OUT"'")'
+assert "backlog-blocks delete keeps residual" bash -c \
+  'grep -q residual <(node -e "console.log(JSON.parse(require(\"fs\").readFileSync(process.argv[1],\"utf8\")).body)" "'"$BB_DEL_OUT"'")'
+
+# --- PLAN_VALIDATE / spec-validate.js ---
+assert "spec-validate.js exists" test -f "$SCRIPTS/spec-validate.js"
+node "$SCRIPTS/spec-validate.js" self-test
+assert "spec-validate self-test" true
+assert "SKILL has PLAN_VALIDATE" grep -q 'PLAN_VALIDATE' "$ROOT/SKILL.md"
+assert "SKILL has Spec validation section" grep -q '## Spec validation' "$ROOT/SKILL.md"
+assert "SKILL has Phase 3v" grep -q 'Phase 3v' "$ROOT/SKILL.md"
+assert "SKILL has unintended-change check-in" grep -qE 'Unintended-change check-in|Preserve / regression / scope' "$ROOT/SKILL.md"
 
 echo "---"
 echo "passed=$pass failed=$fail"
