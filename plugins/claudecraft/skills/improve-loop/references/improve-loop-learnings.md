@@ -251,3 +251,20 @@ Wave `mark_fail` on suite; `mark_blocked` only on real protect family.
 | A operator card still “Append Log” | Last cycle replace + Phase 3v row + planning contract link |
 | Live ledger vs live plan wording | Glossary synonym; prefer live plan in new prose; no mass rename (pins) |
 | Fable quality **PASS** residual | R8d at phase-5 + progress pulse; in-repo structure pin for PLAN_VALIDATE/R8/3v; check-in rules (diff-boundary Scope, Preserve V-row outlives complete) |
+
+## Dual-home ship hygiene (post marketplace cleanup)
+
+Evidence: `356adac` shipped SKILL + tests for rebase/reintegrate/backlog while implementing
+scripts stayed dirty; A-style `references/` dump appeared under marketplace; `backlog-blocks.js`
+was missing from M until cleanup `5da10d5`.
+
+| ID | Invariant |
+|---|---|
+| **H15** | Ship **SKILL + scripts + tests** for a behavior in **one atomic commit per home**; never land tests/docs that call a missing script surface |
+| **H16** | Package shapes: **A** = thin SKILL + full `references/`; **B/M** = monolith SKILL + `scripts/` + `tests/` + **only** `references/goal-objective.template.md`. Never rsync A `references/` → M |
+| **H17** | Law text: deliberate A↔B edit; **runtime** always B→M copy + suite; verify with `scripts/package-parity.js` |
+| **H18** | Partial marketplace sync after dogfood = **P0 hygiene** (same class as this cleanup) |
+
+L3: B `scripts/package-parity.js` + `contract-check` `requiredFiles` includes
+`backlog-blocks.js`, `spec-validate.js`, `package-parity.js`; feature-surface pins on
+reintegrate/rebase helpers.

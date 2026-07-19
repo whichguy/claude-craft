@@ -201,6 +201,22 @@ scope expansion.
 | V2 | Preserve: \<from item Preserve clause\> | suite or prose-sweep | path | cmd / rg | pending |
 | V3 | Regression: recorded suite green | suite | — | `\<Test command\>` exit 0 | pending |
 | V4 | Scope: no change outside \<boundary\> | prose-sweep or manual | paths | rg or human | pending |
+| V5 | dual-home: B ship set matches marketplace M | dual-home | improve-loop package | `node "$SKILL_DIR/scripts/package-parity.js" --skill-dir "$SKILL_DIR"` exit 0 | pending |
+
+**Canonical dual-home Proof** (Kind `dual-home` — self-improve / skill campaigns when both
+user package **B** and marketplace **M** exist):
+
+```bash
+node "$SKILL_DIR/scripts/package-parity.js" --skill-dir "$SKILL_DIR"
+# equivalent freehand:
+# diff -rq "$HOME/.claude/skills/improve-loop/scripts" \
+#   "$HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop/scripts"
+# success: exit 0, no content/path drift; M must not carry A-style extra references/*
+```
+
+Package shapes (H16): **A** = thin SKILL + full `references/`; **B/M** = monolith +
+`scripts/` + `tests/` + only `references/goal-objective.template.md`. Never rsync A
+`references/` into M.
 
 ## Canonical backlog forms (PLAN_TAG / PLAN_CLAUSES / PLAN_RESIDUAL)
 
