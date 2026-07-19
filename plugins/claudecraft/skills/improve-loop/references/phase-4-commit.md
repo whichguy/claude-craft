@@ -25,7 +25,7 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
   - On a ledger-only turn, re-check code dirtiness using the **shared code-dirty definition**
     (Phase 0 step 4; excludes `IMPROVE_LOOP.md` and this turn's `TEST_ARTIFACT_PATHS`). If any
     code path is dirty, do not commit anything. Leave all files as-is, including Phase 2/3 state edits. Set the
-    latest Log entry to
+    latest Last cycle to
     `Committed: no — code-dirty veto (refused ledger-only commit over dirty code)` and
     append one Notes line. This correction stays uncommitted. Do not set `Committed: yes`
     and do not perform commit-fail counter correction: no commit was attempted, and Phase
@@ -42,7 +42,7 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
   test-printed token could otherwise land in it) — for secret-shaped strings
   (`AKIA[0-9A-Z]{16}`, `ghp_[A-Za-z0-9]{36}`, `sk-[A-Za-z0-9]{20,}`, `AIza[0-9A-Za-z_-]{35}`,
   `-----BEGIN [A-Z ]*PRIVATE KEY-----`, and similar). On a match, don't commit: set the
-  latest Log entry's `Committed:` to `no — secret-shaped string detected in <path>`, append
+  latest Last cycle's `Committed:` to `no — secret-shaped string detected in <path>`, append
   a Notes line, and stop and report for the user to scrub. **Also scan the composed
   commit-message body string** (the second `git commit -m "<body>"` argument) for the same
   patterns before running `git commit`: the body now carries the advisor-consolidation
@@ -77,12 +77,14 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
   work, and why) is exactly what stops a future cycle from wasting effort re-attempting it,
   so never omit or minimize it; it is not a failure to hide but a result to bank.
 
-  - **Thesis** — what was tried and why (from the Log `Thesis`); state it whether it was
+  - **Thesis** — what was tried and why (from Last cycle `Thesis`); state it whether it was
     ultimately proven or disproven.
   - **Outcome** — `confirmed` / `disproven` / `partial` / `blocked`; for `disproven`, state
     what the disproof showed (the evidence that the thesis was wrong) — this negative result
     is a first-class learning, not an omission.
-  - **Test evidence** — STATUS plus a one- or two-line summary of the suite result; the
+  - **Test evidence** — STATUS plus a one- or two-line summary of the suite result; when
+    Phase 3v fired this cycle, also fold
+    `Validation: N pass / M fail (V…) / K n/a [unverified manual: k]`; the
     `Error signature` on FAIL.
   - **What landed** — `CHANGED_PATHS`, or `no code landed` for a no-op / ledger-only cycle.
   - **Advisor consolidation** — Phase 3's key agreements, disagreements/risks, and the
@@ -92,7 +94,7 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
     `no panel this cycle (ledger flush)` plus a one-line rationale. Never write
     `no panel this cycle` for an empty-backlog lightweight cycle — that would drop its real
     advisor consolidation.
-  - **Notes for next cycle** — the Log `Notes for next cycle` field, verbatim or closely
+  - **Notes for next cycle** — the Last cycle `Notes for next cycle` field, verbatim or closely
     paraphrased.
   - **Stop-condition state** — `consecutive-no-progress` / `consecutive-same-error` values
     after this cycle, and any terminal `Status` set this cycle.
@@ -104,8 +106,8 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
   consolidation and a one-line rationale. Even a ledger-flush short-form body must carry a
   one-line rationale so the learning is still reviewable.
 
-- Before attempting the commit, set the latest Log entry's `Committed:` to `yes` and stage
-  that edit. This is the narrow append-only exception: a successful commit freezes the
+- Before attempting the commit, set **## Last cycle** `Committed:` to `yes` and stage
+  that edit. This is the narrow in-place exception on current Last cycle: a successful commit freezes the
   truthful label, while a post-success patch would recreate the chicken-and-egg problem.
   If the process dies before the object exists, Phase 0 step 3a repairs it. Skip this
   pre-commit write when the code-dirty veto already wrote `Committed: no`.
@@ -133,7 +135,7 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
 
 Update the draft pulse from Phase 2:
 
-- Set **Committed** to the Log’s final value (`yes` / `no — …`).
+- Set **Committed** to Last cycle’s final value (`yes` / `no — …`).
 - Refresh **key changes** from landed commit paths or remaining dirty veto paths.
 - Note stop-condition Status if Phase 3 already set a terminal Status.
 

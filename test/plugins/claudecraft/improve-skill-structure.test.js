@@ -16,6 +16,7 @@ const REQUIRED = [
   'skills/improve-loop/references/phase-1-execute.md',
   'skills/improve-loop/references/phase-2-learn.md',
   'skills/improve-loop/references/phase-3-replan.md',
+  'skills/improve-loop/references/phase-3v-validate.md',
   'skills/improve-loop/references/phase-4-commit.md',
   'skills/improve-loop/references/phase-5-decision.md',
   'skills/improve-loop/references/contracts/goal.md',
@@ -563,6 +564,55 @@ describe('claudecraft improve skill structure', function () {
     expect(p3).to.match(/six-clause|thin Evidence/i);
     // P2 exempt stated somewhere in contract chain
     expect(ledger + p0).to.match(/P2.*exempt|exempt from six-clause|one-line only/i);
+  });
+
+  it('PLAN_VALIDATE + R8: Spec validation gate greppable; residual×2 sole complete', function () {
+    const planning = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/planning.md'),
+      'utf8'
+    );
+    const p3v = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-3v-validate.md'),
+      'utf8'
+    );
+    const skill = fs.readFileSync(path.join(CC, 'skills/improve-loop/SKILL.md'), 'utf8');
+    const p5 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-5-decision.md'),
+      'utf8'
+    );
+    const progress = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/progress.md'),
+      'utf8'
+    );
+    const index = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/INDEX.md'),
+      'utf8'
+    );
+
+    // Phase index + required file
+    expect(skill).to.match(/3v|phase-3v-validate/);
+    expect(index).to.match(/phase-3v-validate/);
+    expect(index).to.match(/R1–R8|R1-R8/);
+
+    // Law table R1–R8
+    expect(planning).to.match(/Sequencing rules \(R1–R8\)|Sequencing rules \(R1-R8\)/);
+    expect(planning).to.match(/\*\*R8\*\*/);
+    expect(planning).to.match(/\*\*R8b\*\*/);
+    expect(planning).to.match(/never.*terminal Status|never a terminal Status/i);
+    expect(planning).to.match(/residual×2|residual\*2|sole Status complete/i);
+
+    // 3v gate + R8 auto-iterate
+    expect(p3v).to.match(/never.*L1 exit reason|never a terminal Status/i);
+    expect(p3v).to.match(/validate V</);
+    expect(p3v).to.match(/fix target: product/);
+
+    // Unintended-change check-in (Preserve / regression / scope)
+    expect(planning).to.match(/Unintended-change check-in/i);
+    expect(planning).to.match(/Preserve[\s\S]{0,200}Regression[\s\S]{0,200}Scope/i);
+
+    // R8d at pulse emission (Phase 5 / progress)
+    expect(p5).to.match(/R8d|continuing.*cycle K\+1|never.*campaign .?done/i);
+    expect(progress).to.match(/continuing|R8d/i);
   });
 
   it('planning contract: brief, tiers, dual tag samples, classify, PLAN_APPLY fork', function () {

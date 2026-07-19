@@ -4,7 +4,7 @@
 
 Write one state file at the target repository root returned by
 `git rev-parse --show-toplevel`. It has a rewritable header and Backlog plus a strictly
-append-only Log, with two narrow exceptions on the *latest, not-yet-committed* entry only:
+**## Last cycle** (replace each cycle — not an append-only diary), with two narrow in-place exceptions on the *current, not-yet-committed* Last cycle only:
 (1) its `Committed` and `Notes` fields as Phase 4 specifies, and (2) its `Test result` /
 `Outcome` / `Error signature` and the Stop-condition tracking lines, as Phase 3's completion
 gate specifies (when a completion-confirmation suite fails). Phase 0 steps 3a and 3b may also
@@ -15,9 +15,10 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 
 **Test command:** `<cmd>`
 **Started:** <date>          **Status:** active | complete | stopped (<reason>)
-**Iteration counter:** N     <!-- derived; next cycle uses N+1; must match Log -->
+**Iteration counter:** N     <!-- sole live N; must match Last cycle **N:** after Phase 2 -->
 **Until:** <string|none>     <!-- continuous default: no material P0/P1 for 2 consecutive cycles (green tests) -->
 **Max cycles:** <n|none>     <!-- continuous default 10 -->
+**Spec validation:** n/a | pending | pass   <!-- PLAN_VALIDATE header flag; see phase-3v-validate.md -->
 
 ## Driver
 - **mode:** continuous | once
@@ -48,6 +49,15 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 - **Success / Done when:** residual×2 + green suite (restate skill law only)
 - **Open questions:** none | …
 - **Plan tier:** 0 | 0p | 1 | 2
+
+## Spec validation
+<!-- PLAN_VALIDATE — after brief, before Backlog. Optional T0; required T2/design-change.
+     Phase 3v runs Proofs when open P0/P1 = 0. See contracts/planning.md + phase-3v-validate.md.
+     Quarantine new red-first proofs so default suite stays green; Proof invokes un-skipped.
+     Unintended-change check-in: cover Preserve / regression / scope, not only the new feature. -->
+| ID | Intention | Kind | Artifact(s) | Proof | Status |
+|---|---|---|---|---|---|
+| V1 | … | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
 
 ## Backlog
 - [x] <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)
@@ -121,31 +131,31 @@ Rules:
 - consecutive-same-error: 0 (signature: none)
 - consecutive-non-material-cycles: 0
 
-## Log
-(append-only — newest entry at the bottom; earlier entries are never edited.
- Two narrow exceptions, both on the *latest, not-yet-committed* entry only:
- (1) as Phase 4 specifies — set `Committed: yes` *before* the commit attempt so a
- successful commit freezes the truth; on commit failure correct that same entry to
- `no — <reason>` and append Notes; never patch after a successful commit.
- (2) as Phase 3's completion gate specifies — when a completion-confirmation suite
- fails, correct that entry's `Test result` / `Outcome` / `Error signature` and the
- Stop-condition tracking lines in place. No other field, and no already-committed
- entry, is ever edited.)
+## Next
+<!-- Soft hint only — not authority for flush / residual / stop. -->
+- **Action:** execute | residual survey | product residual survey | ledger-flush | stop
+- **Item:** <open title or _(none)_>
+- **Why:** <≤1 line>
 
-### Iteration 1 — <date>
+## Last cycle
+<!-- REPLACE each Phase 2 — field form only; no ### Iteration headings.
+     History = git commit bodies. Narrow in-place on current cycle only:
+     (1) Phase 4 Committed yes/no; (2) Phase 3 completion-gate FAIL fields. -->
+**N:** <integer>
+**Date:** <date>
 **Thesis:** what we tried and why we thought it would help
 **Lint:** PASS | FAIL | skipped (no paths | no tools)
 **Lint tools:** <comma ids | none>
-**Test result:** PASS | FAIL
+**Test result:** PASS | FAIL | n/a
 **Outcome:** confirmed | disproven | partial | blocked
 **Error signature:** <none | exact short string — see Phase 2>
 **Committed:** pending | yes | no — <reason>
 **Notes for next cycle:** …
 ```
 
-`**Lint:**` / `**Lint tools:**` are optional on older ledger entries; new cycles should
-write them. Lint is orchestrator-owned via `tools/improve-lint.sh` (see phase-1-execute);
-it is **not** folded into `test_command`.
+`**Lint:**` / `**Lint tools:**` are optional on older entries; new cycles should write them.
+Lint is orchestrator-owned via `tools/improve-lint.sh` (see phase-1-execute); it is **not**
+folded into `test_command`.
 
 ### `## Driver` (rewritable; automation + rehydration)
 
@@ -188,21 +198,24 @@ This is **not** a second ledger — one file only. Lifecycle machine fields also
 subject `improve-loop: driver — next_auto <value>` so the dirty-worktree reintegrate guard
 does not false-block. Do **not** auto-commit other paths.
 
-Do not put an iteration's own commit SHA in its Backlog line or Log entry. That commit
+Do not put an iteration's own commit SHA in its Backlog line or Last cycle. That commit
 includes `IMPROVE_LOOP.md`, so its SHA does not exist when the file is written. Instead,
 always use the commit subject `improve-loop: iteration N — <summary>` and look it up with
 the stable marker `git log --grep="improve-loop: iteration N —"`. The em-dash after `N`
 is required: a bare `… iteration N` is a prefix of longer numbers under git's default
 basic regex, so iteration `1` could falsely match `10`, `11`, and later iterations.
 
-Compute `N` deterministically, never freehand:
+Compute `N` via **allocate_N** (see phase-0-resume / improve-loop plan-file law), never
+freehand and never from host turn counts / `max_cycles`:
 
 ```
-N = (number of `### Iteration` headings already in the Log) + 1
+cold-start → N := 1
+else if latest not landed → reuse Last cycle / header N
+else → N := max(header, Last cycle **N:**, optional git max) + 1
 ```
 
-At the start of Phase 2, rewrite `**Iteration counter:**` to that same `N` so the header
-and Log cannot drift. Do not derive `N` from any outer continuous counter (host goal
-max-turns, improve `max_cycles`, etc.) — that is a separate quota. Standalone and continuous
-runs for one
-target share the same sequence in `IMPROVE_LOOP.md`.
+At Phase 2: **replace** entire `## Last cycle` for `N`, set header counter to same `N`.
+Standalone and continuous runs for one target share the same sequence in `IMPROVE_LOOP.md`.
+
+**Legacy:** if `## Log` / `### Iteration` present on resume, collapse to Last cycle (max N)
+before 3a/3b — orchestrator only; L3 dual-detects for migrate/discard via hasCycleState.

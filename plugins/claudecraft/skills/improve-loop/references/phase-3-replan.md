@@ -25,7 +25,7 @@ background polling unless the host requires it. Advisors return review text only
 repository access and are expected to see uncommitted diffs and the full `IMPROVE_LOOP.md`
 Log (this cycle's Phase 2 entry included). The scope boundary is not filesystem privacy —
 it is that (a) advisors never edit, and (b) consolidation keeps new Backlog items scoped to
-the stated target (out-of-scope observations go in Log Notes, not Backlog bullets).
+the stated target (out-of-scope observations go in Last cycle Notes, not Backlog bullets).
 
 **Read-only dispatch.** In every advisor prompt, ask for read-only behavior in plain
 language: `This is a read-only advisory review. Do not make any edits or run any write
@@ -80,7 +80,7 @@ Do this synthesis in the orchestrating context, not another dispatch. Identify a
 disagreement, and the range of recommendations. If zero advisors produced usable Round-1
 text, skip Round 2 and use the **native-replanner fallback** for this cycle only. Give that
 single native replanner the same inputs Round 1 received and require a Backlog body only.
-Append one line to the latest Log Notes recording the full-panel failure. Do not allow
+Append one line to the latest Last cycle Notes recording the full-panel failure. Do not allow
 advisor infrastructure flakiness to stall the loop.
 
 When usable Round-1 advisors show strong agreement—all recommend the same direction, have
@@ -125,7 +125,7 @@ P0/P1 per `ledger-schema.md`). It must not be a free-form essay or a whole-file 
 | `must-fix` | Violates an existing contract or broken suite | New/updated `[defect]` or residual thin item |
 | `decision` | Multiple defensible behaviors; needs explicit choice | New/updated `[product-choice]` or `[architecture]` with Decision filled |
 | `simplify` | Same behavior, less surface | Optional `[implementation]` or P2 — never silently drop Preserve |
-| `defer` | Out of target scope or not worth a cycle | Log Notes only; **not** a new P0/P1 unless operator elevates |
+| `defer` | Out of target scope or not worth a cycle | Last cycle Notes only; **not** a new P0/P1 unless operator elevates |
 
 **Intent fidelity locks (normative):**
 
@@ -142,7 +142,7 @@ P0/P1 per `ledger-schema.md`). It must not be a free-form essay or a whole-file 
 
 Apply it surgically and natively: replace only the `## Backlog` body through the next
 `## ` heading in `IMPROVE_LOOP.md`. Never ask an advisor or fallback replanner to rewrite
-the whole file; that can clobber deterministic counters and the append-only Log.
+the whole file; that can clobber deterministic counters and **## Last cycle** and stop counters.
 
 **Disproven-thesis guard (native, before the surgical apply).** Before applying the
 candidate Backlog, the orchestrator — the LLM context running this phase, not a subagent —
@@ -158,7 +158,7 @@ not to work:
   whether its rationale states a concrete reason the prior disproof no longer holds. This is
   a judgment call; a naive substring check would miss paraphrases and must not be used.
 - If the item re-asserts a disproven thesis **without** a stated reason: drop or rewrite the
-  item and append one line to the latest Log Notes:
+  item and append one line to the latest Last cycle Notes:
   `replanner proposed re-attempt of disproven thesis (iter K): <short> — dropped/rewritten`.
 - If the item re-asserts a disproven thesis **with** a stated reason: keep the item and
   **write that reason into the surviving Backlog line's rationale phrase**, e.g.
@@ -195,11 +195,17 @@ ledger-only turn, Phase 4's code-dirty veto will correctly refuse to commit; on 
 turn, leave unexpected paths unstaged so the next invocation's Phase 0 dirty-tree guard
 stops. Never fold advisor-side dirt into the cycle commit.
 
-Immediately after surgical apply or deliberate non-apply, and without a subagent, use the
-counters Phase 2 already wrote to update Status *in this exact order* (canonical table:
-`contracts/goal.md` — terminal status → same-error → no-progress → caps → until). When Node
-is available, prefer `tools/improve-stop-decision.js` with a snapshot whose `until_kind` the
-caller derived from the ledger header (`default` / `custom` / `none`); pass
+Immediately after surgical apply or deliberate non-apply, and without a subagent:
+
+**Phase 3v — Spec validation gate (before Status complete rules).**  
+When open P0/P1 = 0 after replan and rules 1–2 below would not already stop, run
+`phase-3v-validate.md` (product residual survey first if still pending). Failures seed
+deduped `validate V<k>` P1 items so complete cannot fire; residual×2 remains sole complete
+law. Prefer pure helper `scripts/spec-validate.js` (B) for parse/seed/dedupe when present.
+Then use the counters Phase 2 already wrote to update Status *in this exact order*
+(canonical table: `contracts/goal.md` — terminal status → same-error → no-progress → caps →
+until). When Node is available, prefer `tools/improve-stop-decision.js` with a snapshot whose
+`until_kind` the caller derived from the ledger header (`default` / `custom` / `none`); pass
 `custom_until_met: false` here (only S8 / goal host may set true). Map helper
 `decision: complete|stop` onto Status; `confirm` → leave `active` + Notes
 `confirm: verification cycle required`; `continue` → leave `active`. Markdown rules below
@@ -266,10 +272,10 @@ remain the no-Node fallback:
      signature (Phase 2 derivation). The lightweight Phase 2 *held* the counters, so **apply
      the completion-gate counter rule now, once, here in Phase 3** (do not re-enter Phase 2's
      matrix): `consecutive-no-progress` **+1**; set `consecutive-same-error` by **FAIL-row
-     semantics** — if the new signature **equals** the prior entry's signature → +1, else →
-     reset to 1 with the new signature. Do **not** use the blocked-row "hold signature
-     `none`" here: holding `none` would never let repeated completion-gate failures trip a
-     same-error stop.
+     semantics** — if the new signature **equals** the stop-counter signature as of Phase 2
+     start (or this gate's prior stop-counter value) → +1, else → reset to 1 with the new
+     signature. Do **not** use the blocked-row "hold signature `none`" here: holding `none`
+     would never let repeated completion-gate failures trip a same-error stop.
    - **(c) A FAIL cycle whose revert succeeded and whose replan emptied the Backlog** (STATUS
      was FAIL this cycle, the tree is **not** code-dirty under the shared definition in
      Phase 0, and zero unchecked items remain after replan): run the recorded test command

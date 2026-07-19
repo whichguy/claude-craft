@@ -218,3 +218,36 @@ Wave `mark_fail` on suite; `mark_blocked` only on real protect family.
 | B `backlog-blocks.js` | parse / open-count / deleteBlock / residual-forbidden; scripts.test fixtures |
 | H9 / H11 / H14 | Six-clause + residual thin; mid residual empty OK; A continuous `[x]` freeze |
 
+
+
+## Live plan shape (Log → Last cycle, plan-file)
+
+| Surface | Note |
+|---|---|
+| Live `IMPROVE_LOOP.md` | **Now-state plan**: brief + open Backlog/Deferred + stop counters + soft **## Next** + replace-each-cycle **## Last cycle** |
+| History | **Git commit bodies** (Thesis/Outcome/What landed/Next backlog/deferred/stop) — not multi-entry Log |
+| H13 | Disk still required mid-campaign; collapse diary only, keep Driver/Isolation |
+| H14 | A continuous `[x]` freeze; B open-only; shared change is Log→Last cycle only |
+| Cross-cycle same-error | Stop-condition signature at Phase 2 start — not prior diary entry |
+
+## PLAN_VALIDATE + Phase 3v (spec-first spine)
+
+| Surface | Note |
+|---|---|
+| Spine | **Plan → Spec validation/tests → Code → Prove** (R1–R8) |
+| `## Spec validation` | V-rows with Proof commands; header `**Spec validation:**` |
+| Phase 3v | When open=0 after replan; fail seeds `validate V<k>` P1; residual×2 sole complete |
+| **R8** | 3v fail never terminal; autonomous L1 auto-continues until validation clean or stop |
+| Quarantine | Red-first proofs quarantined so default suite stays green |
+| Helper | B `scripts/spec-validate.js` parse/seed/dedupe |
+| vs Spec Kit | Spec-before-code without Spec Kit dep; we **close the loop** until prove clean (CI-gate shape) |
+
+## Quality pass (post-R8 polish)
+
+| Finding | Fix |
+|---|---|
+| Heading/pointer **R1–R7** while table had R8 | Renamed to **R1–R8** (planning, INDEX, phase-3v) |
+| Spec validation could pass feature-only | **Unintended-change check-in**: Preserve / regression / scope at planning-time |
+| A operator card still “Append Log” | Last cycle replace + Phase 3v row + planning contract link |
+| Live ledger vs live plan wording | Glossary synonym; prefer live plan in new prose; no mass rename (pins) |
+| Fable quality **PASS** residual | R8d at phase-5 + progress pulse; in-repo structure pin for PLAN_VALIDATE/R8/3v; check-in rules (diff-boundary Scope, Preserve V-row outlives complete) |

@@ -92,8 +92,9 @@ markdown. Exit 2 if `cycle` is missing.
 
 | Field | Source |
 |---|---|
-| cycle N | Log `### Iteration N` / header `Iteration counter` |
-| outcome / test / committed | Latest Log entry |
+| cycle N | Last cycle `**N:**` / header `Iteration counter` |
+| Validation | When `## Spec validation` exists: `Validation: X pass / Y pending / Z fail` (Phase 3v). On any executable fail / seeded `validate V<k>`: verdict is **continuing** (R8d) — never “done” |
+| outcome / test / committed | Latest Last cycle |
 | backlog done/total | Count `- [x]` vs all `- [ ]`/`- [x]` under `## Backlog` |
 | stall counters | `## Stop-condition tracking` |
 | changed_paths | Pre-test `CHANGED_PATHS`, or `git show --name-only` if commit landed |
@@ -105,7 +106,7 @@ markdown. Exit 2 if `cycle` is missing.
 
 | Moment | Who | Required? |
 |---|---|---|
-| After Phase 2 Log append | improve-loop | **Yes** — draft pulse (Committed may still be pending) |
+| After Phase 2 Last cycle replace | improve-loop | **Yes** — draft pulse (Committed may still be pending) |
 | After Phase 4 commit or veto | improve-loop | **Yes** — finalize Committed + paths (update same cycle’s pulse or emit short amend) |
 | End of Phase 5 | improve-loop | **Yes** if not already finalized post-Phase 4 |
 | After each S8 cycle | improve driver | **Yes** — ensure pulse exists; synthesize from Log if cycle omitted it |

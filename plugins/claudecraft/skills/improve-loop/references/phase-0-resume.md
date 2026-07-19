@@ -115,19 +115,26 @@ Then continue with the numbered steps below.
    When T2/T0p requires a brief: write `## Campaign brief` after `## Driver` (PLAN_BRIEF)
    before Phase 1. Optional header: `**Product residual survey:** pending|done|n/a (defect)`.
 
+   **PLAN_VALIDATE (spec-first spine):** after brief (or after Driver when no brief), write
+   `## Spec validation` when tier is T2 / design-change / `--plan-deep` (**required** —
+   primary path). T0 may omit (vacuous 3v pass). Set header
+   `**Spec validation:** pending|n/a|pass`. Prefer seeding test-authoring P1s for missing
+   Proof artifacts before product P1s (R2). Phase 3v at completion is the prove step; missing
+   required section at gate is U6 **fallback** seed only (do not double-wire).
+
 3. Otherwise read the header, **`## Driver`** (if present), Backlog, Stop-condition block,
-   and last two or three Log entries only.
-   If the Log has zero entries, the file was created by an earlier invocation that crashed
-   before Phase 1 produced a Log entry. This is not the same-turn fresh-create case, but
+   and ## Last cycle (after any legacy Log collapse) only.
+   If **## Last cycle** is empty / missing cycle fields, the file was created by an earlier invocation that crashed
+   before Phase 1 produced a Last cycle. This is not the same-turn fresh-create case, but
    needs identical treatment: skip 3a–4 and go to step 5 with `N = 1`. There is no latest
-   Log entry for 3a, 3b, or 4 to inspect; running those steps would incorrectly enter the
+   Last cycle for 3a, 3b, or 4 to inspect; running those steps would incorrectly enter the
    ledger-flush branch instead of reaching this fallback. Otherwise, do not allocate a new
    `N` yet. First decide whether the turn repairs the ledger, short-circuits terminally,
    or starts a real cycle in steps 3a–4. Allocate
-   `N = (number of ### Iteration headings) + 1` only when entering a new Phase 1–3 cycle
+   allocate_N (header / Last cycle / optional git max) only when entering a new Phase 1–3 cycle
    after step 4 clears continuation.
 
-   3a. **Orphaned `Committed: yes` recovery.** If the latest Log entry says
+   3a. **Orphaned `Committed: yes` recovery.** If **## Last cycle** says
    `Committed: yes` but
    `git log --grep="improve-loop: iteration <that entry's N> —" -n 1` finds no commit,
    the previous cycle wrote pre-commit `yes` but never landed a commit (crash, kill, or
@@ -136,7 +143,7 @@ Then continue with the numbered steps below.
    backfill commit here: this is an honesty repair only, and step 4 may still need a
    ledger flush.
 
-   3b. **Stuck `Committed: pending` recovery.** If the latest Log entry still says
+   3b. **Stuck `Committed: pending` recovery.** If **## Last cycle** still says
    `pending`, the cycle died after Phase 2 wrote it but before Phase 4's pre-commit `yes`
    write, including a Phase-4 code-dirty veto that never staged. Correct it to
    `Committed: no — cycle interrupted before commit` and append one Notes line. This is
@@ -187,7 +194,7 @@ Then continue with the numbered steps below.
    After step 8 use lightweight Phase 2, then Phase 3, Phase 4, and Phase 5. Do not invent
    an ad-hoc code task to fill the cycle; replanning can reopen work or declare completion.
 
-   **Confirm exception:** if the latest Log entry Notes (or Status Notes) contain the exact
+   **Confirm exception:** if the latest Last cycle Notes (or Status Notes) contain the exact
    substring `confirm: verification cycle required`, do **not** take the no-suite lightweight
    path. Run the recorded test command **once** this cycle (orchestrator-owned; same shared
    `TEST_ARTIFACT_PATHS` capture as Phase 1) **despite empty backlog**, then continue
@@ -196,16 +203,16 @@ Then continue with the numbered steps below.
    suite was not current.)
 
    For the **lightweight Phase 2** empty-backlog/no-execute path (when Confirm exception does
-   **not** apply), append an entry with
-   `Committed: pending`, Thesis such as `empty-backlog replan (no Phase 1 execute)`, Test
-   result `PASS` (the suite was intentionally not re-run because no change set exists),
-   Outcome `partial`, and Error signature `none`. Hold both **stall** counters
-   (`consecutive-no-progress`, `consecutive-same-error`) and the stored error signature
-   *exactly* as they were — do not apply the normal PASS/partial matrix row that would
-   reset `consecutive-no-progress`. For **`consecutive-non-material-cycles`**, follow
-   phase-2-learn empty-backlog rule: under default P0/P1×2 until, **+1** on this PASS so
-   two consecutive clean surveys can complete the campaign; otherwise hold unless Phase 3
-   runs a completion suite. Set the header counter to `N`, then run Phase 3 normally.
+   **not** apply), **replace** entire `## Last cycle` with `Committed: pending`, Thesis such
+   as `empty-backlog replan (no Phase 1 execute)`, Test result `PASS` (the suite was
+   intentionally not re-run because no change set exists), Outcome `partial`, and Error
+   signature `none`. Hold both **stall** counters (`consecutive-no-progress`,
+   `consecutive-same-error`) and the stored error signature *exactly* as they were — do not
+   apply the normal PASS/partial matrix row that would reset `consecutive-no-progress`. For
+   **`consecutive-non-material-cycles`**, follow phase-2-learn empty-backlog rule: under
+   default P0/P1×2 until, **+1** on this PASS so two consecutive clean surveys can complete
+   the campaign; otherwise hold unless Phase 3 runs a completion suite. Set header counter
+   and Last cycle `**N:**` to `N`, then run Phase 3 normally.
 
 6. For turns that will run Phases 1–3, apply the dirty-tree guard using the **shared
    code-dirty definition** (step 4) on the **active tree** (worktree if set, else launch).
@@ -253,9 +260,9 @@ Then continue with the numbered steps below.
    - **Supplement, don't prefer-git.** Use the git body as the primary source, but for any
      field absent or clearly incomplete in the body — notably commits written before the
      Phase 4 enumerated-body rule, whose bodies are thin prose while the `IMPROVE_LOOP.md`
-     Log entry for the same iteration has the structured Thesis/Outcome/Error-signature/Notes
-     — supplement that field from the Log. Only if git and the Log *conflict on a factual
-     claim* (Thesis or Outcome) do you note the discrepancy in this cycle's Log Notes; mere
+     Last cycle for the same iteration has the structured Thesis/Outcome/Error-signature/Notes
+     — supplement that field from ## Last cycle when N matches the commit iteration. Only if git and Last cycle *conflict on a factual
+     claim* (Thesis or Outcome) do you note the discrepancy in this cycle's Last cycle Notes; mere
      verbosity differences are not a conflict. The Log is already visible to advisors via
      `IMPROVE_LOOP.md`, so they see both sources regardless.
    - Carry this digest forward into Phase 3 (Round 1 and the consolidation guard) and Phase 1
@@ -273,3 +280,12 @@ Then continue with the numbered steps below.
    owned by the host goal stop predicate or improve caps — not by a product-specific
    re-invoke state file. Every continuous turn still **rehydrates from disk** (header +
    `## Driver` + last Log entries) before trusting chat.
+
+
+### Live plan shape (plan-file — not diary)
+
+- Prefer `## Last cycle` (replace each Phase 2) over append-only `## Log`.
+- **Legacy Log collapse** on resume (orchestrator): max-N `### Iteration` → Last cycle field
+  form; delete `## Log`; then 3a/3b. L3 only dual-detects (`hasCycleState`).
+- Empty / heading-only Last cycle + counter 0 = zero cycle state (like zero Log entries).
+- Cross-cycle same-error signature: stop-condition tracking, not a prior diary entry.

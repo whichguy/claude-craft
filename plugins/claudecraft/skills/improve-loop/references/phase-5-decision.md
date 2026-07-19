@@ -31,7 +31,7 @@ Phase 3 set terminal Status on a full cycle and Phase 4 attempted the ledger com
 only on a **committed** terminal state for **host goal complete/blocked**; progress pulses
 already cover active/blocked/veto cases above.
 
-- If Status is `complete` or `stopped (...)` **and** the latest Log entry is **landed**—it
+- If Status is `complete` or `stopped (...)` **and** the latest Last cycle is **landed**—it
   has `Committed: yes` and
   `git log --grep="improve-loop: iteration N —"` finds the commit—then:
 
@@ -60,6 +60,11 @@ already cover active/blocked/veto cases above.
 - Otherwise Status is active. End normally. Under a host **goal**, the host may start
   another turn (each turn rehydrates from disk via Phase 0). Under the `improve` driver,
   continue S8 or exit to reintegrate per driver caps.
+
+- **R8d (pulse emission):** if Phase 3v seeded any `validate V<k>` (or write-section) work,
+  Status is still `active` — pulse/discovery must say **continuing** (cycle K+1), never
+  campaign “done”. 3v fail is never a terminal Status and never an L1/host exit reason
+  (see `phase-3v-validate.md` R8).
 
 ## Continuous / quota composition
 
@@ -119,7 +124,7 @@ blocked_detail: <or none>
 
 Steps:
 1. cd worktree_path if set, else repo
-2. Read IMPROVE_LOOP.md header + ## Driver + last Log entries
+2. Read IMPROVE_LOOP.md header + ## Driver + ## Last cycle
 3. Prefer run_json for paths if file exists; run improve-worktree.sh status --repo … --slug … for summary
 4. Execute next_auto only:
    - cycle | reintegrate | destroy | done

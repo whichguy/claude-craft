@@ -45,7 +45,7 @@ Other harnesses: load this skill and pass the same free-form target.
 Optional alias: bare `/improve-loop` via local planning-suite alias.
 
 If the test command is missing: **ask once** when a human is present; record it in
-`IMPROVE_LOOP.md`. Unattended outer loops with no test command: write a blocked Log entry,
+`IMPROVE_LOOP.md`. Unattended outer loops with no test command: write a blocked Last cycle,
 commit ledger-only, stop cleanly (see `references/phase-0-resume.md` / outer-loop contract).
 
 ## Preconditions
@@ -60,7 +60,8 @@ Fail fast in Phase 0. Do not half-run a cycle.
 
 ## Durable state
 
-Schema, **`## Driver`**, Log rules, iteration counter `N`, and stop-condition matrix:
+Schema, **`## Driver`**, **## Last cycle** (replace each cycle — not diary Log), Spec
+validation header, iteration counter `N`, and stop-condition matrix:
 
 → **Read** `references/ledger-schema.md`
 
@@ -78,9 +79,10 @@ Execute in order. For each step, **Read** the linked file and follow it fully.
 |---|---|---|
 | 0 | Resume, dirty/landed guards, digests, caps probe | `references/phase-0-resume.md` |
 | 1 | Execute one backlog item; orchestrator tests once; revert on FAIL | `references/phase-1-execute.md` |
-| 2 | Append Log; update counters; check off only confirmed+code; **draft progress pulse** | `references/phase-2-learn.md` |
-| 3 | Advisor/native replan; surgical Backlog; Status stops | `references/phase-3-replan.md` |
-| 4 | One commit (or code-dirty/secret veto); 7-field body; **finalize pulse Committed/paths** | `references/phase-4-commit.md` |
+| 2 | **Replace** `## Last cycle`; update counters; check off only confirmed+code; **draft progress pulse** | `references/phase-2-learn.md` |
+| 3 | Advisor/native replan; surgical Backlog | `references/phase-3-replan.md` |
+| 3v | **Spec validation gate** (when open P0/P1 = 0); fail→seed `validate V<k>`; then Status stops | `references/phase-3v-validate.md` |
+| 4 | One commit (or code-dirty/secret veto); body + Validation line when 3v fired; **finalize pulse** | `references/phase-4-commit.md` |
 | 5 | **Emit control-channel progress pulse**; host `goal.complete`/`blocked` if terminal **and** landed | `references/phase-5-decision.md` |
 
 **Load rule:** do not rely on memory of a 900-line monolith — open the phase reference for the phase you are in.
@@ -91,6 +93,7 @@ Execute in order. For each step, **Read** the linked file and follow it fully.
 |---|---|
 | Goal (continuous host) | `references/contracts/goal.md` |
 | Progress pulses | `references/contracts/progress.md` |
+| Planning (PLAN_*, R1–R8, Spec validation) | `references/contracts/planning.md` |
 | Executor | `references/contracts/executor.md` |
 | Advisor | `references/contracts/advisor.md` |
 | Outer loop / quotas | `references/contracts/outer-loop.md` |

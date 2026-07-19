@@ -15,6 +15,9 @@ rules fork** (see PLAN_APPLY).
 | **Residual item** | Kind `[residual]` with Evidence + Acceptance only |
 | **Residual-only cycle** | Open P0/P1 count **= 0** after replan (not “has a residual seed item”) |
 | **Promote-class** | Scan candidates classified `promote` (see below) |
+| **Spec validation row** | One V-row under `## Spec validation` (PLAN_VALIDATE): intention + kind + artifact + Proof + Status |
+| **Phase 3v** | Completion-path gate: run executable Proofs when open P0/P1 = 0; fail seeds coding work |
+| **Live plan** | `IMPROVE_LOOP.md` working memory (aka **live ledger** in older pins). History = git commit bodies — not multi-entry Log |
 
 ## Promote-class (classify table) — PLAN_CLASSIFY
 
@@ -27,11 +30,48 @@ always; defect when applicable):
 | **keep P2** | Real but not ≤1-cycle or not worth a material cycle | Deferred one-line P2 |
 | **waive** | Intentional forever / out-of-scope | Notes `limitation waived: <short>` + `classify: waive — <why>` |
 
-Every scanned candidate → Log Notes: `classify: promote|keep P2|waive — <why>`.
+Every scanned candidate → Last cycle Notes: `classify: promote|keep P2|waive — <why>`.
 
 **T2** iff promote-class non-empty **or** `--plan-deep`.  
 **T0p** iff product/mixed **and** promote-class empty **after** full scan.  
 **T0** (defect) iff no promote-class after inspect.
+
+## Operator spine (spec-first) — PLAN_VALIDATE lifecycle
+
+```text
+1. PLAN     — brief + material Backlog + locks
+2. TESTS    — ## Spec validation V-rows + proof artifacts (quarantined if red-first)
+3. CODE     — product (+ un-quarantine / test fill-in)
+4. PROVE    — Phase 3v runs Proofs; fail → seed validate V<k> → back to 2/3
+```
+
+Improve tests in-loop (R6). residual×2 + green suite remains the **only** Status `complete`
+law — 3v blocks complete only by seeding open P0/P1 (never a second complete predicate).
+
+### Sequencing rules (R1–R8)
+
+| Rule | Law |
+|---|---|
+| **R1** | Plan + V-rows before product select when T2/design-change requires validation |
+| **R2** | **Mechanical:** if open product Acceptance refs `V<k>` and that V-row’s Proof artifact is **not on disk**, select the open test-authoring item for `V<k>` first (T0 exploratory may skip) |
+| **R3** | Product Acceptance references `V<k>` when proving that lock |
+| **R4** | Prove (3v) only when open P0/P1 = 0 after replan |
+| **R5** | 3v fail → seed `validate V<k>` → iterate coding/tests |
+| **R6** | Test improvement first-class; a `validate V<k>` item may fix **product or proof** |
+| **R7** | residual×2 + green suite sole Status complete — never “all V pass ⇒ complete” alone |
+| **R8** | 3v fail is **never** a terminal Status and **never** an L1 exit reason. In **autonomous** mode, after 3v seeds any `validate V<k>` (or write-section) item, L1 **must immediately** start the next L2 cycle without asking the user — keep coding/fixing until Spec validation is clean or hard stops fire |
+| **R8b** | Exit campaign only when: (`**Spec validation:** pass` or vacuous `n/a`) **and** residual×2 complete rules fire, **or** hard stop (same-error ×3 / no-progress ×3 / max-cycles / blocked) |
+| **R8c** | `--once` / once mode: still seed and leave Status `active`; **do not** auto multi-cycle — operator re-invokes |
+| **R8d** | Discovery card / pulse after 3v fail: say **continuing** (cycle K+1), never “done” |
+
+### Quarantine convention (red-first proofs)
+
+- New proof tests land **quarantined** (skip/pending marker **or** path excluded from default
+  recorded test command / Confirm invocation) so the default suite stays green.
+- V-row **Proof** cell invokes the test **explicitly un-skipped**.
+- Product Acceptance includes **un-quarantine** when the feature is meant to green that
+  proof in the default suite.
+- Pre-product red suite must **not** feed same-error ×3 (quarantine is load-bearing).
 
 ## Decision order (cold-start)
 
@@ -40,7 +80,10 @@ Every scanned candidate → Log Notes: `classify: promote|keep P2|waive — <why
 2. Inspect + git digest + habitat
 3. Classify every candidate (promote|keep P2|waive) + Notes
 4. Choose plan tier
-5. Write brief (if required) + Backlog + Deferred + Product residual survey header
+5. Write brief (if required) + ## Spec validation when required (T2 / design-change;
+   optional T0) + header **Spec validation:** n/a|pending|pass
+   + Backlog + Deferred + Product residual survey header
+   Prefer seed test-authoring P1s for missing Proof artifacts before product P1s (R2)
 6. Phase 1 if selecting an open item (incl. residual investigation);
    residual-only cycle only when open count = 0
 ```
@@ -81,6 +124,83 @@ Cold-start T0p does **not** set `done` — mid-campaign gate still fires once wh
 | Delimiter | `## Campaign brief` body through next `## ` |
 | Writer | Orchestrator only; advisors recommend deltas |
 | Soft caps | ≤12 bullets / ~400 words; each clause line ≤200 chars |
+
+## Spec validation — PLAN_VALIDATE
+
+**Placement:** After `## Campaign brief`, before `## Backlog` (if no brief: after
+Isolation/Driver, before Backlog). Orchestrator-only write; advisors may recommend rows.
+
+```markdown
+## Spec validation
+<!-- PLAN_VALIDATE — Phase 3v completion-path gate. Stable V-IDs (never renumber).
+     Proof cells must be copy-paste executable with success semantics. -->
+
+| ID | Intention | Kind | Artifact(s) | Proof | Status |
+|---|---|---|---|---|---|
+| V1 | … | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | command + success (exit 0 \| match \| no match) | pending \| pass \| fail \| n/a |
+```
+
+**Header flag:** `**Spec validation:** n/a | pending | pass`  
+- `n/a` — section absent or all rows n/a (vacuous 3v pass)  
+- `pending` — non-n/a rows not all executable-pass, or 3v seeded fails  
+- `pass` — last 3v run: all **executable** rows pass (pure `manual` never required for pass)
+
+| Kind | Blocks unattended complete? | Proof shape |
+|---|---|---|
+| **suite** / **L3-test** / **prose-sweep** / **dual-home** | Yes if fail | Runnable command |
+| **skill-law** with rg/path pin | Yes if fail | `rg` / path existence |
+| **manual** | **Never** alone | Human check; pulse `unverified (manual): k` |
+
+**Tier intensity:**
+
+| Tier | Spec validation |
+|---|---|
+| T0 residual | Optional / omit or 1 row |
+| T0p | Prefer 1–3 rows |
+| T2 / `--plan-deep` / design-change | **Required** at Phase 0 (primary); missing at 3v → seed write-section once (fallback) |
+
+**Soft caps:** ≤15 rows / ~400 words. Advisors may **add** rows or mark `n/a` with reason;
+**never** delete or reword Proof to make a row pass.
+
+**Phase 3v** (see `phase-3v-validate.md`): when open P0/P1 = 0 after replan and no counter-stop,
+run executable Proofs; fail seeds deduped `- [ ] P1: [defect] validate V<k>: …`; residual×2
+unchanged as sole complete law.
+
+### Unintended-change check-in (planning-time)
+
+When writing or revising `## Spec validation`, ensure intentions cover **more than the new
+feature** — so 3v cannot pass while shipping Preserve violations, regressions, or silent
+scope expansion.
+
+| Intention class | Source | Typical Kind | Required when |
+|---|---|---|---|
+| **Preserve** | Each open material item’s `Preserve:` clause (and brief Constraints when load-bearing) | suite / L3-test / skill-law / prose-sweep | T2 / design-change if Preserve is non-trivial; else Notes `preserve n/a: <why>` |
+| **Regression** | Recorded **Test command** + any campaign-critical green invariant | suite (preferred) | Always when a recorded test command exists (T0 may be that single suite row) |
+| **Scope** | Brief **Out of scope / waived** + target boundary | prose-sweep / skill-law / manual | T2; vacuous T0 residual may omit |
+
+**Rules:**
+- Prefer **executable** Proofs (R6/R7 unchanged). Pure `manual` Scope rows never alone block complete.
+- Scope rows should prefer an executable diff-boundary Proof over `manual` when a base ref
+  exists (e.g. `git diff --stat <base>.. -- ':!<in-scope path>'` with success = empty/no match).
+- Do **not** treat check-in rows as a second complete predicate — 3v still only seeds open
+  work; residual×2 sole complete (R7).
+- Completing an item (A `[x]` / B block-delete) never removes its Preserve V-row — V-IDs are
+  stable and the row remains the post-completion guard.
+- Check-in rows re-run at every gate firing like all executable rows; a Preserve or Regression
+  fail seeds the same deduped `validate V<k>` P1 — no special seed class.
+- Advisors may **add** Preserve/regression rows; may not delete Proofs to force pass.
+- Planning lifts Preserve text into V-row Intention (or cites item id); Phase 1 still enforces
+  Preserve at execute time.
+- New regression/preserve tests still land **quarantined** until product un-quarantines.
+
+**Example rows (illustrative):**
+
+| ID | Intention | Kind | Artifact(s) | Proof | Status |
+|---|---|---|---|---|---|
+| V1 | Feature: \<lock under test\> | L3-test | path | `node test/…` exit 0 | pending |
+| V2 | Preserve: \<from item Preserve clause\> | suite or prose-sweep | path | cmd / rg | pending |
+| V3 | Regression: recorded suite green | suite | — | `\<Test command\>` exit 0 | pending |
+| V4 | Scope: no change outside \<boundary\> | prose-sweep or manual | paths | rg or human | pending |
 
 ## Canonical backlog forms (PLAN_TAG / PLAN_CLAUSES / PLAN_RESIDUAL)
 
@@ -136,7 +256,7 @@ Block ends at next checklist title, next `## `, or blank line then non-clause co
 
 ## Intent digest (Phase 4)
 
-Live ledger holds full clauses. Phase 4 `Next backlog:` may be title-only.
+Live plan holds full clauses. Phase 4 `Next backlog:` may be title-only.
 For each still-open **six-clause material** item, commit Notes/body:
 
 `open intent: <short> | Decision: … | Preserve: …`
@@ -160,12 +280,12 @@ Structured 5-block (native-replanner and advisors):
 | **A** | Continuous driver `throttle.md` (full panel every **3rd** cycle or stall) — cite, do not override here |
 | **B** | Residual/T0/T0p/T1: **native-only**. Full panel only T2 / `--plan-deep` / stall / disagreement. No periodic K this arc |
 
-Advisor input soft cap: open Backlog + last 3 Log + compact COMPLETED/DISPROVEN sets.
+Advisor input soft cap: open Backlog + ## Last cycle + compact COMPLETED/DISPROVEN sets.
 
 ## Static PLAN_* pin IDs (docs)
 
-`PLAN_TAG` · `PLAN_CLAUSES` · `PLAN_RESIDUAL` · `PLAN_BRIEF` · `PLAN_APPLY` ·
-`PLAN_CLASSIFY` · `PLAN_LEGACY_A`
+`PLAN_TAG` · `PLAN_CLAUSES` · `PLAN_RESIDUAL` · `PLAN_BRIEF` · `PLAN_VALIDATE` ·
+`PLAN_APPLY` · `PLAN_CLASSIFY` · `PLAN_LEGACY_A`
 
 Hard refusals: no Spec Kit dep; no residual theater; no inventing material for residual×2;
 A continuous `[x]` freeze; no hermes SKILL dual-home claim from this contract alone.

@@ -3,8 +3,20 @@
 
 ### Phase 1 — Execute
 
-This is the fresh-agent context-clearing step. Select the next unchecked Backlog item. As a
-backstop, before selecting, skip any unchecked item that re-asserts a prior disproven thesis
+This is the fresh-agent context-clearing step. Select the next unchecked Backlog item.
+
+**R2 mechanical (PLAN_VALIDATE):** if any open product item’s Acceptance references `V<k>`
+and that V-row’s Proof artifact is **not on disk**, select the open test-authoring item for
+`V<k>` first (T0 exploratory may skip). Prefer quarantined proof tests so default suite stays
+green (`contracts/planning.md` quarantine).
+
+**Pure-test items:** Outcome `confirmed` when the artifact exists, parses/runs, and the
+**quarantine-respecting** suite is green — deliberate red proof status is expected and
+Notes-only, not `failed` (U-new-3).
+
+**`validate V<k>` items:** may be resolved by fixing **product or proof** (R6 / U-new-6).
+
+As a backstop, before selecting, skip any unchecked item that re-asserts a prior disproven thesis
 **unless** the item's Backlog-line rationale explicitly re-opens it with a stated reason (per
 Phase 3's reason-in-rationale rule). This catches a disproven re-attempt that survived into
 the Backlog despite Phase 3's guard. It reads the same disproven-theses list carried from
@@ -57,10 +69,10 @@ Backlog rewrite. Residual thin items hand off **Evidence** + **Acceptance** only
   verified, risks, and, when blocked with open questions, enough context to resume the
   same implementer thread rather than launching a fresh one. Clarify-and-resume stays
   inside this Phase 1 dispatch (cap ~two rounds), resolved before 1b reports back — never
-  threaded across cycles via the Log.
+  threaded across cycles via multi-entry diary (land notes in this cycle's ## Last cycle at Phase 2).
 - **Scope check on 1b's report:** if the implementer reports any changed path outside the
   file scope declared in its brief, do not silently fold that path into this cycle's commit:
-  note it in the Log (`scope violation: <path> was outside the declared file scope`) and set
+  carry in-memory and land in ## Last cycle Notes at Phase 2 (`scope violation: <path> was outside the declared file scope`) and set
   Outcome to `blocked`. Phase 4's code-dirty veto then refuses a ledger-only commit over the
   unresolved diff.
 
@@ -109,12 +121,12 @@ Backlog rewrite. Residual thin items hand off **Evidence** + **Acceptance** only
   Snapshot porcelain before/after the lint run and extend `TEST_ARTIFACT_PATHS` the same
   way as the suite (eslint caches, etc.).
 
-  Record for Phase 2 Log: `**Lint:** PASS \| FAIL \| skipped` and `**Lint tools:** … \| none`.
+  Record for Phase 2 Last cycle: `**Lint:** PASS \| FAIL \| skipped` and `**Lint tools:** … \| none`.
 
 - Then the orchestrator (native) runs the recorded test command **exactly once** — even if
   the executor believes nothing changed — **unless** lint already set `STATUS=FAIL`
   (fail-fast: skip suite). Capture full output to a temp file; keep a tail
-  (e.g. last 80 lines) for the Log. From that authoritative run derive `STATUS`
+  (e.g. last 80 lines) for Last cycle Notes. From that authoritative run derive `STATUS`
   (`PASS`/`FAIL`) and the `ERROR_SIGNATURE` (`none` on PASS; see Phase 2), and finalize
   `OUTCOME` by reconciling the executor's suggestion against STATUS — e.g. an executor's
   `confirmed` cannot stand if the authoritative run is FAIL. Reconciliation only ever
