@@ -15,6 +15,10 @@
  *     → non-blocking; untracked litter is auto-cleaned before classify
  *   - code (everything else) → blocks with exit 3
  *
+ * When `--ff-only` fails because launch advanced mid-campaign, L3 may **rebase then FF**
+ * (default on) if the campaign range is a linear stack of only `improve-loop:` commits.
+ * Opt out: IMPROVE_LOOP_MERGE_REBASE=0. Conflicts / non-improve commits → exit 4 as before.
+ *
  * Teardown (housekeeping after product FF — not product recovery):
  *   - restore borrowed non-isolation WIP onto launch (best-effort)
  *   - **always** `git worktree remove --force` after restore was attempted
@@ -27,10 +31,12 @@
  *   1 usage
  *   2 no pointer
  *   3 launch dirty (blocking code paths only)
- *   4 ff-only merge failed (sets reintegrate_blocked)
+ *   4 ff-only merge failed and rebase-then-FF unavailable/failed (sets reintegrate_blocked)
  *   5 git error
  *
- * Injectable: GIT_CMD, IMPROVE_LOOP_AMBIENT_PREFIXES, IMPROVE_LOOP_LITTER_GLOBS
+ * Injectable: GIT_CMD, IMPROVE_LOOP_AMBIENT_PREFIXES, IMPROVE_LOOP_LITTER_GLOBS,
+ *             IMPROVE_LOOP_MERGE_REBASE (default on; set 0 to disable rebase path),
+ *             IMPROVE_LOOP_MERGE_REBASE_MAX (default 24; max campaign-only commits)
  */
 'use strict';
 
@@ -60,6 +66,146 @@ function arg(name) {
   const i = process.argv.indexOf(name);
   if (i < 0) return null;
   return process.argv[i + 1] ?? null;
+}
+
+/** Subjects L3 is willing to rewrite onto a moved launch (must stay narrow). */
+const REBASE_SAFE_SUBJECT =
+  /^improve-loop: (iteration |archive )/;
+
+/**
+ * Cap campaign-only commits rebased in one merge-back (runaway guard).
+ * Default 24 ≈ 3× IMPROVE_LOOP_MAX_CYCLES default (8). Override via env.
+ */
+function rebaseCommitCap() {
+  const raw = String(process.env.IMPROVE_LOOP_MERGE_REBASE_MAX || '').trim();
+  const n = parseInt(raw, 10);
+  if (Number.isFinite(n) && n > 0) return n;
+  return 24;
+}
+
+/**
+ * When launch advanced mid-campaign, FF fails. Safe recovery: rebase the campaign
+ * branch onto launch when every commit unique to the campaign is an improve-loop
+ * iteration/archive (linear, no merges, shared merge-base, within cap), then FF.
+ * Never rebase product/non-improve stacks.
+ *
+ * @returns {{ ok: true } | { ok: false, reason: string }}
+ */
+function tryRebaseThenFf({ launch, launchBranch, campaign, worktree, notes }) {
+  if (String(process.env.IMPROVE_LOOP_MERGE_REBASE || '1').trim() === '0') {
+    return { ok: false, reason: 'disabled (IMPROVE_LOOP_MERGE_REBASE=0)' };
+  }
+  if (!worktree || !fs.existsSync(worktree)) {
+    return { ok: false, reason: 'no campaign worktree for rebase' };
+  }
+  if (!campaign || !launchBranch) {
+    return { ok: false, reason: 'missing campaign or launch branch' };
+  }
+
+  // Related histories only — refuse unrelated / no common ancestor.
+  try {
+    git(launch, ['merge-base', launchBranch, campaign]);
+  } catch (e) {
+    return {
+      ok: false,
+      reason: 'no merge-base (unrelated or missing tip): ' + errMsg(e).slice(0, 100),
+    };
+  }
+
+  let commits = [];
+  try {
+    const raw = git(launch, [
+      'rev-list',
+      '--reverse',
+      launchBranch + '..' + campaign,
+    ]);
+    commits = raw ? raw.split(/\r?\n/).filter(Boolean) : [];
+  } catch (e) {
+    return { ok: false, reason: 'rev-list failed: ' + errMsg(e).slice(0, 120) };
+  }
+  if (!commits.length) {
+    return { ok: false, reason: 'empty campaign range (nothing to rebase)' };
+  }
+
+  const cap = rebaseCommitCap();
+  if (commits.length > cap) {
+    return {
+      ok: false,
+      reason:
+        'campaign range too large for auto-rebase (' +
+        commits.length +
+        ' > cap ' +
+        cap +
+        ')',
+    };
+  }
+
+  try {
+    const merges = git(launch, [
+      'rev-list',
+      '--merges',
+      launchBranch + '..' + campaign,
+    ]);
+    if (merges && merges.trim()) {
+      return { ok: false, reason: 'campaign range has merge commits' };
+    }
+  } catch (e) {
+    return { ok: false, reason: 'merge-commit scan failed: ' + errMsg(e).slice(0, 80) };
+  }
+
+  for (const c of commits) {
+    let subj;
+    try {
+      subj = git(launch, ['log', '-1', '--format=%s', c]);
+    } catch (e) {
+      return { ok: false, reason: 'subject read failed: ' + errMsg(e).slice(0, 80) };
+    }
+    if (!REBASE_SAFE_SUBJECT.test(subj)) {
+      return {
+        ok: false,
+        reason:
+          'non-safe improve subject in range (need iteration/archive): ' +
+          String(subj || '').slice(0, 80),
+      };
+    }
+  }
+
+  try {
+    const cur = git(worktree, ['rev-parse', '--abbrev-ref', 'HEAD']);
+    if (cur !== campaign) {
+      git(worktree, ['checkout', campaign]);
+    }
+    // --autostash: ambient worktree dirt (e.g. cron/) must not block a clean rebase
+    git(worktree, ['rebase', '--autostash', launchBranch]);
+    notes.push(
+      'rebase-then-ff:rebased ' +
+        commits.length +
+        ' improve commit(s) onto ' +
+        launchBranch
+    );
+  } catch (e) {
+    try {
+      git(worktree, ['rebase', '--abort']);
+      notes.push('rebase-then-ff:rebase-aborted');
+    } catch {
+      /* already clean or no rebase in progress */
+    }
+    return { ok: false, reason: 'rebase failed: ' + errMsg(e).slice(0, 200) };
+  }
+
+  try {
+    const cur = git(launch, ['rev-parse', '--abbrev-ref', 'HEAD']);
+    if (cur !== launchBranch) {
+      git(launch, ['checkout', launchBranch]);
+    }
+    git(launch, ['merge', '--ff-only', campaign]);
+    notes.push('rebase-then-ff:ff-ok');
+    return { ok: true };
+  } catch (e) {
+    // Campaign tip is already rebased; operator can FF or recover from worktree.
+    notes.push('rebase-then-ff:ff-failed-after-rebase');
+    return { ok: false, reason: 'ff after rebase failed: ' + errMsg(e).slice(0, 200) };
+  }
 }
 
 const repoArg = arg('--repo');
@@ -111,6 +257,7 @@ const out = {
   branch_deleted: false,
   pointer_cleared: false,
   worktree_kept: false,
+  rebase_then_ff: false,
 };
 
 if (!launchBranch) {
@@ -172,7 +319,32 @@ try {
   if (cur !== launchBranch) {
     git(launch, ['checkout', launchBranch]);
   }
-  git(launch, ['merge', '--ff-only', campaign]);
+  try {
+    git(launch, ['merge', '--ff-only', campaign]);
+  } catch (ffErr) {
+    const ffMsg = errMsg(ffErr).slice(0, 500);
+    out.notes.push('ff-only-failed:' + ffMsg.slice(0, 160).replace(/\s+/g, ' '));
+    const rb = tryRebaseThenFf({
+      launch,
+      launchBranch,
+      campaign,
+      worktree,
+      notes: out.notes,
+    });
+    if (!rb.ok) {
+      const msg =
+        ffMsg + (rb.reason ? ' | rebase-then-ff skipped: ' + rb.reason : '');
+      ptr.state = 'reintegrate_blocked';
+      ptr.reintegrate_error = msg;
+      fs.writeFileSync(pointer, JSON.stringify(ptr, null, 2) + '\n', 'utf8');
+      out.merge_back = 'blocked';
+      out.error = msg;
+      process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+      process.exit(4);
+    }
+    out.rebase_then_ff = true;
+    // rebased + FF landed; continue to teardown
+  }
 } catch (e) {
   const msg = errMsg(e).slice(0, 500);
   ptr.state = 'reintegrate_blocked';

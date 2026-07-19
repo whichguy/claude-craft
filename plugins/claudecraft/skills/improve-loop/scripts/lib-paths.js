@@ -9,12 +9,30 @@ const { execFileSync } = require('child_process');
 
 const GIT = process.env.GIT_CMD || 'git';
 
+/**
+ * Agent hosts (e.g. Grok Build) sometimes export GIT_DIR / GIT_WORK_TREE so every
+ * `git -C <repo>` still targets the outer session repo. L3 must ignore those for
+ * `-C`-scoped work. Matches scripts.test.sh unset list.
+ */
+function gitSpawnEnv(extra) {
+  const env = { ...process.env, ...(extra || {}) };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  delete env.GIT_COMMON_DIR;
+  delete env.GIT_INDEX_FILE;
+  delete env.GIT_OBJECT_DIRECTORY;
+  delete env.GIT_ALTERNATE_OBJECT_DIRECTORIES;
+  return env;
+}
+
 function git(repo, args, opts = {}) {
   try {
+    const { env: envOpt, inheritStderr, ...rest } = opts;
     return execFileSync(GIT, ['-C', repo, ...args], {
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', opts.inheritStderr ? 'inherit' : 'pipe'],
-      ...opts,
+      stdio: ['ignore', 'pipe', inheritStderr ? 'inherit' : 'pipe'],
+      env: gitSpawnEnv(envOpt),
+      ...rest,
     }).trim();
   } catch (e) {
     // Normalize stderr so callers can always String(e.stderr)
@@ -159,21 +177,50 @@ function porcelain(repo) {
  * Ambient launch-dirt prefixes (runtime noise that must not block enter/merge-back).
  *
  * Env IMPROVE_LOOP_AMBIENT_PREFIXES:
- *   unset     → defaults cron/, wiki/ (agent home-dir data repos like ~/.hermes)
- *   "" or "-" → no ambient prefixes (strict: only isolation dirt is non-blocking)
- *   "a/,b/"   → use that comma-separated list (trailing / optional)
+ *   set (incl. "" or "-") → fully overrides profile prefixes **and** path allowlist
+ *   unset → use IMPROVE_LOOP_AMBIENT_PROFILE (default none = legacy cron/, wiki/)
+ *
+ * Env IMPROVE_LOOP_AMBIENT_PROFILE (only when PREFIXES unset):
+ *   none (default) → cron/, wiki/ only (no basenames) — legacy, no regression
+ *   agent-home     → cron/, wiki/, memories/ + path-qualified scripts/hermes_release_watch.py
  */
+function ambientProfileName() {
+  const raw = String(process.env.IMPROVE_LOOP_AMBIENT_PROFILE || 'none')
+    .trim()
+    .toLowerCase();
+  if (raw === 'agent-home' || raw === 'agent_home') return 'agent-home';
+  return 'none';
+}
+
 function ambientPrefixes() {
-  if (!Object.prototype.hasOwnProperty.call(process.env, 'IMPROVE_LOOP_AMBIENT_PREFIXES')) {
-    return ['cron/', 'wiki/'];
+  if (Object.prototype.hasOwnProperty.call(process.env, 'IMPROVE_LOOP_AMBIENT_PREFIXES')) {
+    const raw = String(process.env.IMPROVE_LOOP_AMBIENT_PREFIXES || '').trim();
+    if (raw === '' || raw === '-') return [];
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((p) => (p.endsWith('/') ? p : p + '/'));
   }
-  const raw = String(process.env.IMPROVE_LOOP_AMBIENT_PREFIXES || '').trim();
-  if (raw === '' || raw === '-') return [];
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((p) => (p.endsWith('/') ? p : p + '/'));
+  if (ambientProfileName() === 'agent-home') {
+    return ['cron/', 'wiki/', 'memories/'];
+  }
+  // profile none / default: legacy defaults
+  return ['cron/', 'wiki/'];
+}
+
+/**
+ * Path-qualified ambient files (not bare basenames anywhere).
+ * Empty when PREFIXES is set (override) or profile is none.
+ */
+function ambientPathAllowlist() {
+  if (Object.prototype.hasOwnProperty.call(process.env, 'IMPROVE_LOOP_AMBIENT_PREFIXES')) {
+    return [];
+  }
+  if (ambientProfileName() === 'agent-home') {
+    return ['scripts/hermes_release_watch.py'];
+  }
+  return [];
 }
 
 function isIsolationDirt(p) {
@@ -189,9 +236,132 @@ function isIsolationDirt(p) {
 function isAmbientDirt(p, prefixes) {
   const n = String(p || '').replace(/^\.\//, '');
   const prefs = prefixes || ambientPrefixes();
-  return prefs.some(
-    (pre) => n === pre.slice(0, -1) || n.startsWith(pre)
-  );
+  if (
+    prefs.some((pre) => n === pre.slice(0, -1) || n.startsWith(pre))
+  ) {
+    return true;
+  }
+  const allow = ambientPathAllowlist();
+  return allow.some((a) => n === a || n.endsWith('/' + a));
+}
+
+/** Subjects that count as improve-loop campaign commits (merge-back rebase-safe). */
+const IMPROVE_LOOP_SUBJECT = /^improve-loop: (iteration |archive )/;
+
+/**
+ * Count commits on campaign not in launch that have improve-loop subjects.
+ * Range: launchBranch..campaignBranch (exclusive start, inclusive tip).
+ */
+function countUnmergedImproveCommits(launch, launchBranch, campaignBranch) {
+  if (!launch || !launchBranch || !campaignBranch) return 0;
+  const range = launchBranch + '..' + campaignBranch;
+  const out = git(launch, ['log', range, '--format=%s']);
+  if (!out) return 0;
+  let n = 0;
+  for (const line of out.split('\n')) {
+    if (IMPROVE_LOOP_SUBJECT.test(String(line || '').trim())) n++;
+  }
+  return n;
+}
+
+/**
+ * Whether campaign isolation must not be discarded/teardown'd without force.
+ *
+ * Protected when:
+ *   - unmerged improve-loop commits on campaign vs launch, OR
+ *   - ptr.state === reintegrate_blocked and we cannot prove empty improve range
+ *     (git error / missing branches → fail-closed protected)
+ *
+ * Empty-range exception: reintegrate_blocked but tip already ancestor of launch
+ * (0 unmerged improve commits, scan succeeded) → not protected.
+ *
+ * @returns {{
+ *   protected: boolean,
+ *   reason: string|null,
+ *   unmergedImproveCount: number,
+ *   campaign_branch: string|null,
+ *   launch_branch: string|null,
+ *   scan_error: string|null
+ * }}
+ */
+function isReintegrateProtected(launch, ptr) {
+  const empty = {
+    protected: false,
+    reason: null,
+    unmergedImproveCount: 0,
+    campaign_branch: null,
+    launch_branch: null,
+    scan_error: null,
+  };
+  if (!ptr || typeof ptr !== 'object') return empty;
+
+  const campaign = ptr.campaign_branch || null;
+  const launchBranch = ptr.launch_branch || null;
+  const stateBlocked = ptr.state === 'reintegrate_blocked';
+  let unmerged = 0;
+  let scanError = null;
+
+  if (campaign && launchBranch && launch) {
+    try {
+      // Ensure refs exist; missing ref throws → fail-closed when blocked
+      git(launch, ['rev-parse', '--verify', campaign]);
+      git(launch, ['rev-parse', '--verify', launchBranch]);
+      unmerged = countUnmergedImproveCommits(launch, launchBranch, campaign);
+    } catch (e) {
+      scanError = errMsg(e).slice(0, 160);
+    }
+  } else if (stateBlocked) {
+    return {
+      protected: true,
+      reason: 'reintegrate_blocked_missing_branches',
+      unmergedImproveCount: 0,
+      campaign_branch: campaign,
+      launch_branch: launchBranch,
+      scan_error: 'missing campaign_branch or launch_branch',
+    };
+  }
+
+  if (unmerged > 0) {
+    return {
+      protected: true,
+      reason: 'unmerged_improve',
+      unmergedImproveCount: unmerged,
+      campaign_branch: campaign,
+      launch_branch: launchBranch,
+      scan_error: scanError,
+    };
+  }
+
+  if (stateBlocked) {
+    if (scanError) {
+      return {
+        protected: true,
+        reason: 'reintegrate_blocked_scan_error',
+        unmergedImproveCount: 0,
+        campaign_branch: campaign,
+        launch_branch: launchBranch,
+        scan_error: scanError,
+      };
+    }
+    // Empty improve range — exception (do not require porcelain-clean launch)
+    return {
+      protected: false,
+      reason: 'empty_range_exception',
+      unmergedImproveCount: 0,
+      campaign_branch: campaign,
+      launch_branch: launchBranch,
+      scan_error: null,
+    };
+  }
+
+  return {
+    protected: false,
+    reason: null,
+    unmergedImproveCount: 0,
+    campaign_branch: campaign,
+    launch_branch: launchBranch,
+    scan_error: scanError,
+  };
 }
 
 /**
@@ -370,6 +540,13 @@ function classifyLaunchDirt(paths) {
     isolation,
     litter,
     ambient_prefixes: prefixes,
+    ambient_paths: ambientPathAllowlist(),
+    ambient_profile: Object.prototype.hasOwnProperty.call(
+      process.env,
+      'IMPROVE_LOOP_AMBIENT_PREFIXES'
+    )
+      ? 'prefixes-override'
+      : ambientProfileName(),
     litter_globs: globs,
   };
 }
@@ -471,6 +648,7 @@ function isTracked(repo, filePath) {
 module.exports = {
   GIT,
   git,
+  gitSpawnEnv,
   errMsg,
   resolveRepo,
   commonGit,
@@ -485,6 +663,8 @@ module.exports = {
   porcelainEntries,
   listUntrackedFilesUnder,
   ambientPrefixes,
+  ambientProfileName,
+  ambientPathAllowlist,
   litterGlobs,
   isIsolationDirt,
   isAmbientDirt,
@@ -494,4 +674,7 @@ module.exports = {
   cleanUntrackedLitter,
   isTracked,
   randomHex,
+  IMPROVE_LOOP_SUBJECT,
+  countUnmergedImproveCommits,
+  isReintegrateProtected,
 };
