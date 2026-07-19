@@ -314,7 +314,14 @@ const improvePlanningUserOnly = [
   ['PLAN_CLAUSES six-clause heads', /Evidence:[\s\S]{0,120}Decision:[\s\S]{0,120}Preserve:[\s\S]{0,120}Unknown:[\s\S]{0,120}Acceptance:/],
   ['PLAN_RESIDUAL thin no Decision invent', /Do \*\*not\*\* invent Decision\/Preserve for residual|no invented Decision\/Preserve on residual|\[residual\][\s\S]{0,300}Acceptance/i],
   ['PLAN_BRIEF campaign brief', /## Campaign brief/],
-  ['PLAN_BRIEF Target line', /\*\*Target:\*\*/],
+  ['PLAN_BRIEF Target line', /\*\*Target(?: \/ desired outcome)?:\*\*/],
+  ['PLAN_CRITERIA token', /PLAN_CRITERIA/],
+  ['PLAN_CRITERIA Criteria scan', /Criteria scan/],
+  ['PLAN_RUNTIME_CONTRACT token', /PLAN_RUNTIME_CONTRACT/],
+  ['PLAN_RUNTIME_CONTRACT Runtime contract', /Runtime contract:/],
+  ['PLAN_RUNTIME investigation-P1', /investigation-P1/],
+  ['HYBRID work-spec spine', /work-spec|work specification|HYBRID spine/i],
+  ['HYBRID Validation Spec derived', /Validation Spec|derived prove/i],
   ['PLAN_VALIDATE section', /## Spec validation|PLAN_VALIDATE/],
   ['PLAN_VALIDATE Phase 3v', /Phase 3v|spec validation gate/i],
   [
@@ -326,12 +333,19 @@ const improvePlanningUserOnly = [
     /Unintended-change check-in|Preserve.*[Rr]egression.*[Ss]cope|Preserve \/ regression \/ scope/i,
   ],
   ['PLAN_SPEC_SYNC token', /PLAN_SPEC_SYNC/],
-  ['PLAN_SPEC_SYNC plan-derived', /plan anchor|plan-derived|derived from plan/i],
+  ['PLAN_SPEC_SYNC plan-derived', /plan anchor|work-spec anchor|plan-derived|derived from (plan|work-spec)/i],
   ['PLAN_SPEC_SYNC marker iter', /spec-sync: iter/],
   ['PLAN_SPEC_STATUS step id', /3-spec-sync/],
   ['PLAN_SPEC_STATUS Spec prove', /Spec prove/],
   ['PLAN_SPEC_STATUS Spec sync', /Spec sync/],
-  ['PLAN_SPEC_SOFT token', /PLAN_SPEC_SOFT|softCheckIntentions/],
+  ['PLAN_SPEC_SOFT token', /PLAN_SPEC_SOFT|softCheckIntentions|softCheckSpecBundle|soft-check/],
+  ['PLAN_SPEC_SOFT no auto-seed', /Never auto-seed P1 from soft|never auto-seed P1 from soft/i],
+  ['PLAN_SPEC_SOFT anti-mirror alias', /softCheckAntiMirror|anti-mirror/i],
+  ['PLAN_SPEC_SOFT habitat coverage alias', /softCheckHabitatCoverage|HABITAT_CLAIMED_NO_PROOF/],
+  ['PLAN_T2_CHALLENGE token', /PLAN_T2_CHALLENGE|T2 challenge \(native\)/],
+  ['PLAN_HABITAT_META Habitat claimed', /\*\*Habitat claimed:\*\*|Habitat claimed:/],
+  ['PLAN_HABITAT_META residual re-probe', /re-run.*habitat probe|Habitat claimed:\*\* yes.*re-run|re-run\*\* the cheap habitat probe/i],
+  ['PLAN_HABITAT promote streak reset', /Promote edge|promote-class result \*\*must\*\*|reset.*consecutive-non-material-cycles/i],
   ['PLAN_ORIENT token', /PLAN_ORIENT/],
   ['PLAN_ORIENT improve goal', /improve goal ·/],
   ['PLAN_ORIENT on: footer', /· on:/],
@@ -340,6 +354,9 @@ const improvePlanningUserOnly = [
   ['PLAN_CLASSIFY promote-class', /promote-class|classify: promote|keep P2/i],
   ['plan tiers T0 T0p T2', /\bT0p\b|Plan tier|plan tier/i],
   ['product residual survey header', /Product residual survey/i],
+  ['product residual criteria trail', /criteria:|Criteria trail/i],
+  ['product residual probe outcomes', /reachable-fail|habitat unavailable|probe outcome/i],
+  ['Further improve report honesty', /Further improve\?/],
   ['intent digest open intent', /open intent:/i],
   ['backlog-blocks mini-parser', /backlog-blocks\.js/],
   ['unknown gate one non-none', /at most \*\*one\*\*|at most one cold-start.*Unknown|Unknown gate/i],
@@ -574,6 +591,18 @@ ok(
 ok(
   /habitat probe/i.test(user) && /skillhub|hermes|docker/i.test(user),
   'user improve-loop missing habitat probe for skillhub/docker targets'
+);
+ok(
+  /\*\*Habitat claimed:\*\*/.test(user),
+  'user improve-loop missing Habitat claimed ledger header'
+);
+ok(
+  /T2 challenge \(native\)|PLAN_T2_CHALLENGE/i.test(user),
+  'user improve-loop missing T2 challenge native contract'
+);
+ok(
+  /softCheckSpecBundle|spec-validate\.js.*soft-check/i.test(user),
+  'user improve-loop missing soft-check CLI / softCheckSpecBundle contract'
 );
 ok(
   /\*\*Seed mode:\*\*/.test(user) || /Seed mode:/.test(user),

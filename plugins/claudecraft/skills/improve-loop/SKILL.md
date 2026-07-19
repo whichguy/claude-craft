@@ -191,31 +191,39 @@ Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 | **PLAN_TAG** | Greppable titles: `P0:` / `P1:` + kind `[defect]`…`[residual]` |
 | **PLAN_CLAUSES** | Material six-clause: Evidence, Decision, Preserve, Unknown, Acceptance |
 | **PLAN_RESIDUAL** | Residual thin Evidence+Acceptance only — no invented Decision/Preserve |
-| **PLAN_BRIEF** | `## Campaign brief` after Isolation, before Backlog; Target; skill-law Done when |
-| **PLAN_VALIDATE** | `## Spec validation` after brief; V-rows + Proofs; Phase **3v** prove gate |
-| **PLAN_SPEC_SYNC** | Spec **derived** from plan anchors; re-sync when plan diverges since `spec-sync: iter N` |
+| **PLAN_BRIEF** | `## Campaign brief` after Isolation, before Backlog; **work-spec anchors** (Target; skill-law Done when) — no second `## Work Spec` table |
+| **PLAN_CRITERIA** | Orchestrator **Criteria scan** preflight (not a 6th advisor block): surfaces, habitat claim, runtime, C1–C12 → promote\|P2\|waive (≤6); soft never auto-seeds |
+| **PLAN_RUNTIME_CONTRACT** | Habitat claim + runtime state `n/a`\|`filled`\|`investigation-P1:<id>` as work-spec anchors; selection only — never residual×2 / Status gate |
+| **PLAN_VALIDATE** | `## Spec validation` = **Validation Spec** (derived prove view); V-rows + Proofs; Phase **3v** prove gate |
+| **PLAN_SPEC_SYNC** | Validation Spec **derived** from **work-spec** anchors; re-sync when plan diverges since `spec-sync: iter N` |
 | **PLAN_SPEC_STATUS** | Control channel: step ids + Spec sync/prove evidence + one `Validation:` line |
-| **PLAN_SPEC_SOFT** | Optional `spec-validate.js` soft-check: Intention plan-anchor prefixes; sync-stale warning only |
+| **PLAN_SPEC_SOFT** | **Must** run `spec-validate.js soft-check` after `3-spec-sync` and `3v-prove` (Node available): `softCheckSpecBundle` / `softCheckAntiMirror` / `softCheckHabitatCoverage`; never auto-seed P1; never alone blocks residual×2 |
+| **PLAN_T2_CHALLENGE** | T2: native 5-block in Last cycle Notes when advisors fail/unconfigured (prefer always on T2); apply **work-spec** revisions **before** PLAN_SPEC_SYNC; degrade only if ledger unwritable |
+| **PLAN_HABITAT_META** | Header `**Habitat claimed:**` + probe fields; residual/soft-check read ledger, not invoke text |
 | **PLAN_ORIENT** | Tab-switch mid-cycle orientation: long-phase triplet, `(cont)` heartbeat, `· on:` footer |
 | **PLAN_APPLY** | Multi-line contiguous blocks; complete = delete title+clauses; `backlog-blocks.js` |
 | **PLAN_CLASSIFY** | promote / keep P2 / waive + Notes `classify: …` |
 
 **Plan tiers:** T0 (defect residual thin cold-start), T0p (product post-scan empty promote), T2 (promote-class or `--plan-deep`), T1 (mid-campaign replan). Mid-campaign residual×2 may empty open P0/P1 (H11).
 
-**Spec-first spine (PLAN_VALIDATE + PLAN_SPEC_SYNC):** (1) Plan brief + backlog (2) Spec
-validation V-rows **from plan statements/assumptions** (not generic boilerplate) + tests
-(quarantined if red-first) (3) Code (4) Phase **3v** prove — fail seeds
-`- [ ] P1: [defect] validate V<k>: …`. **R8:** autonomous L1 **auto-continues** next cycle
-until evaluation runs clean (or stop counters). residual×2 remains sole `complete` law
-(never “all V pass ⇒ complete” alone). Rules R1–R8 + quarantine: package A
+**HYBRID spine (intention → work-spec → Validation Spec → proof → code → 3v):**
+(1) Normalize operator intention into **work-spec** = Campaign brief + material Backlog
+(+ runtime contract when habitat claimed). (2) **Derive** `## Spec validation` V-rows from
+those anchors (not free-authored product intent; not generic boilerplate) + proof artifacts
+when R2. (3) Code. (4) Phase **3v** prove — fail seeds
+`- [ ] P1: [defect] validate V<k>: …`. If proof design finds a hole: **revise work-spec first**,
+then PLAN_SPEC_SYNC. **R8:** autonomous L1 **auto-continues** next cycle until evaluation
+runs clean (or stop counters). residual×2 remains sole `complete` law
+(never “all V pass ⇒ complete” alone). Soft ≠ seed. Rules R1–R8 + quarantine: package A
 `contracts/planning.md` / `phase-3v-validate.md` (normative).
 
-**PLAN_SPEC_SYNC (live Spec):** each V-row Intention cites a **plan anchor** (`Feature:` /
-`Preserve:` / `Regression:` / `Scope:` / `Assumption:`). Re-sync after Phase 3 apply when
-plan diverged since `<!-- spec-sync: iter N -->` (ledger iter axis only). Apply order:
-brief → Backlog → Deferred → **Spec (re-read disk)** → 3v. Skip path: required Notes
-`spec sync n/a: plan unchanged since iter <N>`. Exclude residual-thin and `validate V<k>`
-lifecycle from thrash triggers. Plan drops claim → `n/a` + drop open validate item same pass.
+**PLAN_SPEC_SYNC (live Validation Spec):** each V-row Intention cites a **work-spec anchor**
+(`Feature:` / `Preserve:` / `Regression:` / `Scope:` / `Assumption:`). Re-sync after Phase 3
+apply when plan diverged since `<!-- spec-sync: iter N -->` (ledger iter axis only). Apply
+order: brief → Backlog → Deferred → **Spec (re-read disk)** → soft → 3v. Skip path: required
+Notes `spec sync n/a: plan unchanged since iter <N>`. Exclude residual-thin and
+`validate V<k>` lifecycle from thrash triggers. Plan drops claim → `n/a` + drop open validate
+item same pass.
 
 **Unintended-change check-in (planning-time):** when writing `## Spec validation`, cover more
 than the new feature — **Preserve** / **Regression** / **Scope**. Prefer executable Proofs;
@@ -432,7 +440,9 @@ Header: `**Product residual survey:** pending | done | n/a (defect)`. T0p leaves
 (T0p seed does **not** consume the one mid-campaign product residual survey budget).
 
 **Unknown gate:** at most **one** cold-start seed may have `Unknown:` other than `none`; that
-item → investigation Thesis first (no fabricated Decision).
+item → investigation Thesis first (no fabricated Decision). When `**Habitat claimed:** yes`
+and install/mount/discovery mechanism is still unknown after the habitat probe, prefer that
+one Unknown investigation over all-`none` packaging-only seeds.
 
 **Do not** seed `- [x]` done lines into `## Backlog` — finished work is remembered via the
 git digest, not as backlog clutter. **Also seed Deferred (P2)** from the digest’s union of
@@ -488,8 +498,20 @@ When target path is under `skills/`, `~/.hermes`, or the invoke mentions `docker
 - whether the recorded test command is host vs `docker exec …`
 - optional: container running (`docker ps`) when docker is claimed
 
-Record probe facts in kickoff **Setup** and the first Last cycle Notes (or kickoff Notes). Gaps → open P0/P1, not
-silent residual.
+**Durable claim (PLAN_HABITAT_META):** set live-ledger headers (not only kickoff chat):
+
+- `**Habitat claimed:** yes` when this campaign targets habitat integration; else `no`
+- `**Habitat probe:**` the command run (or `n/a`)
+- `**Habitat probe result:**` `ok` | `fail` | `n/a` | `skipped`
+- `**Habitat probe evidence:**` ≤120 chars
+
+Later residual surveys and `soft-check` **read these headers** (via
+`parseCampaignMeta` / plan file) — do **not** re-infer solely from the original invoke text.
+Gaps from probe → open P0/P1 or investigation `Unknown:`, not silent residual.
+
+**Habitat Spec kind:** prefer Proof rows with kind `habitat` (or docker/hermes in Proof) when
+Habitat claimed is yes. Runnable habitat Proof **fail** is material (3v seed and/or residual
+promote + streak reset). Env missing → Status `n/a`/`skipped`, not green pass.
 
 #### Product residual survey (before residual×2 complete)
 
@@ -500,12 +522,34 @@ When open defect-style P0/P1 hit **0** after replan and `SEED_MODE` ∈ {`produc
    empty residual. Run **one** cycle with Thesis  
    `product residual survey — operator/UX/integration gaps beyond COMPLETED_SET`  
    (may skip code execute if inspection-only; Outcome `partial` if no code).
-2. Survey asks: remaining promote-class limitations? deferred P2 newly material? habitat
+2. **Criteria trail (required before residual none):** Last cycle Notes
+   `criteria: C#: gap → promote|P2|waive …` (≤6 non-none from PLAN_CRITERIA scan). Sticky P2
+   reclassify once this campaign.
+3. Survey asks: remaining promote-class limitations? deferred P2 newly material? habitat
    SKIP? CLI/docs/doctor/inspect gaps?
-3. If material items found → open P0/P1, **reset** `consecutive-non-material-cycles` → 0.
-4. If none → Notes `product residual survey: none`; streak may advance; residual×2 still
-   required.
-5. Cap: **one** product residual survey per campaign (unless new evidence lands).  
+4. **If `**Habitat claimed:** yes` (ledger header):** **re-run** the cheap habitat probe,
+   update `**Habitat probe result:**` / `**Habitat probe evidence:**`, record a **probe
+   outcome**, then classify each candidate `promote | keep P2 | waive` with rationale.
+   Soft-check may also flag `HABITAT_CLAIMED_NO_PROOF` if Spec still lacks a habitat-relevant
+   row — do not invent P1 from the word “docker” alone; use probe evidence.
+
+   | Probe outcome | Effect |
+   |---|---|
+   | `pass` | Supports residual none |
+   | `reachable-fail` | R5/R8 seed if prove path; else classify promote/P2/waive |
+   | `unavailable` | Notes `unverified (habitat unavailable)` + P2/waive — **not** residual×2 block |
+   | `manual/out-of-scope` | Unverified pulse; classify only |
+
+   Probes **never** write Status or streak.
+5. **Promote edge (mandatory):** any **promote**-class result **must** seed or reopen open
+   `- [ ] P0/P1:` item(s) with Evidence from the probe/scan, and **reset**
+   `consecutive-non-material-cycles` → **0**. Residual×2 must **not** complete in the same
+   cycle that discovers a promote-class habitat failure without reopening work.
+6. If material items found (including promote from step 5) → open P0/P1, streak **0**.
+7. If none → Notes `product residual survey: none` **only after** criteria trail (step 2);
+   streak may advance; residual×2 still required. Frontmatter/docs-only packaging is not a
+   substitute for a failed habitat probe when Habitat claimed is yes.
+8. Cap: **one** product residual survey per campaign (unless new evidence lands).  
    `SEED_MODE=defect`: skip this step (catalog residual-only remains valid).
 
 ### Caps
@@ -946,6 +990,9 @@ any `disproven` theses**):
 - Non-material streak (last): <m>
 - Stop counters (last): no-progress=<i> · same-error=<j>
 
+**Further improve?** (does **not** reopen residual×2 or invent complete predicates)
+- <≤5 ranked bullets from open Deferred / waived limitations / criteria map — or _(none)_>
+
 **Deferred (P2) for later** (from final `Next deferred:` / ledger — does **not** block complete):
 - <open P2 bullets, or _(none)_>
 - Note: durable in git commit bodies; no product file change required to park these.
@@ -955,8 +1002,11 @@ any `disproven` theses**):
 |---|---|
 | **Test command** | `<cmd>` · last `PASS\|FAIL\|n/a` |
 | **CWD homecoming** | restored `<ORIGINAL_CWD>` \| left on `<TARGET_REPO>` (home missing) \| n/a |
+| **Operator done-when** | met \| unmet: \<short\> \| n/a (from ledger header if set) |
 | **Next** | done \| <concrete operator action> |
 ```
+
+Operator done-when is **honesty only** — it does **not** change residual×2 complete.
 
 Tone: confident, scannable, no filler. Prefer tables + short bullets over walls of prose.
 When Result is `blocked` or `stopped`, **Next** must be a concrete operator action (not
@@ -1278,28 +1328,38 @@ complete commit on `main` tip must **not** prevent a new campaign from seeding (
 **Product residual survey:** pending | done | n/a (defect)
 **Plan tier:** 0 | 0p | 1 | 2
 **Spec validation:** n/a | pending | pass
+**Habitat claimed:** yes | no
+**Habitat probe:** <cmd or n/a>
+**Habitat probe result:** ok | fail | n/a | skipped
+**Habitat probe evidence:** <≤120 chars or none>
+**Operator done-when:** <text or (none)>
+**Install mechanism:** copy | symlink | bind-required | unknown | n/a
 
 ## Campaign brief
-<!-- After header, before ## Backlog (PLAN_BRIEF). Orchestrator-only surgical rewrite
-     through next ## . Success/Done when restates skill law only — no new complete predicates.
-     Do not journal worktree paths here — run state is $WORKSPACE/.improve-loop/state.json. -->
-- **Target:** <plain-language target>
+<!-- Work-spec anchors (PLAN_BRIEF). Orchestrator-only. No second ## Work Spec table.
+     Success/Done when = skill law only. Runtime: PLAN_RUNTIME_CONTRACT. -->
+- **Target:** <plain-language target / desired outcome>
 - **Problem / opportunity:** …
 - **In scope:** …
 - **Out of scope / waived:** …
 - **Constraints:** test command, package rules…
-- **Sources inspected:** …
-- **Success / Done when:** residual×2 + green suite (+ product residual gate when product/mixed)
-- **Open questions:** none | …
+- **Sources inspected / Open questions:** … / none
+- **Surface types / Fidelity preference:** … | n/a — headless
+- **Criteria map:** … (PLAN_CRITERIA Criteria scan; ≤6 non-none)
+- **Operator post-land:** none | …
+- **Runtime contract:** n/a | filled | investigation-P1:<id>
+- **Runtime record:** … (if filled; 4–6 lines)
+- **T2 challenge:** native | advisor | skipped — <why> | n/a
+- **Success / Done when:** residual×2 + green suite (skill law only) — Must not invent new complete predicates
 - **Plan tier:** 0 | 0p | 1 | 2
 
 ## Spec validation
-<!-- PLAN_VALIDATE + PLAN_SPEC_SYNC — after brief, before Backlog. Optional T0; required T2.
-     Derived from plan anchors; re-sync on divergence. <!-- spec-sync: iter N -->
-     Phase 3 apply: brief → Backlog → Deferred → Spec (disk) → 3v. See PLAN_SPEC_STATUS. -->
+<!-- Validation Spec (PLAN_VALIDATE + PLAN_SPEC_SYNC) — derived from work-spec anchors.
+     Soft-check after sync: disposition only, never auto-seed. <!-- spec-sync: iter N -->
+     Apply: brief → Backlog → Deferred → Spec (disk) → soft → 3v. -->
 | ID | Intention | Kind | Artifact(s) | Proof | Status |
 |---|---|---|---|---|---|
-| V1 | Feature: … (plan anchor) | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
+| V1 | Feature: … (work-spec anchor) | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| habitat \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
 | V2 | Preserve: … | suite \| prose-sweep \| skill-law | path(s) | cmd / rg | pending |
 | V3 | Regression: recorded suite green | suite | — | `<Test command>` exit 0 | pending |
 
@@ -1986,9 +2046,11 @@ Notes / open **Next backlog** / **Next deferred**, plus **COMPLETED_SET** and
 Thesis/Outcome. Planning **must** use both the open work queue and git learnings metadata.
 Pass pointers and paths rather than inlining all content; each advisor has repository access.
 **Advisor throttle (B):** Residual / T0 / T0p / T1 steady cycles default to **native-replanner
-only** (same 5-block schema). Full multi-model panel only on T2 cold-start, `--plan-deep`,
-stall, or disagreement — no periodic K this arc. Soft input cap: open Backlog + Deferred + Campaign brief + ## Next + ## Last cycle
-+ compact COMPLETED/DISPROVEN (not full diary dump).
+only** (same 5-block schema). On **T2** cold-start / `--plan-deep` / stall / disagreement:
+dispatch multi-model **when advisors are configured**; otherwise the **native 5-block is the
+T2 challenge** (PLAN_T2_CHALLENGE — required in Last cycle Notes). Soft input cap: open
+Backlog + Deferred + Campaign brief + ## Next + ## Last cycle + compact COMPLETED/DISPROVEN
+(not full diary dump).
 
 Ask independently (structured **5-block** preferred):
 
@@ -2027,6 +2089,10 @@ no risk disagreement, make the same continue-versus-stop call, and have no mater
 conflict on next Backlog items—skip Round 2 and treat Consolidation 1 as final. This is a
 cost-control early exit, not a change to the panel's purpose. When any risk-level or
 direction disagreement exists, Round 2 is mandatory.
+
+**T2 challenge:** when Plan tier is 2, Last cycle Notes must include
+`T2 challenge: native|advisor|skipped — <why>`. Apply work-spec (brief/Backlog) revisions
+**before** PLAN_SPEC_SYNC.
 
 #### Round 2 — rebuttal
 
@@ -2078,10 +2144,12 @@ Apply surgically and natively **in this order** (after strips/guards — PLAN_SP
 1. **`## Campaign brief`** (if rewritten) through next `## `
 2. **`## Backlog`** body through next `## `
 3. **`## Deferred (P2)`** body through next `## ` (create heading if missing)
-4. **`## Spec validation`** — **re-read applied ledger from disk**; derive V-rows from plan
-   anchors; write `<!-- spec-sync: iter N -->` or Notes
+4. **`## Spec validation`** — **re-read applied ledger from disk**; derive V-rows from
+   **work-spec** anchors; write `<!-- spec-sync: iter N -->` or Notes
    `spec sync n/a: plan unchanged since iter <N>` (required on skip). Step id `3-spec-sync`.
-   Never sync from pre-guard candidate Backlog.
+   Never sync from pre-guard candidate Backlog. Then optional PLAN_SPEC_SOFT
+   (`softCheckSpecBundle`) — disposition Notes `soft: <code> → addressed|waived|unresolved`;
+   **never auto-seed** from soft warnings alone.
 
 Advisors recommend deltas, never whole-file rewrite. Never ask an advisor or fallback
 replanner to rewrite the whole file; that can clobber deterministic counters and
@@ -2170,10 +2238,35 @@ End of sync: Spec sync card **or** skip one-liner. End of 3v: **Spec prove** car
 rows only in evidence table; Loop effect never “done”. Validation line (pulse/commit/discovery):
 `Validation: N pass / M fail (V…) / W pending / K n/a … · sync=iter J | skip@J`.
 
-**PLAN_SPEC_SOFT (optional, non-blocking):** when Node available, prefer
-`softCheckIntentions(rows)` from `scripts/spec-validate.js` after sync/3v parse — emit a
-short `· evaluates · soft-check · V2 missing plan-anchor prefix` beat on warnings. Never
-blocks residual×2 complete alone.
+**PLAN_SPEC_SOFT (mandatory invoke, soft result — non-blocking for residual×2):** when Node
+is available, after **`3-spec-sync` and `3v-prove`**, run:
+
+```bash
+node "$SKILL_DIR/scripts/spec-validate.js" soft-check --plan-file "$WORKSPACE/IMPROVE_LOOP.md"
+# JSON: { ok, meta, warnings: [{ code, id?, message }] }
+```
+
+Emit reasoning beats with **stable codes** (e.g. `SUITE_ONLY_PROOFS`, `MISSING_PRESERVE`,
+`HABITAT_CLAIMED_NO_PROOF`, `ASSUMPTION_NOTES_ONLY_PROOF`). If any warnings: Notes
+`spec soft-check: CODE[,CODE]…`. **Never auto-seed P1 from soft-warn.** Never alone set
+Status complete/fail or change residual×2. Codes/API: `softCheckSpecBundle` /
+`WARNING_CODES` in `scripts/spec-validate.js`.
+
+**PLAN_T2_CHALLENGE:** on T2 cold-start and each T2 Phase 3, if advisors are unconfigured or
+zero usable Round-1 text, **always** write a native 5-block under Last cycle Notes:
+
+```text
+T2 challenge (native):
+1. Purpose fit — …
+2. Material recommendations — …
+3. Deferred P2 — …
+4. Risks / stop — …
+5. Anti-reseed — …
+```
+
+Prefer writing the native block even when advisors ran (cheap durable artifact). Notes
+`T2 challenge degraded: …` **only** if the live ledger cannot be written. Never claim
+multi-model advisors when only native ran.
 
 **R8 — never treat 3v fail as terminal:** Status stays `active` after seeds; in
 **autonomous** mode L1 **immediately** starts the next L2 cycle (do not ask the user, do not
