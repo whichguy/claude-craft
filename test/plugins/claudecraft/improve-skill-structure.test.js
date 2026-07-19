@@ -716,6 +716,13 @@ describe('claudecraft improve skill structure', function () {
 
     // PLAN_CRITERIA + PLAN_RUNTIME_CONTRACT + HYBRID work-spec (M1–M5 law)
     expect(planning).to.match(/PLAN_CRITERIA/);
+    // Design-time N&S — fail-closed law consumer (presence pin).
+    // Soft residual typography: × or * only (align suite residual×2|residual*2 style).
+    expect(planning).to.match(/design-time n&s/i);
+    expect(planning).to.match(/Simplify\?/);
+    expect(planning).to.match(/Overdesign\?/);
+    expect(planning).to.match(/Layer\?/);
+    expect(planning).to.match(/never alone blocks residual(?:×|\*)2/);
     expect(planning).to.match(/Criteria scan|preflight/i);
     expect(planning).to.match(/PLAN_RUNTIME_CONTRACT/);
     expect(planning).to.match(/Runtime contract:/);
