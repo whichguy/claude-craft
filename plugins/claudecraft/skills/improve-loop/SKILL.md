@@ -195,6 +195,7 @@ Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 | **PLAN_VALIDATE** | `## Spec validation` after brief; V-rows + Proofs; Phase **3v** prove gate |
 | **PLAN_SPEC_SYNC** | Spec **derived** from plan anchors; re-sync when plan diverges since `spec-sync: iter N` |
 | **PLAN_SPEC_STATUS** | Control channel: step ids + Spec sync/prove evidence + one `Validation:` line |
+| **PLAN_ORIENT** | Tab-switch mid-cycle orientation: long-phase triplet, `(cont)` heartbeat, `· on:` footer |
 | **PLAN_APPLY** | Multi-line contiguous blocks; complete = delete title+clauses; `backlog-blocks.js` |
 | **PLAN_CLASSIFY** | promote / keep P2 / waive + Notes `classify: …` |
 
@@ -673,10 +674,11 @@ required entering `3-spec-sync`, `3v-prove`, `5-signal`. Examples:
 ▸ improve · Phase 5 · cycle 3/8 · iter 3 · 5-signal · merge-back ff-only → main
 ```
 
-On any hard stop / veto, print immediately:
+On any hard stop / veto, print the STOP banner **and immediately the pulse line** (PLAN_ORIENT P1-2):
 
 ```text
 ▸ improve · STOP · cycle K/MAX · <reason code> — <one human sentence>
+improve cycle K/MAX · iter N · stopped (<reason>) · open P0/P1 k · non-material=m/2 · residual_only=… · deferred=n · commit none · report next
 ```
 
 Reason codes (use these strings when they apply): `shell unavailable`,
@@ -684,6 +686,61 @@ Reason codes (use these strings when they apply): `shell unavailable`,
 `wip carry failed`, `carried-wip-discard-blocked`, `worktree code-dirty`, `code-dirty veto`,
 `secret veto`, `commit failed`, `reintegrate_blocked`, `scope violation`, `symlink broken`,
 `launch code-dirty` (merge-back / mid-campaign only — enter carries then cleans launch WIP).
+
+### PLAN_ORIENT — tab-switch / mid-cycle orientation (mandatory)
+
+Cycle-boundary cards orient well; **intra-cycle** re-entry is the gap. Fancy = density +
+recurrence, not a second dialect. A authors the block in package A `contracts/progress.md`;
+B quotes verbatim shape here.
+
+**P0-1 Orientation triplet** — at entry to long phases `1-execute` and `3-replan` only,
+emit banner **then** goal line **then** pulse (three lines, no box rulers):
+
+```text
+▸ improve · Phase 1 · cycle K/MAX · iter N · 1-execute · execute: <item ≤80 chars> (from 0-resume)
+improve goal · <campaign goal ≤100 chars> · done-when residual×2 + green suite
+improve cycle K/MAX · iter N · active · open P0/P1 k · non-material=m/2 · residual_only=… · deferred=n · commit none · continuing
+```
+
+- Greppable label: `improve goal ·` (ASCII pin). Goal line = R7 *done-when rule text*, never
+  a live complete status.  
+- Other steps keep bare one-line `▸` only.  
+- **Do not** pack goal/Status/open/residual onto the `▸` line (anti-bloat).
+
+**P0-2 Re-banner heartbeat** — inside long phases, after substantial sub-actions (suite done,
+revert, hygiene, advisor round back), re-emit `▸` with updated action and `(cont)`:
+
+```text
+▸ improve · Phase 1 · cycle K/MAX · iter N · 1-execute · test suite finished — reconciling Outcome (cont)
+```
+
+Rule of thumb: no stretch of more than ~8 tool calls without a coordinate-bearing `▸` line.
+
+**P1-1 Turn-end pulse footer** — any mid-cycle assistant turn that does **not** end on a
+discovery card or campaign report ends with the pulse line + `· on:` item slug (≤60 chars):
+
+```text
+improve cycle K/MAX · iter N · active · open P0/P1 k · non-material=m/2 · residual_only=… · deferred=n · commit none · continuing · on: <item slug ≤60 chars>
+```
+
+- Digests tolerate legacy pulses without `· on:`. Footer never invents status (3v fail →
+  `active · continuing`).  
+- **Item slug:** short stable id derived at selection (`P1:validate-V2`, `residual-survey`,
+  …); carry through footers/heartbeats; not resume authority.
+
+**P1-3 Resolved Next** — discovery **Next** and `5-signal` state **one** chosen branch only
+(not a four-branch menu). On 3v fail: name seeded item + `continuing cycle K+1` (R8d).
+
+| Moment | Emit | Required? |
+|---|---|---|
+| Enter `1-execute` / `3-replan` | Orientation triplet | **Yes** |
+| Sub-action in long phase | `▸` re-banner `(cont)` | **Yes** when >8 tools since last `▸` |
+| Mid-cycle turn end | Pulse footer `· on:` | **Yes** |
+| STOP | STOP banner + pulse | **Yes** |
+| Discovery Next | One resolved handoff | **Yes** |
+
+Non-goals: no second banner system, no % progress bars, no emoji meters on greppable lines,
+no mid-cycle dashboard cards, no status synthesis claiming `complete`/`done`.
 
 ### Kickoff card (once Phase 0 has resolved WORKSPACE — or on early STOP)
 
@@ -767,13 +824,13 @@ prefer bullets over essays; 3–7 discovery bullets max.
 | | |
 |---|---|
 | **Campaign goal (reminder)** | <same one-line goal as kickoff, or tightened if refined> |
+| **Residual meter** | streak **m/2** · open P0/P1 **k** · execute **yes\|no** · residual_only **yes\|no** |
 | **Result** | active · continue \| complete · done \| stopped (<reason>) \| blocked (<reason>) |
 | **Thesis tried** | <one line from Phase 1 / lightweight Phase 2> |
 | **Outcome** | `confirmed\|disproven\|partial\|blocked` · Test `PASS\|FAIL\|n/a` |
 | **What landed** | <paths or _no code_ / ledger-only> |
 | **Commit** | `yes` `<short-sha>` · `improve-loop: iteration N — …` **or** `no — <reason>` |
 | **Open P0/P1** | <k after replan> · non-material streak `<m>` |
-| **Residual meter** | streak **m/2** · open P0/P1 **k** · execute **yes\|no** · residual_only **yes\|no** |
 | **Why not complete** | _(omit if complete)_ need residual cycle 2/2 · open P0/P1 remain · suite gate · … |
 | **Stop counters** | no-progress=<i> · same-error=<j> · sig=`<none\|…>` |
 | **Advisors** | <who responded / native-only / skipped> |
@@ -797,17 +854,21 @@ prefer bullets over essays; 3–7 discovery bullets max.
 1. considered: …
 2. evaluated true: … → acted: …
 3. evaluated true: … → acted: …
-4. completed as: <Result> · next: <continue | report | operator action>
+4. completed as: <Result> · next: <one resolved handoff>
 
-**Next**
-- autonomous + active → L1 starts cycle **K+1/MAX** now (do not wait for user)
-- once + active → re-invoke `/improve` or drop `--once`
-- terminal → campaign report next
-- blocked → <concrete operator action>
+**Next** (PLAN_ORIENT — **one resolved branch only**, not a menu of every possibility)
+- <e.g. continuing cycle K+1/MAX · next open: P1:validate-V2>
+- <or once-active → re-invoke `/improve` without `--once`>
+- <or terminal → campaign report · merge-back>
+- <or blocked → concrete operator action>
 ```
 
+(PLAN_ORIENT P2: **Residual meter** sits directly under **Campaign goal**.)
+
 Also emit a **one-line progress line** (and best-effort `update_goal(message: …)` if a host
-goal is Active) so logs stay greppable — **mandatory every cycle**, including residual-only:
+goal is Active) so logs stay greppable — **mandatory every cycle**, including residual-only.
+Cycle-end pulse omits `· on:` (item settled for the cycle). Mid-cycle footers **add**
+`· on: <slug>` (PLAN_ORIENT P1-1):
 
 ```text
 improve cycle K/MAX · iter N · <active|complete|stopped|blocked> · open P0/P1 <k> · non-material=<m>/2 · residual_only=<yes|no> · deferred=<n> · commit <short-sha|none> · <continuing|done>
@@ -1598,6 +1659,9 @@ header counter ≥ that N → delete `## Log` → Notes `legacy Log collapsed to
 
 ### Phase 1 — Execute
 
+**PLAN_ORIENT:** on entry emit orientation triplet; re-banner `(cont)` after substantial
+sub-actions; mid-cycle turns end with pulse `· on: <slug>` (see Status reporting).
+
 Select the next **open** (`- [ ]`) **Backlog** item (`P0:` / `P1:` only — title line).
 
 **R2 mechanical:** if any open product Acceptance refs `V<k>` and that V-row’s Proof artifact
@@ -1859,6 +1923,9 @@ of Phase 2** (before this cycle's matrix write) — not a prior diary entry (the
 Last cycle). String equality, not fuzzy “same-ish” judgment.
 
 ### Phase 3 — Advisor Panel and replan
+
+**PLAN_ORIENT:** on entry to `3-replan` emit orientation triplet; re-banner `(cont)` after
+advisor rounds return; mid-cycle turns end with pulse `· on:`.
 
 Run this phase on every full cycle that reaches Phase 3, including empty-backlog
 lightweight cycles. Ledger-flush turns skip Phases 1–3. The panel is deliberately
