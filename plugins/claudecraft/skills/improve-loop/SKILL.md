@@ -2282,7 +2282,7 @@ survey still pending (product/mixed), run that first. Else run Spec validation P
 (orchestrator-native; `scripts/spec-validate.js` for parse/seed/dedupe). Suite-kind Proofs
 reuse this cycle’s suite or one Confirm run (never two). Capture proof litter into
 `TEST_ARTIFACT_PATHS`. Write V-row Status cells + header `**Spec validation:**`. On
-executable fail: seed deduped `- [ ] P1: [defect] validate V<k>: <short> (<artifact>)`
+executable fail: seed deduped on colon-token `validate V<k>:` (not bare V1 matching V10) `- [ ] P1: [defect] validate V<k>: <short> (<artifact>)`
 (never uncheck done items); on re-seed Notes `fix target: product | proof`. Manual rows
 never block unattended. Vacuous pass if section missing/all n/a; T2 missing section → seed
 write-section once (fallback). Re-run all executable rows every firing.

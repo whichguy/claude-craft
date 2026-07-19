@@ -190,7 +190,8 @@ function seedLinesForFails(rows, backlogText) {
   for (const r of rows) {
     if (!isExecutableKind(r.kind)) continue;
     if (r.status !== 'fail') continue;
-    const token = `validate ${r.id}`;
+    // Colon-terminated: bare `validate V1` false-matches open `validate V10` (advisor D4).
+    const token = `validate ${r.id}:`;
     if (new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(bl)) continue;
     if (seeds.some((s) => s.id === r.id)) continue;
     const short = (r.intention || r.id).slice(0, 80);
@@ -685,6 +686,18 @@ function selfTest() {
   const seedsQ3 = seedLinesForFails(failRows, '');
   ok(seedsQ3.length === 1 && seedsQ3[0].id === 'V9', 'Q3 seed one fail V9');
   ok(/validate V9/.test(seedsQ3[0].title), 'Q3 seed title validate V9');
+
+  // Advisor D4: V1 must not false-dedupe against open validate V10
+  {
+    const rows = [{ id: 'V1', kind: 'suite', status: 'fail', intention: 'one', artifact: 'a', proof: 'x' }];
+    const bl = '- [ ] P1: [defect] validate V10: ten (a)\n';
+    const seeds = seedLinesForFails(rows, bl);
+    ok(seeds.length === 1 && /validate V1:/.test(seeds[0].title), 'V1 fail not suppressed by open validate V10');
+    const bl2 = '- [ ] P1: [defect] validate V1: one (a)\n';
+    const seeds2 = seedLinesForFails(rows, bl2);
+    ok(seeds2.length === 0, 'V1 fail deduped against open validate V1:');
+  }
+
   // header pass alone is not Status complete (R7) — headerFlagFromRows only reports proof flag
   const allPassHdr = headerFlagFromRows(
     failRows.map((r) => ({ ...r, status: 'pass' }))
