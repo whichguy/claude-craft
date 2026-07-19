@@ -603,7 +603,10 @@ describe('claudecraft improve skill structure', function () {
     expect(index).to.match(/R1–R8|R1-R8/);
 
     // Law table R1–R8
-    expect(planning).to.match(/Sequencing rules \(R1–R8\)|Sequencing rules \(R1-R8\)/);
+    // Heading may include R8b–R8d when the table covers those rows (structure pass S7)
+    expect(planning).to.match(
+      /Sequencing rules \(R1–R8(?:, R8b–R8d)?\)|Sequencing rules \(R1-R8(?:, R8b-R8d)?\)/
+    );
     expect(planning).to.match(/\*\*R8\*\*/);
     expect(planning).to.match(/\*\*R8b\*\*/);
     expect(planning).to.match(/never.*terminal Status|never a terminal Status/i);

@@ -13,11 +13,10 @@ Normative one-cycle law. **SKILL.md** is the operator card; open these when exec
 | `phase-4-commit.md` | Staging, vetoes, commit body (+ Validation line when 3v fired) |
 | `phase-5-decision.md` | Pulse, host `goal.complete`/`blocked`, **auto worktree teardown**, resume template |
 | `contracts/goal.md` | Continuous host: goal iterates improve-loop; disk resume after compact |
-| `contracts/progress.md` | Control-channel progress pulses (ephemeral; Log+git win) |
+| `contracts/progress.md` | Control-channel pulses (ephemeral; Log+git win) + **PLAN_SPEC_STATUS** + **PLAN_ORIENT** (step banners, Spec evidence, tab-switch orientation) |
 | `contracts/executor.md` | Implementer must not commit |
 | `contracts/advisor.md` | Read-only replan advisors |
-| `contracts/planning.md` | Brief, tiers, **PLAN_VALIDATE**, **PLAN_SPEC_SYNC**, R1–R8, PLAN_APPLY A vs B |
-| `contracts/progress.md` | Progress pulses + **PLAN_SPEC_STATUS** + **PLAN_ORIENT** (step banners, Spec evidence, tab-switch orientation) |
+| `contracts/planning.md` | Brief, tiers, **PLAN_VALIDATE**, **PLAN_SPEC_SYNC**, R1–R8 (+ R8b–d), PLAN_APPLY A vs B |
 | `contracts/outer-loop.md` | Ranking: host goal → `improve` driver (finite caps) |
 | `dual-home.md` | A/B/M shapes, atomic ship checklist (H15–H18), package-parity Proof |
 | `improve-loop-learnings.md` | Banked invariants (incl. H15–H18 dual-home hygiene) |

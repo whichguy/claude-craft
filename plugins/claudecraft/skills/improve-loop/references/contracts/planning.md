@@ -68,7 +68,7 @@ Do **not** add a second `## Work Spec` table. Do **not** freeze V-rows before ap
 Improve tests in-loop (R6). residual×2 + green suite remains the **only** Status `complete`
 law — 3v blocks complete only by seeding open P0/P1 (never a second complete predicate).
 
-### Sequencing rules (R1–R8)
+### Sequencing rules (R1–R8, R8b–R8d)
 
 | Rule | Law |
 |---|---|

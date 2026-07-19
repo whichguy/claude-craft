@@ -2,6 +2,14 @@
 
 # Contract: Progress pulses (control channel)
 
+## Dialect map (scan first)
+
+| Dialect | When emitted | Jump |
+|---|---|---|
+| **Pulse** (`PLAN_PROGRESS_ALIGN`) | Each cycle draft/gate/final control-channel update | [Required markdown shape](#required-markdown-shape-plan_progress_align) |
+| **PLAN_SPEC_STATUS** | Spec step banners, sync/prove cards, Validation line | [PLAN_SPEC_STATUS](#plan_spec_status--spec-evidence--step-coordinates-canonical) |
+| **PLAN_ORIENT** | Tab-switch / mid-cycle orientation (triplet, heartbeat, footer) | [PLAN_ORIENT](#plan_orient--tab-switch--mid-cycle-orientation-canonical) |
+
 Improve already persists truth in `IMPROVE_LOOP.md` and git commits. **Progress pulses** are
 **side-channel** operator/UI updates so humans and host goal dashboards see live status
 during iteration. They do **not** replace the ledger and must **not** affect stop predicates

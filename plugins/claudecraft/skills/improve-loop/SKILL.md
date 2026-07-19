@@ -19,6 +19,10 @@ This file is the **operator card + phase index**. Normative detail lives in `ref
 (see `references/INDEX.md`). **When executing a phase, Read that phase’s reference file**
 before applying its rules.
 
+> **Home A (law).** Thin `SKILL.md` + modular `references/**` — normative source for law-text edits.
+> Runtime campaign monolith is home **B** at `~/.claude/skills/improve-loop` (marketplace mirror **M**).
+> Law text changes start here; then surgical B mirror; then M allowlist (`references/dual-home.md`).
+
 ## Operator card
 
 | Item | Rule |
@@ -100,5 +104,6 @@ Execute in order. For each step, **Read** the linked file and follow it fully.
 
 ## Related
 
+- Ship / dual-home hygiene (A/B/M, H15–H18): `references/dual-home.md`
 - Continuous driver: `../improve/SKILL.md`  
 - Worktree tool: `../../tools/improve-worktree.sh`
