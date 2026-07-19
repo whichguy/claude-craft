@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "codes": [
+    "SUITE_ONLY_PROOFS",
+    "MISSING_PRESERVE",
+    "HABITAT_CLAIMED_NO_PROOF",
+    "ASSUMPTION_NOTES_ONLY_PROOF"
+  ],
+  "notes": "Thin packaging Spec under Habitat claimed:yes — soft-check should fire multiple codes"
+}
