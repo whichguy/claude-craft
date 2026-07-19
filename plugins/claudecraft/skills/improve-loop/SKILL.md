@@ -193,23 +193,31 @@ Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 | **PLAN_RESIDUAL** | Residual thin Evidence+Acceptance only — no invented Decision/Preserve |
 | **PLAN_BRIEF** | `## Campaign brief` after Isolation, before Backlog; Target; skill-law Done when |
 | **PLAN_VALIDATE** | `## Spec validation` after brief; V-rows + Proofs; Phase **3v** prove gate |
+| **PLAN_SPEC_SYNC** | Spec **derived** from plan anchors; re-sync when plan diverges since `spec-sync: iter N` |
+| **PLAN_SPEC_STATUS** | Control channel: step ids + Spec sync/prove evidence + one `Validation:` line |
 | **PLAN_APPLY** | Multi-line contiguous blocks; complete = delete title+clauses; `backlog-blocks.js` |
 | **PLAN_CLASSIFY** | promote / keep P2 / waive + Notes `classify: …` |
 
 **Plan tiers:** T0 (defect residual thin cold-start), T0p (product post-scan empty promote), T2 (promote-class or `--plan-deep`), T1 (mid-campaign replan). Mid-campaign residual×2 may empty open P0/P1 (H11).
 
-**Spec-first spine (PLAN_VALIDATE):** (1) Plan brief + backlog (2) Spec validation + tests
+**Spec-first spine (PLAN_VALIDATE + PLAN_SPEC_SYNC):** (1) Plan brief + backlog (2) Spec
+validation V-rows **from plan statements/assumptions** (not generic boilerplate) + tests
 (quarantined if red-first) (3) Code (4) Phase **3v** prove — fail seeds
 `- [ ] P1: [defect] validate V<k>: …`. **R8:** autonomous L1 **auto-continues** next cycle
 until evaluation runs clean (or stop counters). residual×2 remains sole `complete` law
 (never “all V pass ⇒ complete” alone). Rules R1–R8 + quarantine: package A
 `contracts/planning.md` / `phase-3v-validate.md` (normative).
 
+**PLAN_SPEC_SYNC (live Spec):** each V-row Intention cites a **plan anchor** (`Feature:` /
+`Preserve:` / `Regression:` / `Scope:` / `Assumption:`). Re-sync after Phase 3 apply when
+plan diverged since `<!-- spec-sync: iter N -->` (ledger iter axis only). Apply order:
+brief → Backlog → Deferred → **Spec (re-read disk)** → 3v. Skip path: required Notes
+`spec sync n/a: plan unchanged since iter <N>`. Exclude residual-thin and `validate V<k>`
+lifecycle from thrash triggers. Plan drops claim → `n/a` + drop open validate item same pass.
+
 **Unintended-change check-in (planning-time):** when writing `## Spec validation`, cover more
-than the new feature — **Preserve** (from material item Preserve clauses), **Regression**
-(recorded Test command / suite green), and **Scope** (brief Out of scope / waived). Prefer
-executable Proofs; pure `manual` Scope never alone blocks complete. Not a second complete
-predicate (R7). Example intention prefixes: `Preserve: …`, `Regression: …`, `Scope: …`.
+than the new feature — **Preserve** / **Regression** / **Scope**. Prefer executable Proofs;
+pure `manual` Scope never alone blocks complete. Not a second complete predicate (R7).
 
 **Kind `dual-home` Proof (self-improve / skill campaigns):** when both user package and
 marketplace install exist:
@@ -647,21 +655,22 @@ not a second full discovery dump.
 When entering a phase (or a Phase 0 short-circuit branch), print **one** short line first:
 
 ```text
-▸ improve · Phase <0–5 | short-circuit name> · cycle K/MAX · <one-line action>
+▸ improve · Phase <0–5 | short-circuit name> · cycle K/MAX · iter N · <step-id> · <one-line action> (from <prev-id>)
 ```
 
-Include `cycle K/MAX` once L1 has a cycle count (omit on pure Phase-0 setup before the
-first L2 cycle starts). Examples:
+**One banner dialect only** (PLAN_SPEC_STATUS). Include `cycle K/MAX` once L1 has a cycle
+count (omit on pure Phase-0 setup before the first L2 cycle starts). Print `iter N` when
+ledger counter exists. Step ids: `0-resume` · `1-execute` · `2-learn` · `3-replan` ·
+`3-apply` · `3-spec-sync` · `3v-prove` · `4-commit` · `5-signal`. `(from <prev-id>)`
+required entering `3-spec-sync`, `3v-prove`, `5-signal`. Examples:
 
 ```text
-▸ improve · Phase 0 · cold-start worktree improve/backchain-skill-…-a1b2c3
-▸ improve · Phase 0 · discard-stale → cold-start
-▸ improve · Phase 0 · short-circuit: ledger-flush (not landed, clean tree)
-▸ improve · Phase 1 · cycle 2/8 · execute: <first 80 chars of backlog item>
-▸ improve · Phase 1 · cycle 2/8 · test: `make test-fast`
-▸ improve · Phase 3 · cycle 2/8 · advisors: Round 1 (optional tools) | native-only
-▸ improve · Phase 4 · cycle 2/8 · commit improve-loop: iteration 3 — …
-▸ improve · Phase 5 · cycle 3/8 · merge-back ff-only → main
+▸ improve · Phase 0 · 0-resume · cold-start worktree improve/backchain-skill-…-a1b2c3
+▸ improve · Phase 1 · cycle 2/8 · iter 2 · 1-execute · execute: <first 80 chars of item>
+▸ improve · Phase 3 · cycle 2/8 · iter 2 · 3-spec-sync · derive Spec from applied plan (from 3-apply)
+▸ improve · Phase 3 · cycle 2/8 · iter 2 · 3v-prove · run Proofs (from 3-spec-sync)
+▸ improve · Phase 4 · cycle 2/8 · iter 2 · 4-commit · commit improve-loop: iteration 2 — …
+▸ improve · Phase 5 · cycle 3/8 · iter 3 · 5-signal · merge-back ff-only → main
 ```
 
 On any hard stop / veto, print immediately:
@@ -1224,12 +1233,12 @@ complete commit on `main` tip must **not** prevent a new campaign from seeding (
 - **Plan tier:** 0 | 0p | 1 | 2
 
 ## Spec validation
-<!-- PLAN_VALIDATE — after brief, before Backlog. Optional T0; required T2/design-change.
-     Phase 3v when open P0/P1 = 0. Quarantine red-first proofs; Proof cells un-skip.
-     Unintended-change check-in: Preserve / regression / scope — not only the new feature. -->
+<!-- PLAN_VALIDATE + PLAN_SPEC_SYNC — after brief, before Backlog. Optional T0; required T2.
+     Derived from plan anchors; re-sync on divergence. <!-- spec-sync: iter N -->
+     Phase 3 apply: brief → Backlog → Deferred → Spec (disk) → 3v. See PLAN_SPEC_STATUS. -->
 | ID | Intention | Kind | Artifact(s) | Proof | Status |
 |---|---|---|---|---|---|
-| V1 | Feature: … | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
+| V1 | Feature: … (plan anchor) | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
 | V2 | Preserve: … | suite \| prose-sweep \| skill-law | path(s) | cmd / rg | pending |
 | V3 | Regression: recorded suite green | suite | — | `<Test command>` exit 0 | pending |
 
@@ -1997,12 +2006,19 @@ Block ends at next title, next `## `, or blank then non-clause. Residual may not
 Decision/Preserve (strip + Notes). Orphan clause lines strip on apply. One line per clause
 (≤200 chars soft). Prefer `backlog-blocks.js` parse/open-count/residual-forbidden.
 
-Apply surgically and natively: replace only the `## Backlog` body through the next `## `
-heading, and only the `## Deferred (P2)` body through the next `## ` heading (create the
-Deferred heading if missing). **`## Campaign brief`** (if present) is also rewritable by
-orchestrator only through next `## ` — advisors recommend deltas, never whole-file rewrite.
-Never ask an advisor or fallback replanner to rewrite the whole file; that can clobber
-deterministic counters and **## Last cycle** / stop tracking.
+Apply surgically and natively **in this order** (after strips/guards — PLAN_SPEC_SYNC):
+
+1. **`## Campaign brief`** (if rewritten) through next `## `
+2. **`## Backlog`** body through next `## `
+3. **`## Deferred (P2)`** body through next `## ` (create heading if missing)
+4. **`## Spec validation`** — **re-read applied ledger from disk**; derive V-rows from plan
+   anchors; write `<!-- spec-sync: iter N -->` or Notes
+   `spec sync n/a: plan unchanged since iter <N>` (required on skip). Step id `3-spec-sync`.
+   Never sync from pre-guard candidate Backlog.
+
+Advisors recommend deltas, never whole-file rewrite. Never ask an advisor or fallback
+replanner to rewrite the whole file; that can clobber deterministic counters and
+**## Last cycle** / stop tracking.
 
 **Open-only + anti-reseed strip (native, before surgical apply).** Before applying:
 
@@ -2070,22 +2086,28 @@ cycle commit (pathspec only).
 
 Immediately after surgical apply or deliberate non-apply, and without a subagent:
 
-**Phase 3v — Spec validation gate (before complete rules).** When open P0/P1 = 0 after replan
-and same-error/no-progress stops have not fired: if product residual survey still pending
-(product/mixed), run that first. Else run Spec validation Proofs (orchestrator-native;
-`scripts/spec-validate.js` for parse/seed/dedupe). Suite-kind Proofs reuse this cycle’s suite
-or one Confirm run (never two). Capture proof litter into `TEST_ARTIFACT_PATHS`. Write V-row
-Status cells + header `**Spec validation:**`. On executable fail: seed deduped
-`- [ ] P1: [defect] validate V<k>: <short> (<artifact>)` (never uncheck done items); on
-re-seed Notes `fix target: product | proof`. Manual rows never block unattended. Vacuous
-pass if section missing/all n/a; T2 missing section → seed write-section once (fallback).
-Re-run all executable rows every firing.
+**Phase 3v — Spec validation gate (before complete rules).** Step id `3v-prove`. When open
+P0/P1 = 0 after replan and same-error/no-progress stops have not fired: if product residual
+survey still pending (product/mixed), run that first. Else run Spec validation Proofs
+(orchestrator-native; `scripts/spec-validate.js` for parse/seed/dedupe). Suite-kind Proofs
+reuse this cycle’s suite or one Confirm run (never two). Capture proof litter into
+`TEST_ARTIFACT_PATHS`. Write V-row Status cells + header `**Spec validation:**`. On
+executable fail: seed deduped `- [ ] P1: [defect] validate V<k>: <short> (<artifact>)`
+(never uncheck done items); on re-seed Notes `fix target: product | proof`. Manual rows
+never block unattended. Vacuous pass if section missing/all n/a; T2 missing section → seed
+write-section once (fallback). Re-run all executable rows every firing.
+
+**Control channel (PLAN_SPEC_STATUS):** on step entry use one `▸` dialect with step id:
+`▸ improve · Phase 3 · cycle K/MAX · iter N · 3v-prove · <action> (from 3-spec-sync)`.
+End of sync: Spec sync card **or** skip one-liner. End of 3v: **Spec prove** card — non-pass
+rows only in evidence table; Loop effect never “done”. Validation line (pulse/commit/discovery):
+`Validation: N pass / M fail (V…) / W pending / K n/a … · sync=iter J | skip@J`.
 
 **R8 — never treat 3v fail as terminal:** Status stays `active` after seeds; in
 **autonomous** mode L1 **immediately** starts the next L2 cycle (do not ask the user, do not
 emit campaign “done”). Exit only when Spec validation pass/n/a **and** residual×2 complete,
-or hard stop. **`--once`:** seed + active + exit (operator re-invokes). Pulse/discovery:
-`Validation fail → seeded V… → continuing cycle K+1`.
+or hard stop. **`--once`:** seed + active + exit (operator re-invokes). Pulse/discovery
+**verbatim:** `Validation fail → seeded V… → continuing cycle K+1`.
 
 Then update **residual streak** then Status *in this exact order*:
 

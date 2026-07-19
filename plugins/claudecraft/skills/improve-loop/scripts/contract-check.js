@@ -325,6 +325,12 @@ const improvePlanningUserOnly = [
     'PLAN_VALIDATE unintended-change check-in',
     /Unintended-change check-in|Preserve.*[Rr]egression.*[Ss]cope|Preserve \/ regression \/ scope/i,
   ],
+  ['PLAN_SPEC_SYNC token', /PLAN_SPEC_SYNC/],
+  ['PLAN_SPEC_SYNC plan-derived', /plan anchor|plan-derived|derived from plan/i],
+  ['PLAN_SPEC_SYNC marker iter', /spec-sync: iter/],
+  ['PLAN_SPEC_STATUS step id', /3-spec-sync/],
+  ['PLAN_SPEC_STATUS Spec prove', /Spec prove/],
+  ['PLAN_SPEC_STATUS Spec sync', /Spec sync/],
   ['PLAN_APPLY multi-line block delete', /contiguous block|title \+ clause|delete entire contiguous|title and its contiguous clause/i],
   ['PLAN_CLASSIFY promote-class', /promote-class|classify: promote|keep P2/i],
   ['plan tiers T0 T0p T2', /\bT0p\b|Plan tier|plan tier/i],
@@ -350,6 +356,17 @@ if (mirror) {
     const u = re.test(user);
     const m = re.test(mirror);
     ok(u === m, `mirror/user presence mismatch for: ${name} (user=${u} mirror=${m})`);
+  }
+  // PLAN_SPEC_STATUS tokens must not silent-drift between user and mirror SKILL
+  const statusTokens = [
+    ['mirror 3-spec-sync', /3-spec-sync/],
+    ['mirror Spec prove', /Spec prove/],
+    ['mirror Spec sync', /Spec sync/],
+    ['mirror PLAN_SPEC_SYNC', /PLAN_SPEC_SYNC/],
+    ['mirror spec-sync: iter', /spec-sync: iter/],
+  ];
+  for (const [name, re] of statusTokens) {
+    ok(re.test(mirror), `mirror improve-loop status pin missing: ${name}`);
   }
 }
 
