@@ -3,6 +3,10 @@
 
 ### Phase 1 — Execute
 
+**PLAN_ORIENT:** on entry emit the orientation triplet (banner + `improve goal ·` + pulse);
+re-banner `(cont)` after substantial sub-actions; mid-cycle turn ends with pulse `· on: <slug>`.
+See `contracts/progress.md` PLAN_ORIENT.
+
 This is the fresh-agent context-clearing step. Select the next unchecked Backlog item.
 
 **R2 mechanical (PLAN_VALIDATE):** if any open product item’s Acceptance references `V<k>`

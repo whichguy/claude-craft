@@ -584,6 +584,14 @@ describe('claudecraft improve skill structure', function () {
       path.join(CC, 'skills/improve-loop/references/contracts/progress.md'),
       'utf8'
     );
+    const p1 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-1-execute.md'),
+      'utf8'
+    );
+    const p3 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-3-replan.md'),
+      'utf8'
+    );
     const index = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/INDEX.md'),
       'utf8'
@@ -624,6 +632,15 @@ describe('claudecraft improve skill structure', function () {
     expect(progress).to.match(/Validation:.*pass.*fail|Validation: N pass/i);
     expect(progress).to.match(/spec-sync: iter/);
     expect(p3v).to.match(/PLAN_SPEC_SYNC|Spec prove|3v-prove/);
+
+    // PLAN_ORIENT — tab-switch / mid-cycle orientation (ASCII tokens)
+    expect(progress).to.match(/PLAN_ORIENT/);
+    expect(progress).to.match(/improve goal ·/);
+    expect(progress).to.match(/· on:/);
+    expect(progress).to.match(/\(cont\)/);
+    expect(progress).to.match(/Orientation triplet|orientation triplet/i);
+    expect(p1).to.match(/PLAN_ORIENT|improve goal/);
+    expect(p3).to.match(/PLAN_ORIENT|improve goal/);
 
     // R8d at pulse emission (Phase 5 / progress)
     expect(p5).to.match(/R8d|continuing.*cycle K\+1|never.*campaign .?done/i);

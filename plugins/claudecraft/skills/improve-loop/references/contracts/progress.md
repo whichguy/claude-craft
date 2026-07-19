@@ -226,7 +226,127 @@ Spec: last Validation … · sync iters N..N' · failed ids this campaign (if an
 
 Evidence rules: unmet executable rows in prove table + Validation fail ids; pass rows not
 re-printed full; control channel never invents Status; ledger+git win on disagreement.
-Pin ASCII only: `3-spec-sync`, `Spec prove`, `Spec sync`, `Validation:`, `spec-sync: iter`.
+Pin ASCII only: `3-spec-sync`, `Spec prove`, `Spec sync`, `Validation:`, `spec-sync: iter`,
+`improve goal ·`, `· on:`, `(cont)`.
+
+## PLAN_ORIENT — tab-switch / mid-cycle orientation (canonical)
+
+Cycle-boundary cards (kickoff, discovery, campaign report) already orient. **Intra-cycle**
+re-entry is the gap: longest wall-clock stretches (Phase 1 execute, Phase 3 replan) surface
+coordinate-less beats and a phase banner several screens above the scroll bottom.
+
+**Fancy = density + orientation recurrence**, not a second decorative system. One dialect:
+existing `▸` banners + existing pulse line + one new greppable label `improve goal ·`.
+
+### Gaps (do not re-litigate Spec dialects)
+
+| ID | Gap |
+|---|---|
+| A | Reasoning beats omit cycle/iter/phase — mid-Phase-1 newest lines do not orient |
+| B | Campaign goal only at kickoff + discovery end — invisible mid long execute |
+| C | Banner has *now* without meter; pulse has *meter* without item — never co-located mid-cycle |
+| D | No freshness guarantee at scroll bottom after phase-entry banner |
+| E | STOP line meter-less (minor if report immediate) |
+
+### P0-1 — Orientation triplet (long-phase entry only)
+
+At entry to **`1-execute`** and **`3-replan`** only, emit the existing `▸` banner **immediately
+followed by** a goal line and the standard pulse line:
+
+```text
+▸ improve · Phase 1 · cycle K/MAX · iter N · 1-execute · execute: <item ≤80 chars> (from 0-resume)
+improve goal · <campaign goal ≤100 chars> · done-when residual×2 + green suite
+improve cycle K/MAX · iter N · active · open P0/P1 k · non-material=m/2 · residual_only=… · deferred=n · commit none · continuing
+```
+
+- One new greppable label: `improve goal ·` (ASCII pin).  
+- Reuses existing `▸` + pulse prefixes.  
+- Goal line states R7 **done-when rule text**, never a live complete status.  
+- Other L2 steps keep the bare one-line `▸` banner (no forced triplet).  
+- **Rejected:** packing goal/Status/open/residual onto the `▸` line itself (anti-bloat;
+  Fable #3 one dialect + Sol mega-banner rejection).
+
+### P0-2 — Re-banner heartbeat inside long phases
+
+After substantial sub-actions within `1-execute` / `3-replan` (suite finished, revert applied,
+hygiene pass, advisor round returned), re-emit the `▸` banner with the same coordinates and
+an updated one-line action, suffixed `(cont)`:
+
+```text
+▸ improve · Phase 1 · cycle K/MAX · iter N · 1-execute · test suite finished — reconciling Outcome (cont)
+```
+
+Rule of thumb: **no stretch of more than ~8 tool calls** without a coordinate-bearing `▸`
+line. Zero new dialects; `(cont)` is ASCII. Beats stay terse — the nearby banner carries
+coordinates.
+
+### P1-1 — Turn-end pulse footer (mid-cycle turns)
+
+Any assistant turn that ends while a cycle is in flight (i.e. **not** ending on a discovery
+card or campaign report) ends with the standard pulse line, extended with an `· on:` tail
+naming the **current work-item slug** (≤60 chars):
+
+```text
+improve cycle K/MAX · iter N · active · open P0/P1 k · non-material=m/2 · residual_only=… · deferred=n · commit none · continuing · on: <item slug ≤60 chars>
+```
+
+- Strongest tab-switch affordance: last chat line = meter + current item.  
+- Additive `· on:` suffix; digests **must** tolerate legacy pulses without it.  
+- Footer **never invents** status — quote last gate-set status; after 3v fail use
+  `active · continuing` (R8), never `done`/`complete`.  
+- **Item slug** (Sol fold): short stable identity for the selected unit
+  (`P1:validate-V2`, `P1:alias-registry`, `residual-survey`, `product-residual-survey`).
+  Derive at selection; carry through later banners/footers; never treat as resume authority.
+  Optional one-shot focus block when the item **changes** only — not every phase.
+
+### P1-2 — STOP + pulse pair
+
+On any `▸ improve · STOP …`, emit the pulse line **immediately after** it:
+
+```text
+▸ improve · STOP · cycle K/MAX · <reason code> — <one human sentence>
+improve cycle K/MAX · iter N · stopped (<reason>) · open P0/P1 k · non-material=m/2 · residual_only=… · deferred=n · commit none · report next
+```
+
+### P1-3 — Resolved Phase 5 handoff (Sol fold)
+
+Discovery card **Next** and `5-signal` banner state **one chosen branch**, not a menu of
+every possible branch:
+
+```text
+**Next:** continuing cycle K+1/MAX · next open: <slug or residual survey>
+```
+
+or on terminal: `**Next:** campaign report · merge-back` / operator action. On 3v fail:
+name the seeded item and `continuing cycle K+1` per R8d.
+
+### P2 — Discovery card row order
+
+Hoist **Residual meter** to immediately under **Campaign goal (reminder)** (label-only
+reorder; digests key on labels, not row order). Full discovery slim (suppress zero counters)
+is deferred.
+
+### Emit cadence (orientation)
+
+| Moment | Emit | Required? |
+|---|---|---|
+| Enter `1-execute` / `3-replan` | Orientation triplet (banner + goal + pulse) | **Yes** |
+| Sub-action in long phase | `▸` re-banner `(cont)` | **Yes** when >8 tools since last coordinate line |
+| Mid-cycle assistant turn end | Pulse footer with `· on:` | **Yes** |
+| STOP | STOP banner + pulse pair | **Yes** |
+| Item selection change | Optional short focus block once | Optional |
+| Discovery **Next** | One resolved handoff only | **Yes** |
+
+### Explicit non-goals (PLAN_ORIENT)
+
+- No second banner system / box rulers / `━` / continuation glyphs in pins  
+- No progress-bar % toward “done” (R7 is residual×2, not a gauge)  
+- No emoji meters on greppable lines  
+- No re-kickoff per cycle / mid-cycle dashboard cards  
+- No status synthesis in orientation lines (`complete`/`done` only from gates)  
+- No relying on `update_goal` as sole orientation channel  
+- No Spec Kit; dual-home: A authors this block; B/M quote verbatim — never dump A
+  reference trees into B/M  
 
 ## Host map
 

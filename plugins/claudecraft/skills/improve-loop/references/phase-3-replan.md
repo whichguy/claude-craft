@@ -195,6 +195,9 @@ ledger-only turn, Phase 4's code-dirty veto will correctly refuse to commit; on 
 turn, leave unexpected paths unstaged so the next invocation's Phase 0 dirty-tree guard
 stops. Never fold advisor-side dirt into the cycle commit.
 
+**PLAN_ORIENT:** on entry to `3-replan` emit the orientation triplet; re-banner `(cont)` after
+advisor rounds return; mid-cycle turns end with pulse `· on:`. See `contracts/progress.md`.
+
 **Surgical apply order (orchestrator, after strips/guards) — PLAN_SPEC_SYNC:**
 
 1. `## Campaign brief` (if rewritten)  
