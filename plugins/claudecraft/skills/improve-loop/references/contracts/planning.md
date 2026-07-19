@@ -164,6 +164,26 @@ runtime contract state; C1–C12 gaps → promote|P2|waive (≤6); sticky P2 rec
 operator post-land ≠ product; fidelity preference. Inject into 5-block inputs 1, 2, 4.
 Tokens: `PLAN_CRITERIA`, `Criteria scan`. Soft warnings never auto-seed.
 
+**Design-time N&S (orchestrator preflight; not a 6th advisor block):**
+Fire only on (1) cold-start **material** seed, or (2) promote-class / material-rec apply
+(T2, native 5-block, Criteria → promote). Skip pure residual-only empty promote-class.
+
+Assess the proposed **candidate set** once (≤3 bullets total; write a bullet only where
+outcome changes):
+1. **Simplify?** Smaller change or drop/waive that still closes the gap?
+2. **Overdesign?** Second authority / framework / inventory / extra *view* of unchanged
+   fail-closed behavior without a new assert/gate need?
+3. **Layer?** Open P0/P1 · Deferred P2 · docs/pointer · skill-law · nowhere (drop)?
+   Prefer the thinnest layer that works.
+
+Inject into 5-block inputs 1, 2, 4. Prefer existing classes `simplify` | `defer` when
+N&S fails — do not invent classes. Orchestrator owns the answer; advisors are not
+required to emit `design:`.
+**Soft only** — never alone blocks residual×2, Status, or complete; never auto-seeds.
+Optional Notes only when N&S **changed** the outcome:
+`design: simplify | re-layer | defer | drop — <≤80 chars>`. Silent OK when promote-as-is.
+This is not the residual-item `protects:`/`closes:` filter; do not add those tokens here.
+
 ## PLAN_RUNTIME_CONTRACT — habitat claim + state machine
 
 **Habitat claimed** only when current **invocation**, brief **Target/In-scope**, or a **current open Acceptance** promises a named external runtime. Ignore examples, history, Deferred, bare paths, incidental keywords.
