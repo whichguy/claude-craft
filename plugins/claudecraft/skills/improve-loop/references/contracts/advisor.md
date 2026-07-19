@@ -7,11 +7,12 @@ Phase 3 may consult zero or more **advisors** before surgically updating the Bac
 ## Required behavior
 
 1. **Read-only:** no edits, no write commands; diagnose and recommend only.  
-2. Input: target, path to `IMPROVE_LOOP.md` (including this cycle’s Last cycle), prior-learnings digest, Phase 1 report (or empty-backlog thesis). Prefer open Backlog + ## Last cycle + compact COMPLETED/DISPROVEN (not full diary dump).  
-3. Output: prefer structured **5-block** form (see `contracts/planning.md`): purpose fit; material recommendations (class must-fix|decision|simplify|defer + kind + six-clause or residual thin); Deferred P2; risks/stop; anti-reseed. Free prose acceptable if clauses are still recoverable.  
+2. Input: target, path to `IMPROVE_LOOP.md` (including this cycle’s Last cycle), prior-learnings digest, Phase 1 report (or empty-backlog thesis), plus **PLAN_CRITERIA preflight** evidence from the orchestrator (habitat claim, runtime contract state, criteria map). Prefer open Backlog + ## Last cycle + compact COMPLETED/DISPROVEN (not full diary dump).  
+3. Output: prefer structured **5-block** form (see `contracts/planning.md`) — **exactly five blocks** (preflight is input, not a sixth block): purpose fit; material recommendations (class must-fix|decision|simplify|defer + kind + six-clause or residual thin); Deferred P2; risks/stop; anti-reseed. Free prose acceptable if clauses are still recoverable.  
 4. Must not recommend re-attempting a **disproven** thesis without a concrete re-open reason.  
 5. Must not drop or uncheck already-`[x]` Backlog items (A continuous).  
-6. Do not invent Decision/Preserve on residual items; do not invent new complete predicates.
+6. Do not invent Decision/Preserve on residual items; do not invent new complete predicates.  
+7. Material recommendations update **work-spec** anchors (brief/Backlog); Validation Spec V-rows are derived after apply (PLAN_SPEC_SYNC), not free-authored by advisors as product intent.
 
 ## Defaults and throttle
 

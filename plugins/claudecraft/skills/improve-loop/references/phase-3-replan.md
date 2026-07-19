@@ -52,16 +52,21 @@ built in Phase 0 step 7 (the last 15 iterations' Thesis/Outcome/evidence/Notes e
 from git history, with any disproven theses highlighted), plus a pointer to general
 non-improve-loop history (the `git log --oneline -20` retained for repo context); and this
 cycle's Phase 1 report, or the lightweight empty-backlog Thesis/Outcome. Pass pointers and
-paths rather than inlining all content; each advisor has repository access. Ask independently:
+paths rather than inlining all content; each advisor has repository access.
 
-> Does the recent work—and the Backlog's overall direction—still serve the stated purpose?
-> What do you recommend next? What risks or concerns exist? Review the learnings from prior
-> iterations in the digest. Do not recommend re-attempting a thesis whose most-recent
-> recorded outcome was disproven, unless you give a concrete reason the prior disproof does
-> not hold (new evidence, changed conditions, or the prior disproof was flawed).
-> When recommending new or revised P0/P1 work, preserve existing Decision/Preserve/
-> Acceptance intent unless you cite new contradictory evidence. Classify each material
-> recommendation as must-fix | decision | simplify | defer.
+**PLAN_CRITERIA preflight (orchestrator, before Round 1):** habitat claim, runtime contract
+state, criteria map, sticky P2 reclassify — inject as compact input. Not a 6th advisor block.
+
+Ask independently (**5-block** preferred — `contracts/advisor.md` / `planning.md`):
+
+> 1. Purpose fit — recent work + open Backlog vs stated purpose / work-spec.
+> 2. Material recommendations — class must-fix|decision|simplify|defer + kind + six-clause
+>    or residual thin; Acceptance behavioral (may cite V-ids); update work-spec anchors only.
+> 3. Deferred P2 (+ sticky reclassify once if applicable).
+> 4. Risks / stop / scope-vs-install.
+> 5. Anti-reseed — COMPLETED_SET / DISPROVEN_SET considered.
+> Do not re-attempt disproven theses without re-open reason. Do not invent Decision/Preserve
+> on residual. Do not invent complete predicates.
 
 The **native-replanner fallback** (Consolidation 1, below) receives the same inputs as Round
 1, so it gets the digest automatically; the disproven-thesis guard below applies to its
@@ -79,9 +84,11 @@ id is how Round 2 resumes that exact advisor.
 Do this synthesis in the orchestrating context, not another dispatch. Identify agreement,
 disagreement, and the range of recommendations. If zero advisors produced usable Round-1
 text, skip Round 2 and use the **native-replanner fallback** for this cycle only. Give that
-single native replanner the same inputs Round 1 received and require a Backlog body only.
-Append one line to the latest Last cycle Notes recording the full-panel failure. Do not allow
-advisor infrastructure flakiness to stall the loop.
+single native replanner the same inputs Round 1 received and require a Backlog body only
+(and Deferred when applicable). On Plan tier 2, Notes must include
+`T2 challenge: native|advisor|skipped — <why>`. Apply work-spec revisions before
+PLAN_SPEC_SYNC. Append one line to the latest Last cycle Notes recording the full-panel
+failure. Do not allow advisor infrastructure flakiness to stall the loop.
 
 When usable Round-1 advisors show strong agreement—all recommend the same direction, have
 no risk disagreement, make the same continue-versus-stop call, and have no material

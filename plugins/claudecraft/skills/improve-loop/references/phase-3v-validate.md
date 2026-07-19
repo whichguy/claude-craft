@@ -37,10 +37,12 @@ invoke the **same** procedure in **report mode** (card; seed only if operator as
 | Kind | At 3v |
 |---|---|
 | suite, L3-test, prose-sweep, dual-home, skill-law (with rg/path) | **Executable** — must pass for header `pass` |
+| **habitat** | **Executable** when Proof non-empty — must pass for header `pass`; **never** treat host suite green as habitat Feature pass |
 | manual | **Never** blocks unattended complete; leave Status `pending`; pulse/body `unverified (manual): k` |
 
 Re-run **all executable** rows every gate firing (U-new-4). Prefer **narrow** Proof commands
-(single file / rg) so 3v does not approximate a second full suite.
+(single file / rg / habitat smoke) so 3v does not approximate a second full suite. Soft-check
+bundle (PLAN_SPEC_SOFT) after sync is **warnings only** — disposition Notes; never auto-seed.
 
 ---
 

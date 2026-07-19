@@ -709,6 +709,20 @@ describe('claudecraft improve skill structure', function () {
     expect(index).to.match(/contracts\/planning\.md/);
     expect(advisor).to.match(/5-block|must-fix|anti-reseed/i);
     expect(advisor).to.match(/contracts\/planning\.md|planning\.md/);
+    expect(advisor).to.match(/PLAN_CRITERIA|preflight/i);
+
+    // PLAN_CRITERIA + PLAN_RUNTIME_CONTRACT + HYBRID work-spec (M1–M5 law)
+    expect(planning).to.match(/PLAN_CRITERIA/);
+    expect(planning).to.match(/Criteria scan|preflight/i);
+    expect(planning).to.match(/PLAN_RUNTIME_CONTRACT/);
+    expect(planning).to.match(/Runtime contract:/);
+    expect(planning).to.match(/investigation-P1|filled/);
+    expect(planning).to.match(/work spec|work-spec|WORK SPEC/i);
+    expect(planning).to.match(/Validation Spec|VALIDATION SPEC|derived prove/i);
+    expect(planning).to.match(/T2 challenge/);
+    expect(planning).to.match(/\bhabitat\b/);
+    expect(planning).to.match(/softCheck|PLAN_SPEC_SOFT/);
+    expect(planning).to.match(/never auto-seed|never seeds backlog/i);
   });
 
   it('dirty launch bootstraps worktree carry+drain instead of hard-stop only', function () {

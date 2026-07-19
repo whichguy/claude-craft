@@ -278,3 +278,19 @@ reintegrate/rebase helpers.
 | **PLAN_ORIENT** | Intra-cycle tab-switch orientation: long-phase triplet (`▸` + `improve goal ·` + pulse), `(cont)` heartbeat, turn-end `· on:` footer, STOP+pulse, residual meter under goal, resolved Phase 5 Next; no mega-banner / no % bars |
 | **PLAN_PROGRESS_ALIGN** | Host/formatter `## Improve progress` uses open P0/P1 + residual streak + cycle K + iter N (not checked/total as residual meter); R8d clamp on Validation fail |
 | P2 later | `spec-validate.js` soft-check Intention prefixes + marker staleness; discovery full slim |
+
+## HYBRID work-spec + Validation Spec (M1–M9, Soul)
+
+Evidence: packaging-complete residual×2 while habitat/product intent unproven (Backchain Hermes
+improve-loop 2026-07-19); Spec mirrored packaging P1s; residual “none” without re-probe.
+
+| ID | Law |
+|---|---|
+| **PLAN_CRITERIA** | Orchestrator preflight (not 6th advisor block): surface types, habitat claim, runtime state, C1–C12 → promote\|P2\|waive (≤6); tokens `PLAN_CRITERIA`, `Criteria scan` |
+| **PLAN_RUNTIME_CONTRACT** | Habitat claim predicate + state `n/a`\|`filled`\|`investigation-P1:<id>`; selection only — never residual×2 / Status gate |
+| **HYBRID spine** | Intention → **work-spec** (brief + material Backlog + runtime) → **Validation Spec** derived prove view → proof artifacts → code → 3v. No peer dual-spec; no mega-table; no `## Work Spec` section |
+| **PLAN_SPEC_SOFT** | Soft helpers audit derived mapping; disposition only; **never** auto-seed backlog or write Status/streak |
+| **Kind habitat** | Executable when Proof non-empty and not manual; suite alone never passes habitat Feature |
+| **Product residual** | Criteria trail Notes before `product residual survey: none`; probe outcomes pass\|reachable-fail\|unavailable\|manual; probes never write Status |
+| **Further improve?** | Campaign report honesty from Deferred — not a complete predicate |
+| **R7 / R8** | Unchanged: residual×2 sole complete; 3v fail never terminal |

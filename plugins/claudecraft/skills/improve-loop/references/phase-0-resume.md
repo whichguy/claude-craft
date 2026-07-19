@@ -113,15 +113,20 @@ Then continue with the numbered steps below.
    fake six-clause material. Structural residual campaigns may seed only `[residual]`
    items (mid-campaign residual×2 may empty open without inventing fake P0/P1).
 
-   When T2/T0p requires a brief: write `## Campaign brief` after `## Driver` (PLAN_BRIEF)
-   before Phase 1. Optional header: `**Product residual survey:** pending|done|n/a (defect)`.
+   When T2/T0p requires a brief: write `## Campaign brief` after `## Driver` (PLAN_BRIEF
+   **work-spec anchors**) before Phase 1. Include **Runtime contract:**
+   `n/a|filled|investigation-P1:<id>` (PLAN_RUNTIME_CONTRACT) when habitat is **claimed**
+   (invoke / Target / open Acceptance — not incidental keywords). Optional headers:
+   `**Product residual survey:** pending|done|n/a (defect)`;
+   `**Habitat claimed:** yes|no`; `**T2 challenge:**` when tier 2 (may fill after first replan).
 
-   **PLAN_VALIDATE (spec-first spine):** after brief (or after Driver when no brief), write
-   `## Spec validation` when tier is T2 / design-change / `--plan-deep` (**required** —
-   primary path). T0 may omit (vacuous 3v pass). Set header
+   **PLAN_VALIDATE (HYBRID spine):** after applied work-spec (brief + Backlog), **derive**
+   `## Spec validation` from plan anchors when tier is T2 / design-change / `--plan-deep`
+   (**required** — primary path). T0 may omit (vacuous 3v pass). Set header
    `**Spec validation:** pending|n/a|pass`. Prefer seeding test-authoring P1s for missing
-   Proof artifacts before product P1s (R2). Phase 3v at completion is the prove step; missing
-   required section at gate is U6 **fallback** seed only (do not double-wire).
+   Proof artifacts before product P1s (R2). Soft-check after sync (PLAN_SPEC_SOFT) never
+   auto-seeds. Phase 3v at completion is the prove step; missing required section at gate is
+   U6 **fallback** seed only (do not double-wire).
 
 3. Otherwise read the header, **`## Driver`** (if present), Backlog, Stop-condition block,
    and ## Last cycle (after any legacy Log collapse) only.
