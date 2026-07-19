@@ -426,9 +426,11 @@ Probes never write Status/streak. Soft-warn if habitat claimed and Spec lacks ha
 `PLAN_LEGACY_A` · `PLAN_CRITERIA` · `PLAN_RUNTIME_CONTRACT`
 
 **PLAN_SPEC_SOFT:** when Node is present, prefer `softCheckSpecBundle` /
-`softCheckIntentions` / `softCheckProofDiversity` / `softCheckCoverageMix` (anti-mirror) /
-`softCheckHabitatClaim` / `softCheckAssumptionProof` / `softCheckSyncStale` from dogfood
-`scripts/spec-validate.js`. Disposition Notes `soft: <code> → addressed|waived|unresolved`.
+`softCheckIntentions` / `softCheckProofDiversity` / `softCheckCoverageMix` (row-class
+diversity — **not** true anti-mirror; true anti-mirror deferred) /
+`softCheckHabitatClaim` (`softCheckHabitatCoverage` alias) / `softCheckAssumptionProof` /
+`softCheckSyncStale` from dogfood `scripts/spec-validate.js`. Disposition Notes
+`soft: <code> → addressed|waived|unresolved`.
 **Never auto-seed backlog; never sole complete gate.**
 
 Hard refusals: no Spec Kit dep; no residual theater; no inventing material for residual×2;
