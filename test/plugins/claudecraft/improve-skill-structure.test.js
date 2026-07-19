@@ -642,6 +642,12 @@ describe('claudecraft improve skill structure', function () {
     expect(p1).to.match(/PLAN_ORIENT|improve goal/);
     expect(p3).to.match(/PLAN_ORIENT|improve goal/);
 
+    // PLAN_PROGRESS_ALIGN — formatter residual meter + open P0/P1
+    expect(progress).to.match(/PLAN_PROGRESS_ALIGN/);
+    expect(progress).to.match(/open P0\/P1/);
+    expect(progress).to.match(/cycle K\/MAX|cycle \$\{cycle\}|cycle K/);
+    expect(p5).to.match(/PLAN_PROGRESS_ALIGN|open P0\/P1/);
+
     // R8d at pulse emission (Phase 5 / progress)
     expect(p5).to.match(/R8d|continuing.*cycle K\+1|never.*campaign .?done/i);
     expect(progress).to.match(/continuing|R8d/i);

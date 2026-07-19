@@ -276,4 +276,5 @@ reintegrate/rebase helpers.
 | **PLAN_SPEC_SYNC** | Spec validation derived from plan anchors; re-sync when plan diverges since `spec-sync: iter N`; apply Spec **after** applied Backlog; exclude validate-seed lifecycle from thrash |
 | **PLAN_SPEC_STATUS** | One `▸` banner dialect + step ids; Spec sync/prove evidence; one `Validation:` line; prove card = non-pass rows only; R8 “continuing” never “done” |
 | **PLAN_ORIENT** | Intra-cycle tab-switch orientation: long-phase triplet (`▸` + `improve goal ·` + pulse), `(cont)` heartbeat, turn-end `· on:` footer, STOP+pulse, residual meter under goal, resolved Phase 5 Next; no mega-banner / no % bars |
-| P2 later | `spec-validate.js` soft-check Intention prefixes + marker staleness; progress-format.js open P0/P1 fields |
+| **PLAN_PROGRESS_ALIGN** | Host/formatter `## Improve progress` uses open P0/P1 + residual streak + cycle K + iter N (not checked/total as residual meter); R8d clamp on Validation fail |
+| P2 later | `spec-validate.js` soft-check Intention prefixes + marker staleness; discovery full slim |

@@ -11,8 +11,10 @@ Before terminal / host-goal handling, **emit** the cycle’s progress pulse per
 `contracts/progress.md`:
 
 1. Complete fields from Phases 2–4 (outcome, test, committed, changes, learnings).  
-2. After replan: **Next** = first unchecked Backlog item; blockers from Notes/Status.  
-3. Progress metrics: backlog done/total, stall counters, Status.  
+2. After replan: **Next** = **one** resolved handoff (first open item slug or residual/continue/stop).  
+3. Progress metrics (**PLAN_PROGRESS_ALIGN**): open P0/P1, residual streak, cycle K +
+   iter N, optional Validation line; stall counters; Status. Prefer open P0/P1 over
+   checked/total backlog counts.  
 4. **Prefer the pure formatter** when Node is available so the pulse matches the schema:
    build a JSON object of the fields above, then
    `node <plugin>/tools/improve-progress-format.js --file <pulse.json>`

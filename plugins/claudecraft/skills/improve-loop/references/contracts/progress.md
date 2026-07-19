@@ -16,24 +16,25 @@ progress.emit(markdown [, structured?])
 # Always fall back to a user-visible assistant/stdout block so the operator never gets silence.
 ```
 
-## Required markdown shape
+## Required markdown shape (PLAN_PROGRESS_ALIGN)
+
+Compact host/headless pulse — greppable heading, residual×2-safe meter, optional Spec line.
+**Not** a substitute for mid-cycle PLAN_ORIENT chat (triplet / `improve cycle` log pulse).
 
 ```markdown
-## Improve progress — cycle N / run
+## Improve progress — cycle K/MAX · iter N · <draft|gate|final>
 
 **When:** <ISO-8601 or local timestamp>
 **Target:** <one line from IMPROVE_LOOP title / target>
-**Phase:** S8 cycle | phase-1 execute | S2 worktree | S11 reintegrate | S13 done | …
+**Campaign goal:** <one line or —>
 **Status:** active | complete | stopped (<reason>)
+**Residual:** m/2 · open P0/P1 k · suite PASS|FAIL|n/a
+**Now:** `<step_id>` · `<item slug>` · <action ≤72 chars>
+**Last resolved:** <one line or —>
+**Next:** <one resolved handoff>
 **Outcome (this unit):** confirmed | disproven | partial | blocked | n/a
 **Test:** PASS | FAIL | skipped | n/a
 **Committed:** pending | yes | no — <reason> | n/a
-
-### Progress
-- Backlog: <done>/<total> items checked
-- Caps: cycle <k>/<max_cycles or ?>; elapsed <m>m[/max <M>m]; stall no-progress=<a> same-error=<b>; non-material=<c>
-- Until: <text or —> → met? yes|no|n/a  (default continuous: P0/P1×2 green)
-- Landed improve commits (grep): <count this run if known>; latest: <subject or —>
 
 ### This unit — key changes
 - <path>: <≤1 line what changed>
@@ -43,12 +44,16 @@ progress.emit(markdown [, structured?])
 - <novel learning or disproof; ≤2 lines>
 - … (prefer *new* vs prior improve-loop digest; or "none new")
 
-### Next
-- Next backlog item: <first unchecked or —>
-- Blockers / risks: <or none>
+Validation: N pass / M fail (V…) / W pending / K n/a [unverified manual: k] · sync=iter J | skip@J
 ```
 
 Heading **must** start with `## Improve progress` so headless logs are greppable.
+Omit `Validation:` when Spec section is absent. **R8d:** executable Validation fail never
+implies Status `complete` — keep `active` + continuing.
+
+**Legacy (continuous A only):** if caller cannot supply `open_p01`, formatter may still emit
+`Backlog: done/total items checked` — do **not** prefer this as the residual meter when
+open P0/P1 is known (B/M delete-on-complete).
 
 ## Optional structured companion
 
@@ -58,21 +63,33 @@ When the host accepts JSON progress (same emit):
 {
   "kind": "improve.progress",
   "cycle": 3,
+  "max_cycles": 8,
+  "iter": 3,
+  "pulse_kind": "final",
+  "campaign_goal": "align progress formatter with residual×2",
   "phase": "S8 cycle",
   "status": "active",
   "outcome": "confirmed",
   "test": "PASS",
   "committed": "yes",
-  "backlog_done": 2,
-  "backlog_total": 5,
+  "open_p01": 2,
+  "residual_streak": 0,
+  "step_id": "5-signal",
+  "item": "P1:progress-align",
+  "action": "emit final pulse",
+  "last_resolved": "suite green",
+  "next": "continuing cycle 4/8",
+  "validation": "Validation: 3 pass / 0 fail / 0 pending / 0 n/a · sync=iter 3",
   "no_progress": 0,
   "same_error": 0,
   "changed_paths": ["README.md"],
   "learnings": ["…"],
-  "next": "…"
+  "backlog_done": 2,
+  "backlog_total": 5
 }
 ```
 
+`cycle` required. Prefer `open_p01` + `residual_streak` over legacy `backlog_*`.
 Markdown is **mandatory**; JSON is optional.
 
 ### Optional pure formatter (deterministic)
@@ -86,20 +103,25 @@ node <plugin>/tools/improve-progress-format.js --file pulse.json
 
 Input JSON fields align with the structured companion above (`cycle` required). Use when the
 orchestrator wants a guaranteed schema-compliant pulse; still allowed to hand-author the same
-markdown. Exit 2 if `cycle` is missing.
+markdown. Exit 2 if `cycle` is missing. **PLAN_PROGRESS_ALIGN:** open P0/P1 primary residual
+meter; cycle K + iter N both when known.
 
 ## Field sources (prefer deterministic)
 
 | Field | Source |
 |---|---|
-| cycle N | Last cycle `**N:**` / header `Iteration counter` |
+| cycle K / max | L1 cycle_count / MAX_CYCLES (driver); not ledger N alone |
+| iter N | Last cycle `**N:**` / header `Iteration counter` (ledger axis) |
+| open P0/P1 | Count open `- [ ]` titles with `P0:`/`P1:` under `## Backlog` (**primary residual meter**) |
+| residual streak | `consecutive-non-material-cycles` after Phase 3 |
+| item / step_id | Selected slug + L2 step id (display only — not resume authority) |
 | Validation | When `## Spec validation` exists — **one grammar** (see PLAN_SPEC_STATUS below): `Validation: N pass / M fail (V…) / W pending / K n/a [unverified manual: k] · sync=iter J \| skip@J`. On any executable fail / seeded `validate V<k>`: verdict is **continuing** (R8d) — never “done”. Required phrasing: `Validation fail → seeded V… → continuing cycle K+1` |
 | outcome / test / committed | Latest Last cycle |
-| backlog done/total | Count `- [x]` vs all `- [ ]`/`- [x]` under `## Backlog` |
+| backlog done/total | **Legacy / A continuous only** — count `- [x]` vs all checklist lines; omit when `open_p01` set |
 | stall counters | `## Stop-condition tracking` |
 | changed_paths | Pre-test `CHANGED_PATHS`, or `git show --name-only` if commit landed |
 | learnings | Thesis + Outcome (+ disproof) + short Notes; skip restating prior digest |
-| next | First unchecked Backlog line after replan |
+| next | **One** resolved handoff (not a four-branch menu) |
 | caps / elapsed | Driver: k, max_cycles, `started_at` from `.git/improve-runs/*.json` when present |
 
 ## When to emit
@@ -116,6 +138,11 @@ markdown. Exit 2 if `cycle` is missing.
 | Mid Phase 1 | improve-loop | Optional **once** if executor is still running past ~soft budget |
 
 **Do not** emit per advisor message, per file write, or per test log line.
+
+**Relation to PLAN_ORIENT:** mid-cycle tab-switch uses chat `▸` triplet + `improve cycle`
+log pulse. This `## Improve progress` block is the **cycle-boundary / host** pulse
+(formatter path). Both share residual meter vocabulary (open P0/P1, streak) — not a second
+banner dialect.
 
 ## PLAN_SPEC_STATUS — Spec evidence + step coordinates (canonical)
 
