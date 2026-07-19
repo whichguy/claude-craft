@@ -1598,8 +1598,9 @@ printf '%s\n' '---' 'name: grok-review-converge' '---' \
 # stub mirror so missing-mirror does not fail hard beyond the read fail list
 cp "$ROOT/SKILL.md" \
   "$FAKE_CC_HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop/SKILL.md"
+# IMPROVE_LOOP_PARITY=0: FAKE marketplace is SKILL-only (incomplete) — must not trip H18 parity
 set +e
-HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
+IMPROVE_LOOP_PARITY=0 HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
   >"$TMP/cc-prefer-out.txt" 2>"$TMP/cc-prefer-err.txt"
 CC_PREF_EC=$?
 set -e
@@ -1610,7 +1611,7 @@ assert "contract-check converge line is preferred" \
 # When preferred missing, fall back to legacy (still a stub — contract skips product pins)
 rm -rf "$FAKE_CC_HOME/.claude/skills/review-converge"
 set +e
-HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
+IMPROVE_LOOP_PARITY=0 HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
   >"$TMP/cc-legacy-out.txt" 2>"$TMP/cc-legacy-err.txt"
 CC_LEG_EC=$?
 set -e
@@ -1760,6 +1761,71 @@ set -e
 assert "stripped tryRebaseThenFf fails contract-check" test "$CC_PIN_EC" -ne 0
 assert "feature-surface message names tryRebaseThenFf" \
   grep -q 'feature-surface missing in scripts/merge-back.js: tryRebaseThenFf' "$TMP/cc-pin-err.txt"
+
+# --- M4: --json exit law matches text (ok:false → exit 1) ---
+PAR_JSON_A="$TMP/parity-json-a"
+PAR_JSON_B="$TMP/parity-json-b"
+rm -rf "$PAR_JSON_A" "$PAR_JSON_B"
+mkdir -p "$PAR_JSON_A/scripts" "$PAR_JSON_A/tests" "$PAR_JSON_A/references" \
+  "$PAR_JSON_B/scripts" "$PAR_JSON_B/tests" "$PAR_JSON_B/references"
+printf '%s\n' '# skill' >"$PAR_JSON_A/SKILL.md"
+printf '%s\n' '# skill' >"$PAR_JSON_B/SKILL.md"
+printf '%s\n' 'module.exports=1' >"$PAR_JSON_A/scripts/x.js"
+printf '%s\n' 'module.exports=2' >"$PAR_JSON_B/scripts/x.js"
+printf '%s\n' 'true' >"$PAR_JSON_A/tests/t.sh"
+printf '%s\n' 'true' >"$PAR_JSON_B/tests/t.sh"
+printf '%s\n' '# goal' >"$PAR_JSON_A/references/goal-objective.template.md"
+printf '%s\n' '# goal' >"$PAR_JSON_B/references/goal-objective.template.md"
+set +e
+node "$SCRIPTS/package-parity.js" --skill-dir "$PAR_JSON_A" --peer "$PAR_JSON_B" --json \
+  >"$TMP/parity-json-out.txt" 2>"$TMP/parity-json-err.txt"
+PAR_JSON_EC=$?
+node "$SCRIPTS/package-parity.js" --skill-dir "$PAR_JSON_A" --peer "$PAR_JSON_B" \
+  >"$TMP/parity-text-out.txt" 2>"$TMP/parity-text-err.txt"
+PAR_TEXT_EC=$?
+set -e
+assert "parity --json drift exit 1" test "$PAR_JSON_EC" -eq 1
+assert "parity text drift exit 1" test "$PAR_TEXT_EC" -eq 1
+assert "parity --json body ok false" grep -q '"ok": false' "$TMP/parity-json-out.txt"
+assert "parity --json and text same exit" test "$PAR_JSON_EC" -eq "$PAR_TEXT_EC"
+
+# equal packages: --json exit 0
+printf '%s\n' 'module.exports=1' >"$PAR_JSON_B/scripts/x.js"
+set +e
+node "$SCRIPTS/package-parity.js" --skill-dir "$PAR_JSON_A" --peer "$PAR_JSON_B" --json \
+  >"$TMP/parity-json-ok.txt" 2>/dev/null
+PAR_JSON_OK_EC=$?
+set -e
+assert "parity --json equal exit 0" test "$PAR_JSON_OK_EC" -eq 0
+assert "parity --json equal ok true" grep -q '"ok": true' "$TMP/parity-json-ok.txt"
+
+# --- M5: incomplete peer (SKILL-only) hard-fails — never soft-skip H18 partial ship ---
+PAR_STUB="$TMP/parity-stub-peer"
+rm -rf "$PAR_STUB"
+mkdir -p "$PAR_STUB"
+printf '%s\n' '# stub only' >"$PAR_STUB/SKILL.md"
+set +e
+node "$SCRIPTS/package-parity.js" --skill-dir "$PAR_JSON_A" --peer "$PAR_STUB" --json \
+  >"$TMP/parity-stub-out.txt" 2>"$TMP/parity-stub-err.txt"
+PAR_STUB_EC=$?
+set -e
+assert "incomplete peer exit 1" test "$PAR_STUB_EC" -eq 1
+assert "incomplete peer ok false" grep -q '"ok": false' "$TMP/parity-stub-out.txt"
+assert "incomplete peer reason peer_incomplete" \
+  grep -q 'peer_incomplete' "$TMP/parity-stub-out.txt"
+assert "incomplete peer not skipped" \
+  bash -c '! grep -q "\"skipped\": true" "'"$TMP/parity-stub-out.txt"'"'
+assert "incomplete peer mentions partial ship" \
+  grep -qiE 'partial ship|incomplete' "$TMP/parity-stub-out.txt"
+
+# Absent peer still soft-skips (exit 0, skipped true)
+set +e
+node "$SCRIPTS/package-parity.js" --skill-dir "$PAR_JSON_A" --peer "$TMP/no-such-peer-dir" --json \
+  >"$TMP/parity-absent-out.txt" 2>/dev/null
+PAR_ABSENT_EC=$?
+set -e
+assert "absent peer soft-skip exit 0" test "$PAR_ABSENT_EC" -eq 0
+assert "absent peer skipped true" grep -q '"skipped": true' "$TMP/parity-absent-out.txt"
 
 echo "---"
 echo "passed=$pass failed=$fail"

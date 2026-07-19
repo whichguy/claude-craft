@@ -11,10 +11,17 @@
  *   node package-parity.js [--skill-dir <path>] [--peer <path>] [--json]
  *   node package-parity.js --self-test
  *
- * Exit: 0 ok or soft peer_missing; 1 usage / hard fail / forced peer missing
+ * Exit: 0 ok or soft peer_absent skip; 1 usage / hard fail (drift, A-dump,
+ *       peer_incomplete partial ship, forced peer_missing). --json prints the
+ *       result object then exits with the **same** code (never exit 0 on ok:false).
+ *
+ * Peer policy:
+ *   - peer directory **absent** → soft-skip when softMissingPeer (default CLI)
+ *   - peer directory **exists but incomplete** (no scripts/*) → **always hard fail**
+ *     (H18 partial ship — SKILL-only marketplace stub must not green)
  *
  * Env:
- *   IMPROVE_LOOP_PARITY=0  — callers may skip; this CLI still runs when invoked
+ *   IMPROVE_LOOP_PARITY=0  — callers (contract-check) may skip parity entirely
  *   HOME — default peer discovery
  *
  * Injectable: none (pure fs)
@@ -183,9 +190,10 @@ function checkParity(opts) {
     }
   }
 
-  const peerComplete = peerDir && peerLooksComplete(peerDir);
+  const peerExists = !!(peerDir && isDir(peerDir));
+  const peerComplete = peerExists && peerLooksComplete(peerDir);
 
-  if (!peerComplete) {
+  if (!peerExists) {
     // Local shape errors (e.g. A-dump) still fail even when peer is missing.
     if (errors.length) {
       return {
@@ -211,9 +219,25 @@ function checkParity(opts) {
       ok: false,
       skipped: false,
       reason: 'peer_missing',
-      errors: ['peer package directory missing or incomplete'],
+      errors: ['peer package directory missing'],
       role,
       peer: peerDir || null,
+    };
+  }
+
+  // Peer path exists but is not a complete B/M ship set → H18 partial ship (always hard).
+  // Never soft-skip incomplete stubs (SKILL-only marketplace dump).
+  if (!peerComplete) {
+    return {
+      ok: false,
+      skipped: false,
+      reason: 'peer_incomplete',
+      errors: [
+        ...errors,
+        'peer package incomplete (partial ship): need SKILL.md + scripts/* (H18)',
+      ],
+      role,
+      peer: peerDir,
     };
   }
 
@@ -302,13 +326,16 @@ function selfTest() {
   });
   if (!r.ok || !r.skipped) throw new Error('soft peer_missing should skip ok');
 
-  // Incomplete peer (SKILL-only marketplace stub) must soft-skip — not false-fail ship compare.
+  // Incomplete peer (SKILL-only) must **hard-fail** even with softMissingPeer (H18 partial ship).
   const stub = path.join(tmp, 'stub-market');
   fs.mkdirSync(stub, { recursive: true });
   fs.writeFileSync(path.join(stub, 'SKILL.md'), '# stub only\n');
   r = checkParity({ skillDir: a, peerDir: stub, softMissingPeer: true });
-  if (!r.ok || !r.skipped || r.reason !== 'peer_missing') {
-    throw new Error('incomplete peer should soft-skip: ' + JSON.stringify(r));
+  if (r.ok || r.skipped || r.reason !== 'peer_incomplete') {
+    throw new Error('incomplete peer must hard-fail (H18): ' + JSON.stringify(r));
+  }
+  if (!r.errors.some((e) => /partial ship|incomplete/i.test(e))) {
+    throw new Error('incomplete peer error text: ' + JSON.stringify(r));
   }
 
   r = checkParity({
@@ -370,10 +397,10 @@ function main() {
     console.log('peer:', result.peer);
   } else {
     console.error('FAIL: package-parity');
-    for (const e of result.errors) console.error(' -', e);
-    process.exit(1);
+    for (const e of result.errors || []) console.error(' -', e);
   }
-  process.exit(0);
+  // Same exit law for --json and text: ok/skipped → 0; hard fail → 1
+  process.exit(result.ok ? 0 : 1);
 }
 
 module.exports = {
