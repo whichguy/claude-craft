@@ -18,7 +18,16 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 **Iteration counter:** N     <!-- sole live N; must match Last cycle **N:** after Phase 2 -->
 **Until:** <string|none>     <!-- continuous default: no material P0/P1 for 2 consecutive cycles (green tests) -->
 **Max cycles:** <n|none>     <!-- continuous default 10 -->
+**Seed mode:** defect | product | mixed
+**Product residual survey:** pending | done | n/a (defect)
+**Plan tier:** 0 | 0p | 1 | 2
 **Spec validation:** n/a | pending | pass   <!-- PLAN_VALIDATE header flag; see phase-3v-validate.md -->
+**Habitat claimed:** yes | no
+**Habitat probe:** <cmd or n/a>
+**Habitat probe result:** ok | fail | n/a | skipped
+**Habitat probe evidence:** <≤120 chars or none>
+**Operator done-when:** <text or (none)>   <!-- honesty only — never a residual×2 complete predicate -->
+**Install mechanism:** copy | symlink | bind-required | unknown | n/a
 
 ## Driver
 - **mode:** continuous | once
@@ -39,15 +48,20 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 ## Campaign brief
 <!-- After ## Driver, before ## Backlog (PLAN_BRIEF). Orchestrator-only surgical rewrite
      through next ## . Success/Done when restates skill law only — no new complete predicates.
-     See contracts/planning.md -->
+     Canonical field list: contracts/planning.md § PLAN_BRIEF / PLAN_RUNTIME_CONTRACT. -->
 - **Target:** <plain-language target>
 - **Problem / opportunity:** …
 - **In scope:** …
 - **Out of scope / waived:** …
 - **Constraints:** test command, package rules, safety…
-- **Sources inspected:** paths / digest / habitat…
+- **Sources inspected / Open questions:** paths / digest / habitat… / none
+- **Surface types / Fidelity preference:** … | n/a — headless
+- **Criteria map:** … (PLAN_CRITERIA; ≤6 non-none)
+- **Operator post-land:** none | …
+- **Runtime contract:** n/a | filled | investigation-P1:<id>
+- **Runtime record:** … (if filled; 4–6 lines)
+- **T2 challenge:** native | advisor | skipped — <why> | n/a
 - **Success / Done when:** residual×2 + green suite (restate skill law only)
-- **Open questions:** none | …
 - **Plan tier:** 0 | 0p | 1 | 2
 
 ## Spec validation
@@ -58,7 +72,7 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
      Unintended-change check-in: Preserve / regression / scope. See planning.md + progress.md. -->
 | ID | Intention | Kind | Artifact(s) | Proof | Status |
 |---|---|---|---|---|---|
-| V1 | Feature: … (plan anchor) | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
+| V1 | Feature: … (plan/work-spec anchor) | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| habitat \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
 
 ## Backlog
 - [x] <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)

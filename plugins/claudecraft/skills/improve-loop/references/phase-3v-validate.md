@@ -21,7 +21,7 @@ Pure helpers (B): `scripts/spec-validate.js` when present — parse / seed / ded
 3. **Product residual survey** (if `SEED_MODE` product/mixed and still **pending**) runs
    **before** this gate; if survey opens material, **skip 3v** this cycle.
 4. Then:
-   - Section missing / all rows `n/a` → **vacuous pass** (header `n/a` or leave; today’s
+   - Section missing / all rows `n/a` → **vacuous pass** (set header `n/a`; today’s
      complete path). Exception: tier **T2/design-change required** and section missing →
      seed once `- [ ] P1: [defect] write Spec validation section (required at tier T2)`
      (U6 fallback; Phase 0 MUST-write is primary).
@@ -48,7 +48,7 @@ bundle (PLAN_SPEC_SOFT) after sync is **warnings only** — disposition Notes; n
 
 ## Proof execution (orchestrator-native)
 
-1. For each executable row with Status `pending` or `fail` (and optionally re-check `pass`):
+1. For each **executable** row (Status `pending`, `fail`, **or** `pass` — re-run all every firing; suite-kind may reuse this cycle’s suite STATUS only — never a second full suite run):
    - Run Proof cell as shell from WORKSPACE (or absolute path in cell).
    - **suite kind:** reuse this cycle’s suite STATUS if already run; else one Confirm-class
      run — **never two full suite runs in one cycle** (U9).
@@ -71,12 +71,13 @@ On any executable **fail**:
 
 1. Build seed title:  
    `- [ ] P1: [defect] validate V<k>: <intention short> (<artifact>)`
-2. **Dedupe:** if Backlog already has an open title containing `validate V<k>`, do **not**
+2. **Dedupe:** if Backlog already has an open title matching the colon-terminated token
+   `validate V<k>:` (not bare `validate V1` — that would false-match `validate V10`), do **not**
    seed again.
 3. Clauses (material six-clause or thin residual per package norms):  
    - Evidence: proof output tail / exit code  
    - Acceptance: `V<k> Status pass` (and un-quarantine if product Acceptance required it)
-4. Append seed under Backlog (A: open line; B: open greppable form).
+4. Append seed under Backlog (**package** A continuous dialect: open line; **package** B open-only: greppable form — dialect follows target ledger, not skill home).
 5. Error signature for later same-error: `validate:V<k>:<short-sig>` (first 12 hex of tail
    or short token).
 
@@ -133,4 +134,4 @@ Validation: N pass / M fail (V3, V7) / K n/a [unverified manual: k]
 
 ## Progress pulse
 
-When section exists: `Validation: X pass / Y pending / Z fail` on the cycle pulse.
+When section exists: emit the **canonical** Validation line per `contracts/progress.md` (order: pass / fail / pending / n/a · sync=…).

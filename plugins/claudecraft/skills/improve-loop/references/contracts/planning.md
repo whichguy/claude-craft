@@ -8,6 +8,9 @@ rules fork** (see PLAN_APPLY).
 
 ## Glossary
 
+**Home A/B/M vs package A/B:** *Home* letters name dual-home skill packages (law / runtime / marketplace). **Package A / package B** name ledger *dialects* (continuous vs open-only delete-on-complete), historically shipped by those homes — the dialect follows the **target ledger**, not which skill home you loaded.
+
+
 | Term | Meaning |
 |---|---|
 | **Open P0/P1** | Unchecked **title** lines under `## Backlog` that count for residual×2 / complete (package-local open-count) |
@@ -193,8 +196,8 @@ Every non-`n/a` V-row cites a **live work-spec anchor**. V-rows must not invent 
 
 **Header flag:** `**Spec validation:** n/a | pending | pass`  
 - `n/a` — section absent or all rows n/a (vacuous 3v pass)  
-- `pending` — non-n/a rows not all executable-pass, or 3v seeded fails  
-- `pass` — last 3v run: all **executable** rows pass (pure `manual` never required for pass)
+- `pending` — some **executable** row is not `pass`, or 3v seeded fails this run  
+- `pass` — last 3v run: all **executable** rows pass; **zero executable rows** (all `manual` / vacuous) → header `pass` with pulse `unverified (manual): k` when any manual pending (pure manual never blocks unattended complete)
 
 | Kind | Blocks unattended complete? | Proof shape |
 |---|---|---|

@@ -31,3 +31,10 @@ If a preferred host plugin is missing, **fall back** to native implementation; d
 ## Scope
 
 If the executor declares a file scope and then touches paths outside it, orchestrator sets Outcome `blocked` and does not trust the diff for a non-ledger commit.
+
+## Suite ownership and failure
+
+- May run **narrow/targeted** checks named by the item. Must **not** run the recorded **full** test command — the one Confirm-class suite run is **orchestrator-owned** (U9: never two full suite runs per cycle).
+- On timeout / non-response / crash: return Outcome suggestion `blocked` with what was attempted; do not invent PASS. Orchestrator still owns STATUS.
+- Report enough for Phase 2: paths changed, thesis, suggested outcome, and any unmet Acceptance / blockers / scope departures known at return (orchestrator reconciles final Outcome against STATUS).
+

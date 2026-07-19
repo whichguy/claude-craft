@@ -99,6 +99,8 @@ invent a different stop string in chat after seed.
 
 **After** any stop that used a worktree: always **reintegrate** (and destroy unless keep-worktree / reintegrate failed). Teardown is not optional when the host “completes goal.”
 
+> **R8b (Spec header):** All **Complete** outcomes additionally require disk `**Spec validation:** pass` or vacuous `n/a`. Header `pending` → Continue (next cycle re-enters 3v). residual×2 + green suite alone is not enough when Spec section is in play.
+
 ## Host mappings (informative)
 
 | Host | Binding |

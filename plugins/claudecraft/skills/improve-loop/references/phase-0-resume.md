@@ -89,7 +89,7 @@ Then continue with the numbered steps below.
    ask the operator to set finite caps before any ledger create/repair or cycle work.
 
 2. If `IMPROVE_LOOP.md` is absent, create it with the target description, test command
-   (ask once if missing), Status `active`, an empty Log, zeroed counters, and a `## Driver`
+   (ask once if missing), Status `active`, an empty `## Last cycle` placeholder (+ `## Next` stub), zeroed counters, and a `## Driver`
    stub (`next_auto: cycle` or seed intent; paths `none` until worktree create). Seed the
    Backlog immediately. This is a short native step, or a tiny one-shot native Agent call
    only when the target is too vague to turn into one to three concrete, testable unchecked

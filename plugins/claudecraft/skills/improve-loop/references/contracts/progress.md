@@ -36,6 +36,8 @@ Compact host/headless pulse — greppable heading, residual×2-safe meter, optio
 **Target:** <one line from IMPROVE_LOOP title / target>
 **Campaign goal:** <one line or —>
 **Status:** active | complete | stopped (<reason>)
+
+`complete` on a pulse only after the terminal cycle is **landed** (Phase 4 commit ok; reintegrate as applicable). Before land: keep `active` with Committed pending — never control-channel “done” ahead of durable truth.
 **Residual:** m/2 · open P0/P1 k · suite PASS|FAIL|n/a
 **Now:** `<step_id>` · `<item slug>` · <action ≤72 chars>
 **Last resolved:** <one line or —>
