@@ -221,7 +221,7 @@ Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 | **PLAN_CLAUSES** | Material six-clause: Evidence, Decision, Preserve, Unknown, Acceptance |
 | **PLAN_RESIDUAL** | Residual thin Evidence+Acceptance only — no invented Decision/Preserve |
 | **PLAN_BRIEF** | `## Campaign brief` after Isolation, before Backlog; **work-spec anchors** (Target; skill-law Done when) — no second `## Work Spec` table |
-| **PLAN_CRITERIA** | Orchestrator **Criteria scan** preflight (not a 6th advisor block): surfaces, habitat claim, runtime, C1–C12 → promote\|P2\|waive (≤6); soft never auto-seeds |
+| **PLAN_CRITERIA** | Orchestrator **Criteria scan** preflight (not a 6th advisor block): surfaces, habitat claim, runtime, C1–C12 → promote\|P2\|waive (≤6); soft never auto-seeds; **+ design-time N&S** (simplify/overdesign/layer) on material seed & promote; soft only; prefer `simplify`\|`defer` |
 | **PLAN_RUNTIME_CONTRACT** | Habitat claim + runtime state `n/a`\|`filled`\|`investigation-P1:<id>` as work-spec anchors. **When `investigation-P1:<id>`: Select that investigation before packaging-only items.** Close → rewrite brief to `filled` or scoped waiver Notes. Selection only — never residual×2 / Status gate |
 | **PLAN_VALIDATE** | `## Spec validation` = **Validation Spec** (derived prove view); V-rows + Proofs; Phase **3v** prove gate |
 | **PLAN_SPEC_SYNC** | Validation Spec **derived** from **work-spec** anchors; re-sync when plan diverges since `spec-sync: iter N` |
@@ -457,6 +457,11 @@ empty after full scan. **T0** if defect and no promote-class.
 Seed **1–3 open (`[ ]`) P0/P1-tagged** items from digest + target (T2 seed cap for six-clause
 material). Prefer concrete material gaps that are **not** semantic duplicates of
 **COMPLETED_SET** / unexcused **DISPROVEN_SET**. **Cold-start never leaves open P0/P1 empty.**
+
+**Design-time N&S (cold-start material seed):** before writing open **material** P0/P1, run
+design-time N&S (≤3 bullets total; bullets only where outcome changes; prefer
+`simplify`|`defer`). Residual-only survey seed may skip. Soft only — never blocks residual×2
+or Status. Optional Notes only on change: `design: simplify | re-layer | defer | drop — …`.
 
 **When `SEED_MODE` is `defect` and promote-class empty (T0):** seed thin residual (not empty):
 
@@ -2119,6 +2124,8 @@ Ask independently (structured **5-block** preferred):
 > 2. Material recommendations — each with class `must-fix|decision|simplify|defer`, kind
 >    `defect|product-choice|architecture|implementation|residual`, and full six-clause or
 >    residual thin (Evidence+Acceptance only — no invented Decision/Preserve on residual).
+>    Before promoting material work, apply aggregate design-time N&S (orch owns; prefer
+>    simplify|defer; advisory only — do not alter residual×2/Status).
 > 3. Deferred P2 — one-line each.
 > 4. Risks / stop concerns.
 > 5. Anti-reseed — COMPLETED_SET / DISPROVEN_SET considered and rejected (or none).
@@ -2322,6 +2329,7 @@ zero usable Round-1 text, **always** write a native 5-block under Last cycle Not
 T2 challenge (native):
 1. Purpose fit — …
 2. Material recommendations — …
+   (apply design-time N&S before promote: simplify|defer; orch owns; soft only)
 3. Deferred P2 — …
 4. Risks / stop — …
 5. Anti-reseed — …
