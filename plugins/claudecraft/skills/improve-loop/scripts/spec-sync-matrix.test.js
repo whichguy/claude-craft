@@ -543,6 +543,75 @@ function fixture5_validateLifecycleNoSpecThrash() {
   pass(name);
 }
 
+// --- Fixture #6: cold-start first sync — marker iter N appears (hand golden, no derive) ---
+function fixture6_coldStartMarker() {
+  const name = 'S2-6 cold-start first sync marker';
+  const N = 1;
+  // Before: work-spec exists but Spec section has rows without a sync marker (pre-first-sync).
+  const rows = [
+    {
+      id: 'V1',
+      intention: 'Feature: first ship',
+      kind: 'suite',
+      artifact: 'tests',
+      proof: 'scripts.test.sh',
+      status: 'pending',
+    },
+  ];
+  const beforeNoMarker = [
+    '# IMPROVE_LOOP',
+    '',
+    '**Spec validation:** pending',
+    '',
+    '## Campaign brief',
+    '- Acceptance: first ship',
+    '',
+    '## Backlog',
+    '(empty)',
+    '',
+    '## Spec validation',
+    // intentionally no <!-- spec-sync: iter N -->
+    '| ID | Intention | Kind | Artifact | Proof | Status |',
+    '|----|-----------|------|----------|-------|--------|',
+    '| V1 | Feature: first ship | suite | tests | scripts.test.sh | pending |',
+    '',
+    '## Notes',
+    '(none)',
+    '',
+  ].join('\n');
+  const after = makeLedger({
+    header: 'pending',
+    iter: N,
+    rows,
+    workSpec: '- Acceptance: first ship',
+    notes: 'cold-start first PLAN_SPEC_SYNC',
+  });
+
+  if (beforeNoMarker.includes('spec-sync: iter'))
+    return fail(name, 'fixture integrity: before must lack sync marker');
+  if (!after.includes(MARKER(N)))
+    return fail(name, `after must write ${MARKER(N)}`);
+  if (after.includes(SKIP_NOTES(N)))
+    return fail(name, 'cold-start sync is not skip-Notes path');
+
+  const br = parseSpecValidationRows(beforeNoMarker);
+  const ar = parseSpecValidationRows(after);
+  if (br.length !== 1 || ar.length !== 1)
+    return fail(name, 'hand golden: single V1 before and after (no invent rows)');
+  if (br[0].id !== 'V1' || ar[0].id !== 'V1')
+    return fail(name, 'stable V-id V1');
+  // Rows content stable; only marker write is the cold-start contract under test
+  if (!rowsEqual(br, ar))
+    return fail(name, 'cold-start marker write must not thrash pre-authored row multiset');
+  const ops = classifyRowOps(br, ar);
+  if (!ops.some((o) => o.op === 'no_op_rows'))
+    return fail(name, 'expected no_op_rows on pre-authored Spec');
+  if (ops.some((o) => o.op === 'row_add' || o.op === 'row_removed'))
+    return fail(name, 'no derive: do not add/remove rows beyond golden');
+
+  pass(name);
+}
+
 function main() {
   process.exitCode = 0;
   fixture1_skipUnchanged();
@@ -551,12 +620,13 @@ function main() {
   fixture3b_itemComplete();
   fixture4_preserveUpdatePending();
   fixture5_validateLifecycleNoSpecThrash();
+  fixture6_coldStartMarker();
   if (process.exitCode) {
     console.error('spec-sync-matrix: FAILED');
     process.exit(1);
   }
   console.log('---');
-  console.log('spec-sync-matrix PASS (6 cases / 5 fixture ids)');
+  console.log('spec-sync-matrix PASS (7 cases / 6 fixture ids)');
 }
 
 if (require.main === module) {

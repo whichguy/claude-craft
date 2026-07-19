@@ -105,7 +105,10 @@ SKILL_DIR/scripts/spec-validate.js
 SKILL_DIR/scripts/complete-gate.js         # R7 pure complete evaluator (WP1)
 SKILL_DIR/scripts/package-parity.js        # B↔M only — never A (H15–H18, WP0)
 SKILL_DIR/scripts/contract-check.js
+SKILL_DIR/scripts/run-case-bank.js         # S1 soft-check illustrative cases
+SKILL_DIR/scripts/spec-sync-matrix.test.js # S2 Spec-sync matrix goldens (checker)
 SKILL_DIR/tests/scripts.test.sh
+SKILL_DIR/tests/cases/                     # S1 case-bank ledgers + expected.json
 ```
 
 *Package-shape map: A `references/dual-home.md` (H15–H18) — ship-procedure law starts in A.*
@@ -2205,9 +2208,11 @@ Apply surgically and natively **in this order** (after strips/guards — PLAN_SP
 4. **`## Spec validation`** — **re-read applied ledger from disk**; derive V-rows from
    **work-spec** anchors; write `<!-- spec-sync: iter N -->` or Notes
    `spec sync n/a: plan unchanged since iter <N>` (required on skip). Step id `3-spec-sync`.
-   Never sync from pre-guard candidate Backlog. Then optional PLAN_SPEC_SOFT
-   (`softCheckSpecBundle`) — disposition Notes `soft: <code> → addressed|waived|unresolved`;
-   **never auto-seed** from soft warnings alone.
+   Row ops / n/a statuses (item complete, drop claim, validate drop Notes): see
+   **PLAN_SPEC_SYNC** update matrix above — do not invent free-form `n/a`. Never sync from
+   pre-guard candidate Backlog. Then optional PLAN_SPEC_SOFT (`softCheckSpecBundle`) —
+   disposition Notes `soft: <code> → addressed|waived|unresolved`; **never auto-seed** from
+   soft warnings alone.
 
 Advisors recommend deltas, never whole-file rewrite. Never ask an advisor or fallback
 replanner to rewrite the whole file; that can clobber deterministic counters and
