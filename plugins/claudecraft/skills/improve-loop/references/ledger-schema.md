@@ -51,13 +51,14 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 - **Plan tier:** 0 | 0p | 1 | 2
 
 ## Spec validation
-<!-- PLAN_VALIDATE — after brief, before Backlog. Optional T0; required T2/design-change.
-     Phase 3v runs Proofs when open P0/P1 = 0. See contracts/planning.md + phase-3v-validate.md.
-     Quarantine new red-first proofs so default suite stays green; Proof invokes un-skipped.
-     Unintended-change check-in: cover Preserve / regression / scope, not only the new feature. -->
+<!-- PLAN_VALIDATE + PLAN_SPEC_SYNC — after brief, before Backlog. Optional T0; required T2.
+     Derived from plan statements/assumptions; re-sync when plan diverges since marker.
+     <!-- spec-sync: iter N -->  (ledger iter axis only — never L1 cycle K)
+     Phase 3 apply order: brief → Backlog → Deferred → Spec (disk re-read) → 3v prove.
+     Unintended-change check-in: Preserve / regression / scope. See planning.md + progress.md. -->
 | ID | Intention | Kind | Artifact(s) | Proof | Status |
 |---|---|---|---|---|---|
-| V1 | … | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
+| V1 | Feature: … (plan anchor) | suite \| L3-test \| skill-law \| prose-sweep \| dual-home \| manual | path(s) | executable cmd + success semantics | pending \| pass \| fail \| n/a |
 
 ## Backlog
 - [x] <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)

@@ -195,9 +195,20 @@ ledger-only turn, Phase 4's code-dirty veto will correctly refuse to commit; on 
 turn, leave unexpected paths unstaged so the next invocation's Phase 0 dirty-tree guard
 stops. Never fold advisor-side dirt into the cycle commit.
 
-Immediately after surgical apply or deliberate non-apply, and without a subagent:
+**Surgical apply order (orchestrator, after strips/guards) — PLAN_SPEC_SYNC:**
 
-**Phase 3v — Spec validation gate (before Status complete rules).**  
+1. `## Campaign brief` (if rewritten)  
+2. `## Backlog` (post open-only / anti-reseed / P2 / disproven-thesis guards; fallback may keep prior)  
+3. `## Deferred (P2)`  
+4. `## Spec validation` — **re-read applied ledger from disk**; derive V-rows from plan
+   statements (planning.md PLAN_SPEC_SYNC). Marker `<!-- spec-sync: iter N -->` on sync;
+   Notes `spec sync n/a: plan unchanged since iter <N>` on skip (required). Never sync from
+   pre-guard candidate. Step id `3-spec-sync` (control channel: `contracts/progress.md`).
+
+Immediately after surgical apply (incl. Spec sync) or deliberate non-apply, and without a
+subagent:
+
+**Phase 3v — Spec validation gate (before Status complete rules).** Step id `3v-prove`.  
 When open P0/P1 = 0 after replan and rules 1–2 below would not already stop, run
 `phase-3v-validate.md` (product residual survey first if still pending). Failures seed
 deduped `validate V<k>` P1 items so complete cannot fire; residual×2 remains sole complete

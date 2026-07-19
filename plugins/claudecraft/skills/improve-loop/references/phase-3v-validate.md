@@ -7,7 +7,9 @@ ordering (rules 3/4 in phase-3-replan). Own step — does **not** renumber Phase
 
 **Does not replace residual×2.** Failures block complete only by **seeding open P0/P1**.
 
-Full planning spine: `contracts/planning.md` (PLAN_VALIDATE, R1–R8, quarantine).
+Full planning spine: `contracts/planning.md` (PLAN_VALIDATE, **PLAN_SPEC_SYNC**, R1–R8,
+quarantine). **Sync ownership is Phase 3** (after applied Backlog); this file is **prove**
+only (`3v-prove`). Control-channel prove card: `contracts/progress.md` (PLAN_SPEC_STATUS).
 Pure helpers (B): `scripts/spec-validate.js` when present — parse / seed / dedupe.
 
 ---
@@ -54,6 +56,10 @@ Re-run **all executable** rows every gate firing (U-new-4). Prefer **narrow** Pr
 3. Write row **Status** `pass` | `fail` (orchestrator only — never executor/advisors).
 4. Update header `**Spec validation:** pass` only if every executable row is `pass`;
    else `pending`.
+5. Emit **Spec prove** control-channel card (`contracts/progress.md`): non-pass rows only
+   in the evidence table; compact `pass: V…` line for passes; **Loop effect** never
+   “done”/“complete”. On fail/seed use pulse phrasing verbatim:  
+   `Validation fail → seeded V… → continuing cycle K+1` (R8d).
 
 ---
 

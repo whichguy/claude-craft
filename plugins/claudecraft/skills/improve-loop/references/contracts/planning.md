@@ -133,7 +133,9 @@ Isolation/Driver, before Backlog). Orchestrator-only write; advisors may recomme
 ```markdown
 ## Spec validation
 <!-- PLAN_VALIDATE — Phase 3v completion-path gate. Stable V-IDs (never renumber).
-     Proof cells must be copy-paste executable with success semantics. -->
+     Proof cells must be copy-paste executable with success semantics.
+     PLAN_SPEC_SYNC: derived from plan statements; re-sync on divergence.
+     <!-- spec-sync: iter N --> -->
 
 | ID | Intention | Kind | Artifact(s) | Proof | Status |
 |---|---|---|---|---|---|
@@ -218,6 +220,56 @@ Package shapes (H16): **A** = thin SKILL + full `references/`; **B/M** = monolit
 `scripts/` + `tests/` + only `references/goal-objective.template.md`. Never rsync A
 `references/` into M.
 
+### PLAN_SPEC_SYNC — live, plan-derived Spec (not static)
+
+**Spec validation is derived, not authored in isolation.** Each non-`n/a` V-row
+**Intention** must cite a **plan anchor** (short quote or section+bullet).
+
+| Plan source | Intention prefix | Typical Kind |
+|---|---|---|
+| Open material **Acceptance** / locks | `Feature:` / `Lock:` | L3-test / suite |
+| Open material **Preserve** | `Preserve:` | suite / skill-law / prose-sweep |
+| Brief **Constraints** + recorded **Test command** | `Regression:` | suite |
+| Brief **Out of scope / waived** + In scope | `Scope:` | prose-sweep / dual-home / manual |
+| Brief **Open questions** / item **Unknown** | `Assumption:` | skill-law / L3-test / manual |
+| Brief **Success / Done when** (optional/discouraged) | `Done-when:` | skill-law only |
+
+**Forbidden as sole content:** generic rows with no plan anchor (e.g. only “tests pass”,
+“code quality good” untied to this campaign’s Test command / Acceptance / Preserve).
+
+**Trigger:** plan content **diverged since last sync marker** (not “this replan edited
+something”). Divergence: material Backlog add/rewrite/drop; brief body change; item
+complete-delete (Phase 2); header Test command change.
+
+**Excluded from triggers (anti-thrash):** residual-thin add/complete; 3v-seeded
+`validate V<k>` / write-section items — **any lifecycle** (add/complete/delete); Deferred
+churn without P0/P1 promotion.
+
+**Marker axis = ledger iter N only** (never L1 cycle K):
+
+| Path | Required write |
+|---|---|
+| Sync | `<!-- spec-sync: iter N -->` in `## Spec validation` |
+| Skip | Notes `spec sync n/a: plan unchanged since iter <N>` (**required**) |
+
+Cold-start: first write includes `<!-- spec-sync: iter N -->` (N from allocate_N).
+
+**Phase 3 apply order (after guards):** (1) Campaign brief (2) Backlog (3) Deferred
+(4) **Spec validation** — **re-read applied ledger from disk**; never pre-guard candidate.
+Then Phase 3v (`phase-3v-validate.md`).
+
+**Update matrix (summary):** new Acceptance → add Feature row pending; Preserve change →
+update + pending if text changed; item complete → Feature `n/a: item complete`, keep
+Preserve; plan drops claim → row `n/a: plan dropped claim` **and same pass drop open
+`validate V<k>`** with Notes `validate V<k> dropped: plan dropped claim`. Stable V-IDs
+never renumber. After sync: header `pending` if any executable non-pass; only 3v sets
+`pass`. After skip-sync: leave header untouched.
+
+**Anti-patterns:** frozen Spec after replan; stale `pass` after Intention/Proof rewrite;
+sync from pre-guard candidate; re-sync on validate-seed alone; silent Spec sync/3v with no
+control-channel evidence; dual banner/Validation dialects. Control-channel formats:
+`contracts/progress.md` (PLAN_SPEC_STATUS).
+
 ## Canonical backlog forms (PLAN_TAG / PLAN_CLAUSES / PLAN_RESIDUAL)
 
 **Greppable (preferred new seeds, B required):**
@@ -301,7 +353,7 @@ Advisor input soft cap: open Backlog + ## Last cycle + compact COMPLETED/DISPROV
 ## Static PLAN_* pin IDs (docs)
 
 `PLAN_TAG` · `PLAN_CLAUSES` · `PLAN_RESIDUAL` · `PLAN_BRIEF` · `PLAN_VALIDATE` ·
-`PLAN_APPLY` · `PLAN_CLASSIFY` · `PLAN_LEGACY_A`
+`PLAN_SPEC_SYNC` · `PLAN_SPEC_STATUS` · `PLAN_APPLY` · `PLAN_CLASSIFY` · `PLAN_LEGACY_A`
 
 Hard refusals: no Spec Kit dep; no residual theater; no inventing material for residual×2;
 A continuous `[x]` freeze; no hermes SKILL dual-home claim from this contract alone.

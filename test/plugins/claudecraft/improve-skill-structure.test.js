@@ -610,6 +610,21 @@ describe('claudecraft improve skill structure', function () {
     expect(planning).to.match(/Unintended-change check-in/i);
     expect(planning).to.match(/Preserve[\s\S]{0,200}Regression[\s\S]{0,200}Scope/i);
 
+    // PLAN_SPEC_SYNC — live plan-derived Spec
+    expect(planning).to.match(/PLAN_SPEC_SYNC/);
+    expect(planning).to.match(/plan anchor|plan-derived|derived from plan/i);
+    expect(planning).to.match(/spec-sync: iter/);
+    expect(planning).to.match(/re-read|applied ledger|pre-guard/i);
+    expect(planning).to.match(/Forbidden as sole content|no plan anchor/i);
+
+    // PLAN_SPEC_STATUS — control channel (ASCII tokens; progress contract)
+    expect(progress).to.match(/PLAN_SPEC_STATUS|3-spec-sync/);
+    expect(progress).to.match(/Spec prove/);
+    expect(progress).to.match(/Spec sync/);
+    expect(progress).to.match(/Validation:.*pass.*fail|Validation: N pass/i);
+    expect(progress).to.match(/spec-sync: iter/);
+    expect(p3v).to.match(/PLAN_SPEC_SYNC|Spec prove|3v-prove/);
+
     // R8d at pulse emission (Phase 5 / progress)
     expect(p5).to.match(/R8d|continuing.*cycle K\+1|never.*campaign .?done/i);
     expect(progress).to.match(/continuing|R8d/i);

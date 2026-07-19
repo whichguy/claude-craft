@@ -16,7 +16,8 @@ Normative one-cycle law. **SKILL.md** is the operator card; open these when exec
 | `contracts/progress.md` | Control-channel progress pulses (ephemeral; Log+git win) |
 | `contracts/executor.md` | Implementer must not commit |
 | `contracts/advisor.md` | Read-only replan advisors |
-| `contracts/planning.md` | Brief, tiers, **PLAN_VALIDATE**, spine 1→2→3→4, R1–R8, PLAN_APPLY A vs B |
+| `contracts/planning.md` | Brief, tiers, **PLAN_VALIDATE**, **PLAN_SPEC_SYNC**, R1–R8, PLAN_APPLY A vs B |
+| `contracts/progress.md` | Progress pulses + **PLAN_SPEC_STATUS** (step banners, Spec sync/prove, Validation line) |
 | `contracts/outer-loop.md` | Ranking: host goal → `improve` driver (finite caps) |
 | `dual-home.md` | A/B/M shapes, atomic ship checklist (H15–H18), package-parity Proof |
 | `improve-loop-learnings.md` | Banked invariants (incl. H15–H18 dual-home hygiene) |

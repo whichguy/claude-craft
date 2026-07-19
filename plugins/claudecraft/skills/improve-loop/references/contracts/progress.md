@@ -93,7 +93,7 @@ markdown. Exit 2 if `cycle` is missing.
 | Field | Source |
 |---|---|
 | cycle N | Last cycle `**N:**` / header `Iteration counter` |
-| Validation | When `## Spec validation` exists: `Validation: X pass / Y pending / Z fail` (Phase 3v). On any executable fail / seeded `validate V<k>`: verdict is **continuing** (R8d) — never “done” |
+| Validation | When `## Spec validation` exists — **one grammar** (see PLAN_SPEC_STATUS below): `Validation: N pass / M fail (V…) / W pending / K n/a [unverified manual: k] · sync=iter J \| skip@J`. On any executable fail / seeded `validate V<k>`: verdict is **continuing** (R8d) — never “done”. Required phrasing: `Validation fail → seeded V… → continuing cycle K+1` |
 | outcome / test / committed | Latest Last cycle |
 | backlog done/total | Count `- [x]` vs all `- [ ]`/`- [x]` under `## Backlog` |
 | stall counters | `## Stop-condition tracking` |
@@ -116,6 +116,117 @@ markdown. Exit 2 if `cycle` is missing.
 | Mid Phase 1 | improve-loop | Optional **once** if executor is still running past ~soft budget |
 
 **Do not** emit per advisor message, per file write, or per test log line.
+
+## PLAN_SPEC_STATUS — Spec evidence + step coordinates (canonical)
+
+Durable Spec truth is `## Spec validation` + git. This section is the **only** normative
+control-channel dialect for Spec sync/prove (A authors; B/M quote verbatim).
+
+### Coordinates
+
+| Axis | Display | In `spec-sync` marker? |
+|---|---|---|
+| L1 cycle K | `cycle K/MAX` (omit pre-first-L2) | No |
+| Ledger iter N | `iter N` | **Yes only** — `<!-- spec-sync: iter N -->` |
+| L2 step id | ASCII token | — |
+
+Step ids: `0-resume` · `1-execute` · `2-learn` · `3-replan` · `3-apply` · `3-spec-sync` ·
+`3v-prove` · `4-commit` · `5-signal`.
+
+### 1. Step banner (extend existing `▸` dialect — no box rulers)
+
+```text
+▸ improve · Phase 3 · cycle K/MAX · iter N · 3-spec-sync · <one-line action> (from 3-apply)
+```
+
+All L2 steps use this one dialect. `(from <prev-id>)` required entering `3-spec-sync`,
+`3v-prove`, `5-signal`. Pins: never glyphs or `━` rulers.
+
+### 2. Spec sync evidence
+
+**Sync path** — short card:
+
+```markdown
+### Spec sync · cycle K/MAX · iter N
+
+| | |
+|---|---|
+| **Step** | `3-spec-sync` |
+| **Path** | sync |
+| **Marker** | `spec-sync: iter N` |
+| **Anchors** | brief · material Backlog · assumptions · Test command |
+| **Rows** | +added · ~updated · n/a-retired · unchanged |
+
+**Delta** (≤8 lines; then `+j more`)
+- V<k> …
+```
+
+**Skip path** — one line under banner (not a full card):
+
+```text
+Spec sync · skip · unchanged since iter J · marker intact
+```
+
+### 3. Spec prove card (`3v-prove`)
+
+```markdown
+### Spec prove · cycle K/MAX · iter N · 3v
+
+| | |
+|---|---|
+| **Step** | `3v-prove` |
+| **Header** | pass \| pending \| n/a (vacuous) |
+| **Counts** | N pass / M fail / W pending / K n/a |
+| **Loop effect** | continuing (R8) \| no spec obstacle — completion still governed solely by R7 residual×2 \| vacuous |
+
+**Evidence (non-pass rows only)**
+| ID | Intention (short) | Result | Evidence | Next |
+|---|---|---|---|---|
+| V2 | Preserve: … | fail | exit 1 · tail… | seed `validate V2` |
+
+pass: V1 V3 · n/a: V5
+
+**Seeds this 3v:** `validate V2: …` · none
+```
+
+Result tokens for pins: ASCII `pass` / `fail` / `pending` / `manual` / `n/a`. Loop effect
+never “done”/“complete”.
+
+### 4. Validation line (pulse · commit-body Test evidence · discovery)
+
+```text
+Validation: N pass / M fail (V…) / W pending / K n/a [unverified manual: k] · sync=iter J | skip@J
+```
+
+One line; greppable `Validation:`. Digests accept legacy lines without `· sync=`.
+
+### 5. Discovery Spec block (≤2 lines)
+
+```markdown
+**Spec:** <same Validation line>
+**Unmet:** V2 … — seeded|open · _(none)_
+```
+
+### 6. Campaign report Spec arc
+
+```text
+Spec: last Validation … · sync iters N..N' · failed ids this campaign (if any)
+```
+
+### Emit cadence (Spec path)
+
+| Moment | Emit | Required? |
+|---|---|---|
+| Enter L2 step | `▸` banner + step id | Yes (all steps) |
+| End `3-spec-sync` | Sync card or skip one-liner | Yes |
+| End `3v-prove` | Prove card | Yes when Spec exists or T2 write-section seeded |
+| Pulse Phase 2/4/5 | Validation line | Yes when Spec exists |
+| Discovery | Spec block ≤2 lines | Yes when Spec exists |
+| Mid-Proof per row | Do not spam | Optional one evaluates beat |
+
+Evidence rules: unmet executable rows in prove table + Validation fail ids; pass rows not
+re-printed full; control channel never invents Status; ledger+git win on disagreement.
+Pin ASCII only: `3-spec-sync`, `Spec prove`, `Spec sync`, `Validation:`, `spec-sync: iter`.
 
 ## Host map
 

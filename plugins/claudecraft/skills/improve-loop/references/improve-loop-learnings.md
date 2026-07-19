@@ -268,3 +268,11 @@ was missing from M until cleanup `5da10d5`.
 L3: B `scripts/package-parity.js` + `contract-check` `requiredFiles` includes
 `backlog-blocks.js`, `spec-validate.js`, `package-parity.js`; feature-surface pins on
 reintegrate/rebase helpers.
+
+## PLAN_SPEC_SYNC + PLAN_SPEC_STATUS
+
+| Surface | Note |
+|---|---|
+| **PLAN_SPEC_SYNC** | Spec validation derived from plan anchors; re-sync when plan diverges since `spec-sync: iter N`; apply Spec **after** applied Backlog; exclude validate-seed lifecycle from thrash |
+| **PLAN_SPEC_STATUS** | One `▸` banner dialect + step ids; Spec sync/prove evidence; one `Validation:` line; prove card = non-pass rows only; R8 “continuing” never “done” |
+| P2 later | `spec-validate.js` soft-check Intention prefixes + marker staleness |
