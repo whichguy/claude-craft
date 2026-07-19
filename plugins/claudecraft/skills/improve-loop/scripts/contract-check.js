@@ -341,6 +341,13 @@ const improvePlanningUserOnly = [
   ['PLAN_SPEC_SYNC token', /PLAN_SPEC_SYNC/],
   ['PLAN_SPEC_SYNC plan-derived', /plan anchor|work-spec anchor|plan-derived|derived from (plan|work-spec)/i],
   ['PLAN_SPEC_SYNC marker iter', /spec-sync: iter/],
+  ['PLAN_SPEC_SYNC skip Notes', /spec sync n\/a: plan unchanged since iter/],
+  ['PLAN_SPEC_SYNC item complete status', /n\/a: item complete/],
+  ['PLAN_SPEC_SYNC drop claim status', /n\/a: plan dropped claim/],
+  [
+    'PLAN_SPEC_SYNC drop validate Notes',
+    /validate V<k> dropped: plan dropped claim/,
+  ],
   ['PLAN_SPEC_STATUS step id', /3-spec-sync/],
   ['PLAN_SPEC_STATUS Spec prove', /Spec prove/],
   ['PLAN_SPEC_STATUS Spec sync', /Spec sync/],

@@ -247,9 +247,12 @@ runs clean (or stop counters). residual×2 remains sole `complete` law
 (`Feature:` / `Preserve:` / `Regression:` / `Scope:` / `Assumption:`). Re-sync after Phase 3
 apply when plan diverged since `<!-- spec-sync: iter N -->` (ledger iter axis only). Apply
 order: brief → Backlog → Deferred → **Spec (re-read disk)** → soft → 3v. Skip path: required
-Notes `spec sync n/a: plan unchanged since iter <N>`. Exclude residual-thin and
-`validate V<k>` lifecycle from thrash triggers. Plan drops claim → `n/a` + drop open validate
-item same pass.
+Notes `spec sync n/a: plan unchanged since iter <N>` (leave header `**Spec validation:**`
+untouched). Exclude residual-thin and `validate V<k>` lifecycle from thrash triggers.
+Update matrix (machine strings): item complete → Feature `n/a: item complete`, keep
+Preserve; plan drops claim → row `n/a: plan dropped claim` **and same pass** drop open
+`validate V<k>:` with Notes `validate V<k> dropped: plan dropped claim`. Stable V-IDs never
+renumber. After sync: header `pending` if any executable non-pass; only 3v sets `pass`.
 
 **Unintended-change check-in (planning-time):** when writing `## Spec validation`, cover more
 than the new feature — **Preserve** / **Regression** / **Scope**. Prefer executable Proofs;
