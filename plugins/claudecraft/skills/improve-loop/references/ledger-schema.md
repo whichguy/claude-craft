@@ -10,7 +10,7 @@ Write one state file at the target repository root returned by
 gate specifies (when a completion-confirmation suite fails). Phase 0 steps 3a and 3b may also
 repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 
-```markdown
+````markdown
 # Improve Loop: <target description>
 
 **Test command:** `<cmd>`
@@ -141,6 +141,11 @@ Rules:
   item-specific proof on top of that floor.
 - Do **not** invent fake Decision/Preserve on residual items to look complete.
 
+## Deferred (P2)
+<!-- Open P2 only — consider later; does **not** count as open P0/P1 / residual×2.
+     Phase 3 apply order: brief → Backlog → Deferred → Spec → 3v. Link: Next deferred in commits. -->
+- [ ] P2: <item> — <why deferred / not material this campaign>
+
 ## Stop-condition tracking
 - consecutive-no-progress: 0
 - consecutive-same-error: 0 (signature: none)
@@ -166,7 +171,7 @@ Rules:
 **Error signature:** <none | exact short string — see Phase 2>
 **Committed:** pending | yes | no — <reason>
 **Notes for next cycle:** …
-```
+````
 
 `**Lint:**` / `**Lint tools:**` are optional on older entries; new cycles should write them.
 Lint is orchestrator-owned via `tools/improve-lint.sh` (see phase-1-execute); it is **not**

@@ -17,7 +17,7 @@ Phase 3 may consult zero or more **advisors** before surgically updating the Bac
 ## Defaults and throttle
 
 - **Default when advisors unavailable or throttled:** native-only replan (orchestrator).  
-- **Full multi-model panel** is optional and host-mapped; continuous driver may run full panel only every K cycles or on stall (see improve skill `throttle.md`).  
+- **Full multi-model panel** is optional and host-mapped; continuous driver may run full panel only every K cycles or on stall (see sibling improve skill `../improve/references/throttle.md`).  
 - Advisor failure/timeout must **not** stall the cycle — continue with usable subset or native fallback.
 
 ## Host mappings (optional)
