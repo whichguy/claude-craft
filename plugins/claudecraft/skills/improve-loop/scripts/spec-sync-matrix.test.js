@@ -65,12 +65,23 @@ function classifyRowOps(before, after) {
         intention: r.intention,
         status: r.status,
       });
-    } else if (bMap.get(id).status !== r.status) {
+      continue;
+    }
+    const prev = bMap.get(id);
+    if (prev.status !== r.status) {
       ops.push({
         op: 'row_status',
         id,
         status: r.status,
-        from: bMap.get(id).status,
+        from: prev.status,
+      });
+    }
+    if (prev.intention !== r.intention) {
+      ops.push({
+        op: 'row_intention',
+        id,
+        intention: r.intention,
+        from: prev.intention,
       });
     }
   }
@@ -414,18 +425,138 @@ function fixture3b_itemComplete() {
   pass(name);
 }
 
+// --- Fixture #4: Preserve text change → update Intention + pending; Feature untouched ---
+function fixture4_preserveUpdatePending() {
+  const name = 'S2-4 Preserve text → pending (Feature no thrash)';
+  const N = 7;
+  const NEW_PRESERVE = 'Preserve: dual-home A≠B≠M pathspec commits';
+  const beforeRows = [
+    {
+      id: 'V1',
+      intention: 'Feature: ship widget',
+      kind: 'suite',
+      artifact: 'tests',
+      proof: 'scripts.test.sh',
+      status: 'pass',
+    },
+    {
+      id: 'V2',
+      intention: 'Preserve: dual-home A≠B≠M',
+      kind: 'skill-law',
+      artifact: 'SKILL.md',
+      proof: 'package-parity',
+      status: 'pass',
+    },
+  ];
+  const afterRows = [
+    {
+      id: 'V1',
+      intention: 'Feature: ship widget',
+      kind: 'suite',
+      artifact: 'tests',
+      proof: 'scripts.test.sh',
+      status: 'pass',
+    },
+    {
+      id: 'V2',
+      intention: NEW_PRESERVE,
+      kind: 'skill-law',
+      artifact: 'SKILL.md',
+      proof: 'package-parity',
+      status: 'pending',
+    },
+  ];
+  const before = makeLedger({ header: 'pass', iter: N, rows: beforeRows });
+  const after = makeLedger({
+    header: 'pending',
+    iter: N + 1,
+    rows: afterRows,
+    notes: 'spec sync: Preserve diverged',
+  });
+
+  const br = parseSpecValidationRows(before);
+  const ar = parseSpecValidationRows(after);
+  const ops = classifyRowOps(br, ar);
+
+  const intOp = ops.find((o) => o.op === 'row_intention' && o.id === 'V2');
+  const stOp = ops.find((o) => o.op === 'row_status' && o.id === 'V2');
+  // parseSpecValidationRows lowercases status only, not intention
+  if (!intOp || intOp.intention !== NEW_PRESERVE)
+    return fail(name, `expected row_intention V2, got ${JSON.stringify(intOp)}`);
+  if (!stOp || stOp.status !== 'pending')
+    return fail(
+      name,
+      `Preserve text change must re-open pending, got ${JSON.stringify(stOp)}`
+    );
+  if (ops.some((o) => o.id === 'V1' && (o.op === 'row_status' || o.op === 'row_intention')))
+    return fail(name, 'Feature row must not thrash when only Preserve changes');
+  if (ops.some((o) => o.op === 'row_add' || o.op === 'row_removed'))
+    return fail(name, 'stable V-ids: update in place, no add/remove');
+
+  pass(name);
+}
+
+// --- Fixture #5: anti-thrash — validate-lifecycle-only must not rewrite Spec rows ---
+function fixture5_validateLifecycleNoSpecThrash() {
+  const name = 'S2-5 validate lifecycle alone → Spec no thrash';
+  const N = 8;
+  const rows = [
+    {
+      id: 'V1',
+      intention: 'Feature: ship widget',
+      kind: 'suite',
+      artifact: 'tests',
+      proof: 'scripts.test.sh',
+      status: 'fail',
+    },
+  ];
+  // Before: open validate seed already present (3v lifecycle)
+  const before = makeLedger({
+    header: 'pending',
+    iter: N,
+    rows,
+    backlog: VALIDATE_BACKLOG('V1'),
+    notes: '3v seeded validate V1',
+  });
+  // After: validate item completed/deleted only — Spec rows byte-identical (excluded trigger)
+  const after = makeLedger({
+    header: 'pending',
+    iter: N,
+    rows,
+    backlog: '- [x] P1: [defect] validate V1: prove after fix',
+    notes: 'validate V1 lifecycle only — no PLAN_SPEC_SYNC thrash',
+  });
+
+  const br = parseSpecValidationRows(before);
+  const ar = parseSpecValidationRows(after);
+  const ops = classifyRowOps(br, ar);
+
+  if (!ops.some((o) => o.op === 'no_op_rows'))
+    return fail(name, 'validate lifecycle alone must yield no_op_rows on Spec');
+  if (ops.some((o) => o.op === 'row_add' || o.op === 'row_removed' || o.op === 'row_status'))
+    return fail(name, 'must not thrash Spec on validate lifecycle');
+  if (!rowsEqual(br, ar)) return fail(name, 'Spec multiset must be identical');
+  // Marker stays same iter (no re-sync write required for this path)
+  if (!after.includes(MARKER(N)) || !before.includes(MARKER(N)))
+    return fail(name, 'marker must remain on excluded-trigger path');
+
+  pass(name);
+}
+
 function main() {
   process.exitCode = 0;
   fixture1_skipUnchanged();
   fixture2_staleAddPending();
   fixture3a_dropClaim();
   fixture3b_itemComplete();
+  fixture4_preserveUpdatePending();
+  fixture5_validateLifecycleNoSpecThrash();
   if (process.exitCode) {
     console.error('spec-sync-matrix: FAILED');
     process.exit(1);
   }
   console.log('---');
-  console.log('spec-sync-matrix PASS (4 cases / 3 fixture ids)');
+  console.log('spec-sync-matrix PASS (6 cases / 5 fixture ids)');
 }
 
 if (require.main === module) {

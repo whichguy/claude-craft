@@ -1730,6 +1730,10 @@ assert "spec-validate self-test" true
 assert "complete-gate.js exists" test -f "$SCRIPTS/complete-gate.js"
 node "$SCRIPTS/complete-gate.js" self-test
 assert "complete-gate self-test" true
+# --- S1 case-bank (soft-check only; not Spec-sync matrix host) ---
+assert "run-case-bank.js exists" test -f "$SCRIPTS/run-case-bank.js"
+node "$SCRIPTS/run-case-bank.js"
+assert "run-case-bank" true
 # --- S2 Spec-sync matrix (checker/golden row-ops; not case-bank / not derive) ---
 assert "spec-sync-matrix.test.js exists" test -f "$SCRIPTS/spec-sync-matrix.test.js"
 node "$SCRIPTS/spec-sync-matrix.test.js"
