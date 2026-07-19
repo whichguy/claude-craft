@@ -77,6 +77,7 @@ function launchRoot(commonGitDir) {
 }
 
 function pointerPaths(commonGitDir) {
+  // Legacy launch-side locator (v1). Prefer runStatePaths(workspace) for v2.
   const base =
     process.env.IMPROVE_LOOP_POINTER_DIR ||
     path.join(commonGitDir, 'improve-loop');
@@ -85,6 +86,257 @@ function pointerPaths(commonGitDir) {
     pointer: path.join(base, 'active.json'),
     lock: path.join(base, 'lock'),
   };
+}
+
+/** Canonical per-campaign run state lives inside the worktree (v2). */
+function runStatePaths(workspace) {
+  const dir = path.join(path.resolve(workspace), '.improve-loop');
+  return {
+    dir,
+    state: path.join(dir, 'state.json'),
+    lock: path.join(dir, 'lock'),
+  };
+}
+
+/** Short-lived create mutex under launch .worktrees/ (not full pointer). */
+function createLockPath(launch) {
+  return path.join(path.resolve(launch), '.worktrees', '.improve-loop-create.lock');
+}
+
+function ensureImproveLoopGitignore(workspace) {
+  const gi = path.join(workspace, '.gitignore');
+  let body = '';
+  if (fs.existsSync(gi)) body = fs.readFileSync(gi, 'utf8');
+  const lines = body.split(/\r?\n/);
+  const has = lines.some((l) => {
+    const t = l.trim();
+    return t === '.improve-loop/' || t === '.improve-loop';
+  });
+  if (!has) {
+    const next =
+      body.length === 0
+        ? '.improve-loop/\n'
+        : body.endsWith('\n')
+          ? body + '.improve-loop/\n'
+          : body + '\n.improve-loop/\n';
+    fs.writeFileSync(gi, next, 'utf8');
+    return { path: gi, changed: true };
+  }
+  return { path: gi, changed: false };
+}
+
+function readRunState(workspace) {
+  if (!workspace) return null;
+  const { state } = runStatePaths(workspace);
+  if (!fs.existsSync(state)) return null;
+  try {
+    const obj = JSON.parse(fs.readFileSync(state, 'utf8'));
+    if (!obj || typeof obj !== 'object') return null;
+    // Denormalize for callers that still expect worktree_path
+    if (!obj.worktree_path) obj.worktree_path = path.resolve(workspace);
+    return obj;
+  } catch {
+    return null;
+  }
+}
+
+function writeRunState(workspace, obj) {
+  const { dir, state, lock } = runStatePaths(workspace);
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    fs.mkdirSync(lock);
+  } catch (e) {
+    if (e && e.code === 'EEXIST') {
+      const err = new Error('run-state lock busy at ' + lock);
+      err.code = 'LOCK_BUSY';
+      throw err;
+    }
+    throw e;
+  }
+  try {
+    const o = { ...(obj || {}) };
+    if (o.version == null) o.version = 2;
+    if (o.target && !o.target_norm) {
+      // normalizeTarget is defined below; call late via require cycle-safe inline
+      o.target_norm = String(o.target)
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    o.worktree_path = path.resolve(workspace);
+    const tmp = state + '.tmp.' + process.pid;
+    fs.writeFileSync(tmp, JSON.stringify(o, null, 2) + '\n', 'utf8');
+    fs.renameSync(tmp, state);
+    return state;
+  } finally {
+    try {
+      fs.rmSync(lock, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function deleteRunState(workspace) {
+  if (!workspace) return;
+  const { dir, state } = runStatePaths(workspace);
+  try {
+    if (fs.existsSync(state)) fs.unlinkSync(state);
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Find live campaign worktrees with .improve-loop/state.json.
+ * @returns {{ workspace: string, state: object }[]}
+ */
+function findActiveRuns(launch, opts = {}) {
+  const results = [];
+  const seen = new Set();
+  const wantTarget = opts.target
+    ? String(opts.target).toLowerCase().replace(/\s+/g, ' ').trim()
+    : null;
+
+  function consider(dir) {
+    if (!dir || seen.has(dir)) return;
+    if (!fs.existsSync(dir)) return;
+    seen.add(dir);
+    const st = readRunState(dir);
+    if (!st) return;
+    if (st.state !== 'active' && st.state !== 'reintegrate_blocked') return;
+    if (wantTarget) {
+      const tn =
+        st.target_norm ||
+        (st.target
+          ? String(st.target).toLowerCase().replace(/\s+/g, ' ').trim()
+          : '');
+      if (tn && tn !== wantTarget) return;
+    }
+    results.push({ workspace: path.resolve(dir), state: st });
+  }
+
+  const wtRoot = path.join(launch, '.worktrees');
+  if (fs.existsSync(wtRoot)) {
+    try {
+      for (const name of fs.readdirSync(wtRoot)) {
+        if (name.startsWith('.')) continue;
+        consider(path.join(wtRoot, name));
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  const claudeWt = path.join(launch, '.claude', 'worktrees');
+  if (fs.existsSync(claudeWt)) {
+    try {
+      for (const name of fs.readdirSync(claudeWt)) {
+        if (!name.startsWith('improve-')) continue;
+        consider(path.join(claudeWt, name));
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    const list = git(launch, ['worktree', 'list', '--porcelain']);
+    for (const line of list.split('\n')) {
+      if (line.startsWith('worktree ')) {
+        consider(line.slice('worktree '.length).trim());
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Sort newest first
+  results.sort((a, b) => {
+    const ta = Date.parse(a.state.created_at || 0) || 0;
+    const tb = Date.parse(b.state.created_at || 0) || 0;
+    return tb - ta;
+  });
+  return results;
+}
+
+/**
+ * Resolve one active run for a launch root (optional target filter).
+ * Also migrates legacy $COMMON_GIT/improve-loop/active.json into wt state once.
+ * @returns {{ workspace: string, state: object } | null}
+ */
+function resolveActiveRun(launch, commonGitDir, opts = {}) {
+  let runs = findActiveRuns(launch, opts);
+  if (runs.length === 1) return runs[0];
+  if (runs.length > 1) {
+    if (opts.target) {
+      // already filtered — still ambiguous
+      const err = new Error('ambiguous-run: multiple active worktrees');
+      err.code = 'AMBIGUOUS_RUN';
+      err.runs = runs;
+      throw err;
+    }
+    // No target: prefer single most recent only if opts.allowNewest
+    if (opts.allowNewest) return runs[0];
+    const err = new Error('ambiguous-run: multiple active worktrees');
+    err.code = 'AMBIGUOUS_RUN';
+    err.runs = runs;
+    throw err;
+  }
+
+  // Legacy external pointer migrate
+  const { pointer } = pointerPaths(commonGitDir);
+  if (fs.existsSync(pointer)) {
+    try {
+      const legacy = JSON.parse(fs.readFileSync(pointer, 'utf8'));
+      const wt = legacy.worktree_path;
+      if (wt && fs.existsSync(wt)) {
+        const migrated = {
+          version: 2,
+          state: legacy.state || 'active',
+          target: legacy.target || opts.target || null,
+          target_norm: legacy.target
+            ? String(legacy.target).toLowerCase().replace(/\s+/g, ' ').trim()
+            : null,
+          test_command: legacy.test_command || null,
+          launch_root: legacy.launch_root || launch,
+          launch_branch: legacy.launch_branch || null,
+          launch_head_at_enter: legacy.launch_head || null,
+          campaign_branch: legacy.campaign_branch || null,
+          created_at: legacy.created_at || new Date().toISOString(),
+          carried_paths: legacy.carried_paths || [],
+          carried_wip_at_enter: !!legacy.carried_wip_at_enter,
+          reintegrate_error: legacy.reintegrate_error || null,
+          worktree_path: wt,
+          migrated_from: 'legacy-active.json',
+        };
+        try {
+          writeRunState(wt, migrated);
+        } catch {
+          /* if lock fails, still return legacy shape */
+        }
+        // Clear external pointer after successful migrate
+        try {
+          fs.unlinkSync(pointer);
+        } catch {
+          /* ignore */
+        }
+        return { workspace: path.resolve(wt), state: readRunState(wt) || migrated };
+      }
+      // Stale pointer — clear
+      try {
+        fs.unlinkSync(pointer);
+      } catch {
+        /* ignore */
+      }
+    } catch {
+      /* ignore bad JSON */
+    }
+  }
+  return null;
 }
 
 function slugify(target) {
@@ -654,6 +906,14 @@ module.exports = {
   commonGit,
   launchRoot,
   pointerPaths,
+  runStatePaths,
+  createLockPath,
+  ensureImproveLoopGitignore,
+  readRunState,
+  writeRunState,
+  deleteRunState,
+  findActiveRuns,
+  resolveActiveRun,
   slugify,
   stampSlug,
   ensureWorktreesGitignore,

@@ -2,21 +2,24 @@
 /**
  * worktree-enter.js — L3: cold-start (default) | optional --resume | migrate | discard
  *
- * Default product model: self-contained campaigns. A stale pointer/worktree is
+ * Default product model: self-contained campaigns. A stale campaign worktree is
  * discarded and a fresh worktree is created. Pass --resume only to re-enter an
- * existing pointer (crash recovery opt-in).
+ * existing campaign (crash recovery opt-in).
+ *
+ * Run state (v2) lives inside the worktree: $WORKSPACE/.improve-loop/state.json
+ * Legacy $COMMON_GIT/improve-loop/active.json is migrated once then cleared.
  *
  * Usage:
  *   node worktree-enter.js --repo <path> --target <text> \
  *        [--test-command <cmd>] [--discard-legacy] [--resume] \
- *        [--force-drop-reintegrate] [--json]
+ *        [--force-drop-reintegrate] [--workspace <abs>] [--json]
  *
  * Prints JSON:
  *   {
  *     mode: "cold-start"|"discard-stale-cold-start"|"resume"|"migrate"|
  *           "discard-cold-start"|"merge-back-only",
- *     workspace, launch, common_git, pointer, campaign_branch, launch_branch,
- *     notes: [], suggested_cwd
+ *     workspace, launch, common_git, pointer (path to state.json),
+ *     campaign_branch, launch_branch, notes: [], suggested_cwd
  *   }
  *
  * Exit codes:
@@ -50,6 +53,14 @@ const {
   commonGit,
   launchRoot,
   pointerPaths,
+  runStatePaths,
+  createLockPath,
+  ensureImproveLoopGitignore,
+  readRunState,
+  writeRunState,
+  deleteRunState,
+  findActiveRuns,
+  resolveActiveRun,
   stampSlug,
   ensureWorktreesGitignore,
   normalizeTarget,
@@ -67,7 +78,7 @@ const { carryLaunchWip } = require('./carry-launch-wip.js');
 function usage(msg) {
   if (msg) console.error(msg);
   console.error(
-    'usage: node worktree-enter.js --repo <path> --target <text> [--test-command <cmd>] [--discard-legacy] [--resume] [--force-drop-reintegrate] [--json]'
+    'usage: node worktree-enter.js --repo <path> --target <text> [--test-command <cmd>] [--discard-legacy] [--resume] [--force-drop-reintegrate] [--workspace <abs>] [--json]'
   );
   process.exit(1);
 }
@@ -82,23 +93,20 @@ function has(name) {
   return process.argv.includes(name);
 }
 
-function writePointer(commonGitDir, obj) {
-  const { base, pointer, lock } = pointerPaths(commonGitDir);
-  // mkdir lock
-  fs.mkdirSync(base, { recursive: true });
+function withCreateLock(launch, fn) {
+  const lock = createLockPath(launch);
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
   try {
     fs.mkdirSync(lock);
   } catch (e) {
     if (e && e.code === 'EEXIST') {
-      console.error('worktree-enter: lock busy at ' + lock);
+      console.error('worktree-enter: create lock busy at ' + lock);
       process.exit(3);
     }
     throw e;
   }
   try {
-    const tmp = pointer + '.tmp.' + process.pid;
-    fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n', 'utf8');
-    fs.renameSync(tmp, pointer);
+    return fn();
   } finally {
     try {
       fs.rmSync(lock, { recursive: true, force: true });
@@ -106,22 +114,35 @@ function writePointer(commonGitDir, obj) {
       /* ignore */
     }
   }
-  return pointer;
 }
 
-function readPointer(commonGitDir) {
-  const { pointer } = pointerPaths(commonGitDir);
-  if (!fs.existsSync(pointer)) return null;
+/** Persist run state inside the worktree; returns path to state.json. */
+function writePointer(workspace, obj) {
   try {
-    return JSON.parse(fs.readFileSync(pointer, 'utf8'));
-  } catch {
-    return null;
+    return writeRunState(workspace, obj);
+  } catch (e) {
+    if (e && e.code === 'LOCK_BUSY') {
+      console.error('worktree-enter: lock busy at ' + runStatePaths(workspace).lock);
+      process.exit(3);
+    }
+    throw e;
   }
 }
 
-function deletePointer(commonGitDir) {
+function readPointerFromWorkspace(workspace) {
+  return readRunState(workspace);
+}
+
+/** Clear legacy external pointer if present (compat). */
+function deleteLegacyExternalPointer(commonGitDir) {
   const { pointer } = pointerPaths(commonGitDir);
-  if (fs.existsSync(pointer)) fs.unlinkSync(pointer);
+  if (fs.existsSync(pointer)) {
+    try {
+      fs.unlinkSync(pointer);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /**
@@ -143,7 +164,7 @@ function wouldLoseCarriedWip(ptr) {
 }
 
 /**
- * Advisory remove of a prior campaign's isolation (worktree + branch + pointer).
+ * Advisory remove of a prior campaign's isolation (worktree + in-tree state).
  * Used by default enter path so each /improve starts clean.
  * Caller must not invoke this when wouldLoseCarriedWip(ptr) is true (exit 10).
  *
@@ -166,8 +187,10 @@ function discardStaleCampaign(launch, commonGitDir, ptr, notes) {
       'discard-stale-advisory: prior worktree kept (not force-removed): ' +
         (ptr.worktree_path || '')
     );
+  } else if (ptr.worktree_path) {
+    deleteRunState(ptr.worktree_path);
   }
-  deletePointer(commonGitDir);
+  deleteLegacyExternalPointer(commonGitDir);
 }
 
 function launchBranch(launch) {
@@ -190,93 +213,120 @@ function classifyLaunch(launch) {
 }
 
 function coldStart(launch, commonGitDir, target, testCommand, notes) {
-  // Do NOT write .gitignore on LAUNCH — that leaves launch dirty and blocks merge-back.
-  // Ensure ignore line on WORKSPACE after worktree add so the campaign branch can commit it.
-  const slug = stampSlug(target);
-  let campaignBranch = 'improve/' + slug;
-  let worktreePath = path.join(launch, '.worktrees', slug);
+  // Create under short-lived launch lock; re-scan for single-flight before add.
+  return withCreateLock(launch, () => {
+    // Create lock serializes concurrent cold-starts. Orphan actives (soft-kept
+    // discards) use new random slugs — same as legacy external-pointer overwrite.
 
-  // collision rare: append 4 hex once
-  if (fs.existsSync(worktreePath)) {
-    const extra = randomHex(4);
-    campaignBranch = campaignBranch + '-' + extra;
-    worktreePath = worktreePath + '-' + extra;
-    notes.push('collision-retry-suffix=' + extra);
-  }
+    // Do NOT write .gitignore on LAUNCH — that leaves launch dirty and blocks merge-back.
+    // Ensure ignore line on WORKSPACE after worktree add so the campaign branch can commit it.
+    const slug = stampSlug(target);
+    let campaignBranch = 'improve/' + slug;
+    let worktreePath = path.join(launch, '.worktrees', slug);
 
-  fs.mkdirSync(path.join(launch, '.worktrees'), { recursive: true });
-  try {
-    git(launch, ['worktree', 'add', '-b', campaignBranch, worktreePath, 'HEAD']);
-  } catch (e) {
-    console.error('worktree-enter: worktree add failed: ' + errMsg(e));
-    process.exit(7);
-  }
-
-  const gi = ensureWorktreesGitignore(worktreePath);
-  if (gi.changed) notes.push('gitignore-ensured-on-workspace');
-
-  // Snapshot non-ignored launch WIP into workspace, then clean those paths on launch.
-  // Fail-closed: on error tear down the new worktree/branch and leave launch dirty.
-  // carriedPaths = enter baseline (expected WIP). Orchestrator dirty guards must not
-  // treat these as "unexpected product" — see SKILL.md Dirty — intent.
-  let carriedPaths = [];
-  try {
-    const carry = carryLaunchWip(launch, worktreePath, { notes });
-    if (carry.carried && carry.carried.length) {
-      notes.push('carried-wip-at-enter');
-      carriedPaths = carry.carried.slice();
+    // collision rare: append 4 hex once
+    if (fs.existsSync(worktreePath)) {
+      const extra = randomHex(4);
+      campaignBranch = campaignBranch + '-' + extra;
+      worktreePath = worktreePath + '-' + extra;
+      notes.push('collision-retry-suffix=' + extra);
     }
-  } catch (e) {
-    const msg = e && e.message ? e.message : String(e);
-    console.error('worktree-enter: launch WIP carry failed: ' + msg);
-    // LAUNCH_CLEAN_FAILED: workspace already has WIP — do NOT tear it down (would lose
-    // the only copy). Leave pointer unwritten and exit 9 so operator can recover from WORKSPACE.
-    if (e && e.code === 'LAUNCH_CLEAN_FAILED') {
-      // Path alone on this line so operators/tests can parse it reliably.
-      console.error('worktree-enter: workspace kept at ' + worktreePath);
-      console.error(
-        'worktree-enter: launch clean failed after carry; inspect both trees'
-      );
+
+    fs.mkdirSync(path.join(launch, '.worktrees'), { recursive: true });
+    try {
+      git(launch, ['worktree', 'add', '-b', campaignBranch, worktreePath, 'HEAD']);
+    } catch (e) {
+      console.error('worktree-enter: worktree add failed: ' + errMsg(e));
+      process.exit(7);
+    }
+
+    const gi = ensureWorktreesGitignore(worktreePath);
+    if (gi.changed) notes.push('gitignore-ensured-on-workspace');
+    const ig2 = ensureImproveLoopGitignore(worktreePath);
+    if (ig2.changed) notes.push('improve-loop-gitignore-ensured');
+
+    // Snapshot non-ignored launch WIP into workspace, then clean those paths on launch.
+    // Fail-closed: on error tear down the new worktree/branch and leave launch dirty.
+    let carriedPaths = [];
+    try {
+      const carry = carryLaunchWip(launch, worktreePath, { notes });
+      if (carry.carried && carry.carried.length) {
+        notes.push('carried-wip-at-enter');
+        carriedPaths = carry.carried.slice();
+      }
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      console.error('worktree-enter: launch WIP carry failed: ' + msg);
+      // LAUNCH_CLEAN_FAILED: workspace already has WIP — do NOT tear it down.
+      // Write state so recovery can find the wt without external pointer.
+      if (e && e.code === 'LAUNCH_CLEAN_FAILED') {
+        try {
+          writePointer(worktreePath, {
+            version: 2,
+            state: 'active',
+            launch_root: launch,
+            launch_branch: launchBranch(launch),
+            launch_head_at_enter: git(launch, ['rev-parse', 'HEAD']),
+            campaign_branch: campaignBranch,
+            worktree_path: worktreePath,
+            target,
+            target_norm: normalizeTarget(target),
+            test_command: testCommand || null,
+            created_at: new Date().toISOString(),
+            reintegrate_error: null,
+            carried_wip_at_enter: true,
+            carried_paths: [],
+          });
+        } catch {
+          /* ignore */
+        }
+        console.error('worktree-enter: workspace kept at ' + worktreePath);
+        console.error(
+          'worktree-enter: launch clean failed after carry; inspect both trees'
+        );
+        process.exit(9);
+      }
+      try {
+        git(launch, ['worktree', 'remove', worktreePath]);
+      } catch {
+        notes.push('carry-fail-worktree-soft-remove-kept: ' + worktreePath);
+      }
+      try {
+        git(launch, ['branch', '-d', campaignBranch]);
+      } catch {
+        notes.push('carry-fail-branch-kept: ' + campaignBranch);
+      }
       process.exit(9);
     }
-    // Apply/copy failed before launch clean — soft-remove only (never force-destroy).
-    // Launch still holds the only WIP copy; worktree is incomplete/empty of carry.
-    try {
-      git(launch, ['worktree', 'remove', worktreePath]);
-    } catch {
-      notes.push(
-        'carry-fail-worktree-soft-remove-kept: ' + worktreePath
-      );
-    }
-    try {
-      git(launch, ['branch', '-d', campaignBranch]);
-    } catch {
-      // Soft only — leave unmerged/empty campaign branch; next cold-start uses a new slug.
-      notes.push('carry-fail-branch-kept: ' + campaignBranch);
-    }
-    process.exit(9);
-  }
 
-  const lb = launchBranch(launch);
-  const head = git(launch, ['rev-parse', 'HEAD']);
-  const ptr = {
-    version: 1,
-    state: 'active',
-    launch_root: launch,
-    launch_branch: lb,
-    launch_head: head,
-    campaign_branch: campaignBranch,
-    worktree_path: worktreePath,
-    target: target,
-    test_command: testCommand || null,
-    created_at: new Date().toISOString(),
-    reintegrate_error: null,
-    carried_wip_at_enter: carriedPaths.length > 0,
-    // Enter baseline — never "unexpected product" dirt mid-campaign.
-    carried_paths: carriedPaths,
-  };
-  writePointer(commonGitDir, ptr);
-  return { workspace: worktreePath, campaign_branch: campaignBranch, launch_branch: lb, pointer: pointerPaths(commonGitDir).pointer };
+    const lb = launchBranch(launch);
+    const head = git(launch, ['rev-parse', 'HEAD']);
+    const ptr = {
+      version: 2,
+      state: 'active',
+      launch_root: launch,
+      launch_branch: lb,
+      launch_head_at_enter: head,
+      launch_head: head, // compat alias
+      campaign_branch: campaignBranch,
+      worktree_path: worktreePath,
+      target: target,
+      target_norm: normalizeTarget(target),
+      test_command: testCommand || null,
+      created_at: new Date().toISOString(),
+      reintegrate_error: null,
+      carried_wip_at_enter: carriedPaths.length > 0,
+      carried_paths: carriedPaths,
+    };
+    const statePath = writePointer(worktreePath, ptr);
+    deleteLegacyExternalPointer(commonGitDir);
+    return {
+      workspace: worktreePath,
+      campaign_branch: campaignBranch,
+      launch_branch: lb,
+      pointer: statePath,
+    };
+  });
 }
 
 function injectIsolation(ledgerText, launch, workspace, branch) {
@@ -329,22 +379,52 @@ let mode = null;
 let workspace = null;
 let campaign_branch = null;
 let launch_branch = null;
-let pointerPath = pointerPaths(commonGitDir).pointer;
+let pointerPath = null;
+const workspaceArg = arg('--workspace');
 
 // --- detection ---
-// Default: discard any stale pointer/worktree then cold-start (self-contained cycles).
-// Opt-in --resume: re-enter existing pointer (crash recovery).
-const ptr = readPointer(commonGitDir);
-if (ptr) {
-  if (!ptr.worktree_path || !isUnder(ptr.worktree_path, path.join(launch, '.worktrees'))) {
-    // invalid pointer — clear and continue to cold-start
-    deletePointer(commonGitDir);
-    notes.push('invalid-pointer-cleared');
+// Prefer in-worktree state.json (scan / --workspace / legacy migrate).
+// Default: discard stale campaign then cold-start. Opt-in --resume re-enters.
+let resolved = null;
+if (workspaceArg && fs.existsSync(workspaceArg)) {
+  const st = readPointerFromWorkspace(workspaceArg);
+  if (st) resolved = { workspace: path.resolve(workspaceArg), state: st };
+}
+if (!resolved) {
+  try {
+    resolved = resolveActiveRun(launch, commonGitDir, {
+      target: wantResume ? target : undefined,
+      allowNewest: !wantResume,
+    });
+  } catch (e) {
+    if (e && e.code === 'AMBIGUOUS_RUN') {
+      console.error('worktree-enter: ambiguous-run — multiple active worktrees; pass --workspace or --target');
+      process.exit(6);
+    }
+    throw e;
+  }
+}
+const ptr = resolved ? resolved.state : null;
+if (ptr && resolved) {
+  // Ensure worktree_path is set for discard helpers
+  if (!ptr.worktree_path) ptr.worktree_path = resolved.workspace;
+
+  const wtOk =
+    ptr.worktree_path &&
+    (isUnder(ptr.worktree_path, path.join(launch, '.worktrees')) ||
+      isUnder(ptr.worktree_path, path.join(launch, '.claude', 'worktrees')) ||
+      fs.existsSync(ptr.worktree_path));
+
+  if (!wtOk) {
+    deleteRunState(resolved.workspace);
+    deleteLegacyExternalPointer(commonGitDir);
+    notes.push('invalid-run-state-cleared');
   } else if (wantResume && ptr.state === 'reintegrate_blocked') {
     mode = 'merge-back-only';
     workspace = ptr.worktree_path;
     campaign_branch = ptr.campaign_branch;
     launch_branch = ptr.launch_branch;
+    pointerPath = runStatePaths(workspace).state;
     notes.push('state=reintegrate_blocked');
   } else if (wantResume && fs.existsSync(ptr.worktree_path)) {
     try {
@@ -353,6 +433,7 @@ if (ptr) {
       workspace = ptr.worktree_path;
       campaign_branch = ptr.campaign_branch;
       launch_branch = ptr.launch_branch;
+      pointerPath = runStatePaths(workspace).state;
     } catch {
       try {
         git(launch, ['worktree', 'add', ptr.worktree_path, ptr.campaign_branch]);
@@ -360,6 +441,7 @@ if (ptr) {
         workspace = ptr.worktree_path;
         campaign_branch = ptr.campaign_branch;
         launch_branch = ptr.launch_branch;
+        pointerPath = runStatePaths(workspace).state;
         notes.push('repaired-worktree');
       } catch (e) {
         console.error('worktree-enter: repair failed: ' + (e.message || e));
@@ -374,18 +456,20 @@ if (ptr) {
       workspace = ptr.worktree_path;
       campaign_branch = ptr.campaign_branch;
       launch_branch = ptr.launch_branch;
+      pointerPath = runStatePaths(workspace).state;
       notes.push('repaired-missing-dir');
     } catch {
-      deletePointer(commonGitDir);
-      notes.push('stale-pointer-cleared');
+      deleteRunState(ptr.worktree_path);
+      deleteLegacyExternalPointer(commonGitDir);
+      notes.push('stale-run-state-cleared');
     }
   } else if (wantResume) {
-    deletePointer(commonGitDir);
-    notes.push('invalid-pointer-cleared');
+    deleteRunState(ptr.worktree_path);
+    deleteLegacyExternalPointer(commonGitDir);
+    notes.push('invalid-run-state-cleared');
   } else {
     // Default product path: discard stale isolation, then cold-start below.
     // Order: reintegrate-protect (exit 11) → carried-WIP (exit 10) → discard.
-    // Different --target still cannot silently shred reintegrate recovery path.
     const prevT = normalizeTarget(ptr.target);
     const nextT = normalizeTarget(target);
     const sameTarget = !prevT || !nextT || prevT === nextT;
@@ -433,7 +517,7 @@ if (ptr) {
       console.error(
         'worktree-enter: use --resume to continue this campaign, or recover WIP from ' +
           (ptr.worktree_path || 'the worktree') +
-          ' then campaign-teardown / merge-back; refusing to remove worktree/pointer'
+          ' then campaign-teardown / merge-back; refusing to remove worktree/state'
       );
       if (ptr.worktree_path) {
         console.error('worktree-enter: workspace kept at ' + ptr.worktree_path);
@@ -452,9 +536,11 @@ if (ptr) {
   }
 }
 
-// --resume only: if already inside a campaign worktree with ledger, re-bind pointer
+// --resume only: if already inside a campaign worktree with ledger, re-bind state
 if (!mode && wantResume) {
-  const underWt = isUnder(invokeRoot, path.join(launch, '.worktrees'));
+  const underWt =
+    isUnder(invokeRoot, path.join(launch, '.worktrees')) ||
+    isUnder(invokeRoot, path.join(launch, '.claude', 'worktrees'));
   const ledgerHere = path.join(invokeRoot, 'IMPROVE_LOOP.md');
   if (underWt && fs.existsSync(ledgerHere)) {
     let branch;
@@ -468,20 +554,23 @@ if (!mode && wantResume) {
       workspace = invokeRoot;
       campaign_branch = branch;
       launch_branch = launchBranch(launch);
-      writePointer(commonGitDir, {
-        version: 1,
+      pointerPath = writePointer(workspace, {
+        version: 2,
         state: 'active',
         launch_root: launch,
         launch_branch,
-        launch_head: git(launch, ['rev-parse', 'HEAD']),
+        launch_head_at_enter: git(launch, ['rev-parse', 'HEAD']),
         campaign_branch,
         worktree_path: workspace,
         target,
+        target_norm: normalizeTarget(target),
         test_command: testCommand || null,
         created_at: new Date().toISOString(),
         reintegrate_error: null,
+        carried_paths: [],
+        carried_wip_at_enter: false,
       });
-      notes.push('repaired-pointer-from-invoke-root');
+      notes.push('repaired-run-state-from-invoke-root');
     }
   }
 }

@@ -9,9 +9,9 @@
  *   - restore non-isolation worktree WIP onto launch first (best-effort)
  *   - always worktree remove --force after restore attempt
  *   - soft branch -d only (never -D)
- *   - always clear pointer best-effort so next /improve can cold-start
+ *   - always clear worktree-local run state best-effort so next /improve can cold-start
  *
- * Reintegrate protect: if the pointer is reintegrate-protected (state
+ * Reintegrate protect: if the run is reintegrate-protected (state
  * reintegrate_blocked with unmerged improve-loop commits, or unmerged improve
  * range on an active campaign), refuse destructive teardown unless
  * --force-drop-reintegrate. Exit 3 on refuse.
@@ -32,6 +32,8 @@ const {
   commonGit,
   launchRoot,
   pointerPaths,
+  deleteRunState,
+  resolveActiveRun,
   errMsg,
   isReintegrateProtected,
 } = require('./lib-paths.js');
@@ -69,7 +71,6 @@ try {
 
 const commonGitDir = commonGit(repo);
 const launch = launchRoot(commonGitDir);
-const { pointer } = pointerPaths(commonGitDir);
 
 const out = {
   ok: false,
@@ -86,30 +87,29 @@ const out = {
   unmerged_improve_count: 0,
 };
 
-if (!fs.existsSync(pointer)) {
+let resolved;
+try {
+  resolved = resolveActiveRun(launch, commonGitDir, { allowNewest: true });
+} catch (e) {
+  if (e && e.code === 'AMBIGUOUS_RUN') {
+    out.teardown = 'ambiguous_run';
+    out.ok = false;
+    out.notes.push('ambiguous-run: pass --workspace or reduce actives');
+    process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+    process.exit(1);
+  }
+  throw e;
+}
+
+if (!resolved) {
   out.teardown = 'no_pointer';
   out.ok = true;
   process.stdout.write(JSON.stringify(out, null, 2) + '\n');
   process.exit(0);
 }
 
-let ptr;
-try {
-  ptr = JSON.parse(fs.readFileSync(pointer, 'utf8'));
-} catch (e) {
-  try {
-    fs.unlinkSync(pointer);
-  } catch {
-    /* ignore */
-  }
-  out.teardown = 'bad_pointer_cleared';
-  out.pointer_cleared = true;
-  out.ok = true;
-  process.stdout.write(JSON.stringify(out, null, 2) + '\n');
-  process.exit(0);
-}
-
-const worktree = ptr.worktree_path;
+const ptr = resolved.state;
+const worktree = resolved.workspace;
 const campaign = ptr.campaign_branch;
 out.campaign_branch = campaign;
 out.worktree_path = worktree;
@@ -169,7 +169,9 @@ out.branch_deleted = td.branch_deleted;
 out.worktree_kept = !!td.worktree_kept;
 
 try {
-  if (fs.existsSync(pointer)) fs.unlinkSync(pointer);
+  deleteRunState(worktree);
+  const { pointer: legacy } = pointerPaths(commonGitDir);
+  if (fs.existsSync(legacy)) fs.unlinkSync(legacy);
   out.notes.push('pointer-cleared');
   out.pointer_cleared = true;
 } catch {

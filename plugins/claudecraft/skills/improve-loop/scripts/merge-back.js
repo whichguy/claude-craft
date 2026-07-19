@@ -5,8 +5,8 @@
  * Usage:
  *   node merge-back.js --repo <path> [--json]
  *
- * Reads pointer; requires state active or reintegrate_blocked and terminal land
- * is the caller's responsibility (skill Phase 5). This script only does FF + teardown.
+ * Resolves campaign via worktree-local state.json (scan) or legacy active.json migrate.
+ * Terminal land is the caller's responsibility (skill Phase 5). This script only does FF + teardown.
  *
  * Launch dirt classification (via lib-paths.classifyLaunchDirt):
  *   - isolation (.gitignore, IMPROVE_LOOP.md, .worktrees/) → non-blocking
@@ -48,6 +48,10 @@ const {
   commonGit,
   launchRoot,
   pointerPaths,
+  runStatePaths,
+  writeRunState,
+  deleteRunState,
+  resolveActiveRun,
   porcelain,
   porcelainEntries,
   classifyLaunchDirt,
@@ -221,24 +225,54 @@ try {
 
 const commonGitDir = commonGit(repo);
 const launch = launchRoot(commonGitDir);
-const { pointer, base } = pointerPaths(commonGitDir);
 
-if (!fs.existsSync(pointer)) {
-  console.error('merge-back: no pointer at ' + pointer);
+let resolved;
+try {
+  resolved = resolveActiveRun(launch, commonGitDir, { allowNewest: true });
+} catch (e) {
+  if (e && e.code === 'AMBIGUOUS_RUN') {
+    console.error('merge-back: ambiguous-run — pass --workspace or reduce active campaigns');
+    process.exit(2);
+  }
+  throw e;
+}
+if (!resolved) {
+  console.error('merge-back: no active run state under worktrees (and no legacy pointer)');
   process.exit(2);
 }
 
-let ptr;
-try {
-  ptr = JSON.parse(fs.readFileSync(pointer, 'utf8'));
-} catch (e) {
-  console.error('merge-back: bad pointer JSON: ' + e.message);
-  process.exit(5);
-}
+let ptr = resolved.state;
+const worktree = resolved.workspace;
+const pointer = runStatePaths(worktree).state; // path used for status/clear
 
 const campaign = ptr.campaign_branch;
-const worktree = ptr.worktree_path;
 const launchBranch = ptr.launch_branch;
+
+function persistPtr() {
+  try {
+    writeRunState(worktree, ptr);
+  } catch (e) {
+    // Fallback: write raw if lock busy
+    try {
+      fs.writeFileSync(pointer, JSON.stringify(ptr, null, 2) + '\n', 'utf8');
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function clearRun() {
+  deleteRunState(worktree);
+  // legacy external
+  const { pointer: legacy } = pointerPaths(commonGitDir);
+  if (fs.existsSync(legacy)) {
+    try {
+      fs.unlinkSync(legacy);
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 const out = {
   ok: false,
@@ -264,7 +298,7 @@ if (!launchBranch) {
   // detached launch — cannot FF; mark reintegrate_blocked
   ptr.state = 'reintegrate_blocked';
   ptr.reintegrate_error = 'launch_branch null (detached HEAD at cold-start)';
-  fs.writeFileSync(pointer, JSON.stringify(ptr, null, 2) + '\n', 'utf8');
+  persistPtr();
   out.merge_back = 'skipped_detached';
   out.error = ptr.reintegrate_error;
   process.stdout.write(JSON.stringify(out, null, 2) + '\n');
@@ -307,7 +341,7 @@ if (classified.code.length) {
     'launch dirty: ' + classified.code.slice(0, 8).join(', ') + ambHint;
   ptr.state = 'reintegrate_blocked';
   ptr.reintegrate_error = out.error;
-  fs.writeFileSync(pointer, JSON.stringify(ptr, null, 2) + '\n', 'utf8');
+  persistPtr();
   out.merge_back = 'blocked';
   process.stdout.write(JSON.stringify(out, null, 2) + '\n');
   process.exit(3);
@@ -336,7 +370,7 @@ try {
         ffMsg + (rb.reason ? ' | rebase-then-ff skipped: ' + rb.reason : '');
       ptr.state = 'reintegrate_blocked';
       ptr.reintegrate_error = msg;
-      fs.writeFileSync(pointer, JSON.stringify(ptr, null, 2) + '\n', 'utf8');
+      persistPtr();
       out.merge_back = 'blocked';
       out.error = msg;
       process.stdout.write(JSON.stringify(out, null, 2) + '\n');
@@ -349,7 +383,7 @@ try {
   const msg = errMsg(e).slice(0, 500);
   ptr.state = 'reintegrate_blocked';
   ptr.reintegrate_error = msg;
-  fs.writeFileSync(pointer, JSON.stringify(ptr, null, 2) + '\n', 'utf8');
+  persistPtr();
   out.merge_back = 'blocked';
   out.error = msg;
   process.stdout.write(JSON.stringify(out, null, 2) + '\n');
@@ -367,14 +401,14 @@ try {
   out.branch_deleted = td.branch_deleted;
   out.worktree_kept = !!td.worktree_kept;
 
-  // Clear pointer after successful FF so next /improve can cold-start.
+  // Clear run state after successful FF so next /improve can cold-start.
   // Kept worktrees are orphaned intentionally (operator can prune); they are
   // not force-deleted. Random slugs avoid name collision on next enter.
-  if (fs.existsSync(pointer)) {
-    fs.unlinkSync(pointer);
+  try {
+    clearRun();
     out.pointer_cleared = true;
-  } else {
-    out.pointer_cleared = true;
+  } catch {
+    out.pointer_cleared = false;
   }
 
   out.ok = true;
@@ -385,9 +419,9 @@ try {
   out.error = e.message || String(e);
   out.merge_back = 'teardown_partial';
   out.suggested_cwd = launch;
-  // Still try to clear pointer so the campaign is not stuck locked after FF.
+  // Still try to clear run state so the campaign is not stuck locked after FF.
   try {
-    if (fs.existsSync(pointer)) fs.unlinkSync(pointer);
+    clearRun();
     out.pointer_cleared = true;
   } catch {
     out.pointer_cleared = false;

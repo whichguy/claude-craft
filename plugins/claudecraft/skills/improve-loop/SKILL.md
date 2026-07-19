@@ -1112,10 +1112,11 @@ Fail fast in Phase 0. Do not half-run a cycle.
   - `WORKSPACE` — the **single** campaign worktree (`$LAUNCH/.worktrees/<slug>`). **This is
     where the entire `/improve` campaign tree lives** (ledger, code, tests, commits). Access
     via absolute paths + `git -C` / **subshells** only — never outer sticky into WORKSPACE.
-  - `POINTER` — `$COMMON_GIT/improve-loop/active.json` where
-    `COMMON_GIT=$(git rev-parse --path-format=absolute --git-common-dir)`. Ensures resume
-    re-enters the **same** WORKSPACE (never a second worktree).
-  While pointer `state: active`, launch must not receive campaign ledger, code, or commits.
+  - `RUN_STATE` — `$WORKSPACE/.improve-loop/state.json` (gitignored; never staged). Per-run
+    control lives **inside** the campaign worktree. Resume discovers via scan of
+    `.worktrees/*/.improve-loop/state.json` (or `--workspace`). Legacy
+    `$COMMON_GIT/improve-loop/active.json` is migrated once then cleared.
+  While run state is `active`, launch must not receive campaign ledger, code, or commits.
 - **`.worktrees/` must be gitignored.** L3 `worktree-enter.js` ensures an exact `.worktrees/`
   line on the **campaign WORKSPACE** `.gitignore` after `worktree add` (not on LAUNCH — writing
   launch would leave merge-blocking dirt). Stage/commit that `.gitignore` on the **campaign
@@ -1252,8 +1253,8 @@ cycles archive the full file into the commit body and **remove** it from the tre
 
 **Not durable across invokes / not the long-term store:**
 
-- Pointer `active.json` — **run lock for this invoke only**; discarded on entry of the next
-  `/improve` (default) and cleared on exit.
+- Worktree run state (`.improve-loop/state.json`) — **run lock for this invoke only**;
+  discarded with the worktree on entry of the next `/improve` (default) and cleared on exit.
 - `IMPROVE_LOOP.md` after terminal land — gone from tree; history lives in the terminal
   archive block + iteration commit bodies. Next cold-start creates a **new** file.
 
@@ -1275,14 +1276,10 @@ complete commit on `main` tip must **not** prevent a new campaign from seeding (
 **Plan tier:** 0 | 0p | 1 | 2
 **Spec validation:** n/a | pending | pass
 
-## Isolation
-- **launch_root:** <LAUNCH>
-- **campaign_branch:** improve/<slug>
-- **worktree_path:** <WORKSPACE>
-
 ## Campaign brief
-<!-- After ## Isolation, before ## Backlog (PLAN_BRIEF). Orchestrator-only surgical rewrite
-     through next ## . Success/Done when restates skill law only — no new complete predicates. -->
+<!-- After header, before ## Backlog (PLAN_BRIEF). Orchestrator-only surgical rewrite
+     through next ## . Success/Done when restates skill law only — no new complete predicates.
+     Do not journal worktree paths here — run state is $WORKSPACE/.improve-loop/state.json. -->
 - **Target:** <plain-language target>
 - **Problem / opportunity:** …
 - **In scope:** …

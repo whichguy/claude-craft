@@ -11,8 +11,23 @@ unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPTS="$ROOT/scripts"
+export SCRIPTS
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/improve-loop-test.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
+
+# Resolve active campaign run-state under a repo (v2: $WORKSPACE/.improve-loop/state.json).
+# Exit 0 if active run exists; 1 if none. Prints workspace on stdout when present.
+has_active_run() {
+  node -e '
+const l=require(process.env.SCRIPTS+"/lib-paths.js");
+const r=l.resolveRepo(process.argv[1]);
+const g=l.commonGit(r);
+const x=l.resolveActiveRun(l.launchRoot(g),g,{allowNewest:true});
+if(!x) process.exit(1);
+process.stdout.write(x.workspace+"\n");
+' "$1"
+}
+export -f has_active_run
 
 pass=0
 fail=0
@@ -232,15 +247,17 @@ assert "legacy multi log_iterations 2" grep -q '"log_iterations": 2' "$LS"
 assert "legacy multi latest_n 2" grep -q '"latest_n": 2' "$LS"
 assert "legacy multi last_cycle_n null" grep -q '"last_cycle_n": null' "$LS"
 
-# pointer read via pointer.js
-GCD="$(git -C "$REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || git -C "$REPO" rev-parse --git-common-dir)"
-# if relative, resolve
-case "$GCD" in
-  /*) ;;
-  *) GCD="$(cd "$REPO" && cd "$GCD" && pwd)" ;;
-esac
-node "$SCRIPTS/pointer.js" read --git-common-dir "$GCD" >"$TMP/ptr.json"
+# run-state read via worktree-local state.json (v2)
+node -e '
+const l=require(process.env.SCRIPTS+"/lib-paths.js");
+const r=l.resolveRepo(process.argv[1]);
+const g=l.commonGit(r);
+const run=l.resolveActiveRun(l.launchRoot(g),g,{allowNewest:true});
+if(!run) process.exit(3);
+process.stdout.write(JSON.stringify(run.state,null,2)+"\n");
+' "$REPO" >"$TMP/ptr.json"
 assert "pointer read ok" grep -q '"state": "active"' "$TMP/ptr.json"
+assert "run state under workspace" test -f "$(has_active_run "$REPO")/.improve-loop/state.json"
 
 # migrate path: fresh repo with untracked launch ledger, no pointer
 REPO2="$TMP/repo2"
@@ -422,7 +439,7 @@ GCD4="$(git -C "$REPO4" rev-parse --path-format=absolute --git-common-dir 2>/dev
 if [[ -z "$GCD4" || "$GCD4" != /* ]]; then
   GCD4="$(cd "$REPO4" && cd "$(git -C "$REPO4" rev-parse --git-common-dir)" && pwd)"
 fi
-assert "pointer cleared after merge-back" test ! -f "$GCD4/improve-loop/active.json"
+assert "pointer cleared after merge-back" bash -c '! has_active_run "$REPO4"'
 # campaign branch gone
 set +e
 git -C "$REPO4" rev-parse --verify "improve/" >/dev/null 2>&1
@@ -525,24 +542,35 @@ git -C "$REPO7" config user.name "Test"
 echo x >"$REPO7/README"
 git -C "$REPO7" add README && git -C "$REPO7" commit -q -m init
 node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p >/dev/null
-GCD7="$(git -C "$REPO7" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-if [[ -z "$GCD7" || "$GCD7" != /* ]]; then
-  GCD7="$(cd "$REPO7" && cd "$(git -C "$REPO7" rev-parse --git-common-dir)" && pwd)"
-fi
-node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test" >/dev/null
+# Mark worktree-local run state reintegrate_blocked
+node -e '
+const l=require(process.env.SCRIPTS+"/lib-paths.js");
+const r=l.resolveRepo(process.argv[1]);
+const g=l.commonGit(r);
+const run=l.resolveActiveRun(l.launchRoot(g),g,{allowNewest:true});
+if(!run) process.exit(3);
+run.state.state="reintegrate_blocked";
+run.state.reintegrate_error="test";
+l.writeRunState(run.workspace, run.state);
+' "$REPO7"
 OUT7="$TMP/enter7.json"
 # merge-back-only only with --resume
 node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p --resume >"$OUT7"
 assert "reintegrate → merge-back-only" grep -q '"mode": "merge-back-only"' "$OUT7"
 # T6: reintegrate_blocked + empty improve range (no unmerged improve commits) → discard OK
-node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test2" >/dev/null 2>/dev/null || true
-PTR7="$GCD7/improve-loop/active.json"
-if [[ -f "$PTR7" ]]; then
-  node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test2" >/dev/null
-  OUT7b="$TMP/enter7b.json"
-  node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p >"$OUT7b"
-  assert "T6 empty-range reintegrate discards" grep -qE 'discard-stale-cold-start|cold-start' "$OUT7b"
-fi
+node -e '
+const l=require(process.env.SCRIPTS+"/lib-paths.js");
+const r=l.resolveRepo(process.argv[1]);
+const g=l.commonGit(r);
+const run=l.resolveActiveRun(l.launchRoot(g),g,{allowNewest:true});
+if(!run) process.exit(0);
+run.state.state="reintegrate_blocked";
+run.state.reintegrate_error="test2";
+l.writeRunState(run.workspace, run.state);
+' "$REPO7"
+OUT7b="$TMP/enter7b.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p >"$OUT7b"
+assert "T6 empty-range reintegrate discards" grep -qE 'discard-stale-cold-start|cold-start' "$OUT7b"
 
 # --- resolve-target-repo.js ---
 RESOLVE="$SCRIPTS/resolve-target-repo.js"
@@ -829,7 +857,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_MIX" --target "mix dirt" --test-
 WS_MIX="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_MIX")"
 echo y >>"$WS_MIX/README"
@@ -853,7 +884,10 @@ PTR_MIX="$TMP/ptr-mix.json"
 node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 if (ptr.state !== 'reintegrate_blocked') process.exit(2);
 if (!ptr.worktree_path || !fs.existsSync(ptr.worktree_path)) process.exit(3);
 console.log(JSON.stringify({state:ptr.state,worktree:ptr.worktree_path,campaign:ptr.campaign_branch}));
@@ -869,8 +903,8 @@ TD_REFUSE_EC=$?
 set -e
 assert "T2 teardown refuse exit 3" test "$TD_REFUSE_EC" -eq 3
 assert "T2 teardown refused JSON" grep -q 'refused_reintegrate_blocked' "$OUT_TD_REFUSE"
-assert "T2 pointer still present after refuse" bash -c "test -f \"\$(git -C \"$REPO_MIX\" rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json\""
-assert "T2 worktree still present after refuse" bash -c "test -d \"\$(node -e 'const fs=require(\"fs\");const p=require(\"path\");const gcd=require(\"child_process\").execFileSync(\"git\",[\"-C\",process.argv[1],\"rev-parse\",\"--path-format=absolute\",\"--git-common-dir\"],{encoding:\"utf8\"}).trim();console.log(JSON.parse(fs.readFileSync(p.join(gcd,\"improve-loop\",\"active.json\"),\"utf8\")).worktree_path)' \"$REPO_MIX\")\""
+assert "T2 pointer still present after refuse" has_active_run "$REPO_MIX"
+assert "T2 worktree still present after refuse" test -d "$(has_active_run "$REPO_MIX")"
 
 # T5: default enter same target on reintegrate+unmerged → exit 11
 set +e
@@ -895,7 +929,7 @@ TD_FORCE_EC=$?
 set -e
 assert "T3 force teardown exit 0" test "$TD_FORCE_EC" -eq 0
 assert "T3 force-drop notes" grep -q 'force-drop-reintegrate' "$OUT_TD_FORCE"
-assert "T3 pointer cleared after force" bash -c "test ! -f \"\$(git -C \"$REPO_MIX\" rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json\""
+assert "T3 pointer cleared after force" bash -c '! has_active_run "$REPO_MIX"'
 
 # T8: mid-campaign active + unmerged improve → teardown refuse
 REPO_T8="$TMP/repo-t8-active"
@@ -909,7 +943,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_T8" --target "active unmerged" -
 WS_T8="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_T8")"
 echo camp >"$WS_T8/README"
@@ -982,7 +1019,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_NEW" --target "new-file product"
 WS_NEW="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_NEW")"
 # Simulate Phase 1 product: brand-new untracked file + README edit, pathspec stage (no add -A)
@@ -1018,7 +1058,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_LIT" --target "litter" --test-co
 WS_LIT="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_LIT")"
 echo y >>"$WS_LIT/README"
@@ -1089,7 +1132,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_STRICT" --target "strict" --test
 WS_ST="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_STRICT")"
 echo y >>"$WS_ST/README"
@@ -1118,7 +1164,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_RB" --target "rebase ff" --test-
 WS_RB="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_RB")"
 echo camp >"$WS_RB/README"
@@ -1145,7 +1194,7 @@ assert "rebase-then-ff history has concurrent" \
   bash -c 'git -C "$1" log --oneline --grep="concurrent main advance" -n1 | grep -q .' _ "$REPO_RB"
 assert "rebase-then-ff history has improve" \
   bash -c 'git -C "$1" log --oneline --grep="improve-loop: iteration 1" -n1 | grep -q .' _ "$REPO_RB"
-assert "rebase-then-ff pointer cleared" test ! -f "$(git -C "$REPO_RB" rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json"
+assert "rebase-then-ff pointer cleared" bash -c '! has_active_run "$REPO_RB"'
 
 # Non-improve commit on campaign → refuse rebase, stay blocked (exit 4)
 REPO_RB2="$TMP/repo-rebase-refuse"
@@ -1160,7 +1209,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_RB2" --target "rebase refuse" --
 WS_RB2="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_RB2")"
 echo bad >"$WS_RB2/README"
@@ -1179,7 +1231,7 @@ assert "rebase refuse non-improve exit 4" test "$MB_RB2_EC" -eq 4
 assert "rebase refuse blocked" grep -q '"merge_back": "blocked"' "$OUT_MB_RB2"
 assert "rebase refuse reason non-safe subject" grep -q 'non-safe improve subject' "$OUT_MB_RB2"
 assert "rebase refuse flag false" grep -q '"rebase_then_ff": false' "$OUT_MB_RB2"
-assert "rebase refuse pointer kept" test -f "$(git -C "$REPO_RB2" rev-parse --path-format=absolute --git-common-dir)/improve-loop/active.json"
+assert "rebase refuse pointer kept" has_active_run "$REPO_RB2"
 
 # Opt-out IMPROVE_LOOP_MERGE_REBASE=0 keeps classic blocked exit 4
 REPO_RB3="$TMP/repo-rebase-optout"
@@ -1194,7 +1246,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_RB3" --target "rebase optout" --
 WS_RB3="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_RB3")"
 echo camp >"$WS_RB3/README"
@@ -1226,7 +1281,10 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO_CAP" --target "rebase cap" --tes
 WS_CAP="$(node -e "
 const fs=require('fs'); const p=require('path');
 const gcd=require('child_process').execFileSync('git',['-C',process.argv[1],'rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim();
-const ptr=JSON.parse(fs.readFileSync(p.join(gcd,'improve-loop','active.json'),'utf8'));
+const __lib=require(process.env.SCRIPTS+'/lib-paths.js');
+const __run=__lib.resolveActiveRun(__lib.launchRoot(gcd),gcd,{allowNewest:true});
+if(!__run){console.error('no active run'); process.exit(3);}
+const ptr=__run.state; ptr.worktree_path=__run.workspace;
 console.log(ptr.worktree_path);
 " "$REPO_CAP")"
 [[ -f "$WS_CAP/.gitignore" ]] && git -C "$WS_CAP" add .gitignore || true
@@ -1370,8 +1428,7 @@ EC_AF=$?
 set -e
 assert "apply-fail enter exit 9" test "$EC_AF" -eq 9
 assert "apply-fail launch still dirty" grep -q dirty "$REPO_AF/README"
-assert "apply-fail no pointer" test ! -f "$(git -C "$REPO_AF" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)/improve-loop/active.json" \
-  || test ! -f "$REPO_AF/.git/improve-loop/active.json"
+assert "apply-fail no pointer" bash -c '! has_active_run "$REPO_AF"'
 # Soft teardown only: worktree may be removed or kept advisory (never force-destroyed).
 # Critical invariant is launch still owns the WIP and no active pointer was written.
 WT_LEFT=$(find "$REPO_AF/.worktrees" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
