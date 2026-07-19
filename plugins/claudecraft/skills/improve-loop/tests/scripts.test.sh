@@ -1731,6 +1731,14 @@ assert "SKILL has PLAN_VALIDATE" grep -q 'PLAN_VALIDATE' "$ROOT/SKILL.md"
 assert "SKILL has Spec validation section" grep -q '## Spec validation' "$ROOT/SKILL.md"
 assert "SKILL has Phase 3v" grep -q 'Phase 3v' "$ROOT/SKILL.md"
 assert "SKILL has unintended-change check-in" grep -qE 'Unintended-change check-in|Preserve / regression / scope' "$ROOT/SKILL.md"
+assert "SKILL runtime select investigation before packaging" \
+  grep -q 'Select that investigation before packaging' "$ROOT/SKILL.md"
+assert "SKILL soft coverage-mix not false anti-mirror" \
+  grep -qE 'not\*\* anti-mirror|not anti-mirror \(row-class|Coverage-mix is \*\*not\*\* anti-mirror' "$ROOT/SKILL.md"
+assert "SKILL R8 never terminal 3v fail" \
+  grep -qiE 'never treat 3v fail as terminal|3v fail is \*\*never\*\*' "$ROOT/SKILL.md"
+assert "SKILL R7 sole complete residual" \
+  grep -qiE 'residual×2 remains sole|never .all V pass|all V pass.*never' "$ROOT/SKILL.md"
 
 # --- package-parity.js (B↔M ship set; hermetic) ---
 assert "package-parity.js exists" test -f "$SCRIPTS/package-parity.js"

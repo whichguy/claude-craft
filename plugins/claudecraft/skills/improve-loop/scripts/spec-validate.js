@@ -408,8 +408,10 @@ function softCheckHabitatClaim(rows, opts = {}) {
 const softCheckHabitatCoverage = softCheckHabitatClaim;
 
 /**
- * PLAN_SPEC_SOFT alias — anti-mirror / coverage mix (Feature+Preserve+Scope|Assumption).
- * Soft only: never seeds backlog (soft ≠ seed).
+ * Deprecated export name only — **not** true anti-mirror.
+ * True anti-mirror (Feature/Acceptance-only composition) is deferred (Q2b).
+ * This is softCheckCoverageMix (row-class diversity). Soft ≠ seed.
+ * @deprecated use softCheckCoverageMix
  */
 const softCheckAntiMirror = softCheckCoverageMix;
 
@@ -645,8 +647,8 @@ function selfTest() {
   ]);
   ok(assOk.ok === true, 'assumption with real proof ok');
 
-  // Aliases export the same soft helpers
-  ok(softCheckAntiMirror === softCheckCoverageMix, 'softCheckAntiMirror alias');
+  // Aliases: coverage-mix is canonical; softCheckAntiMirror is deprecated name only
+  ok(softCheckAntiMirror === softCheckCoverageMix, 'softCheckAntiMirror deprecated=coverageMix');
   ok(softCheckHabitatCoverage === softCheckHabitatClaim, 'softCheckHabitatCoverage alias');
 
   // soft-no-seed: soft warnings never produce seed lines (soft ≠ seed)
@@ -660,6 +662,38 @@ function selfTest() {
   );
   const softSeeds = seedLinesForFails(softOnly.rows, blBefore);
   ok(softSeeds.length === 0, 'soft-no-seed: soft bundle does not seed via fail status');
+
+  // Q3: 3v fail → seed validate V (pure helper path)
+  const failRows = [
+    {
+      id: 'V9',
+      intention: 'Feature: x',
+      kind: 'L3-test',
+      artifact: 'a.js',
+      proof: 'node a.js',
+      status: 'fail',
+    },
+    {
+      id: 'V10',
+      intention: 'Preserve: y',
+      kind: 'suite',
+      artifact: '—',
+      proof: 'make test-fast',
+      status: 'pass',
+    },
+  ];
+  const seedsQ3 = seedLinesForFails(failRows, '');
+  ok(seedsQ3.length === 1 && seedsQ3[0].id === 'V9', 'Q3 seed one fail V9');
+  ok(/validate V9/.test(seedsQ3[0].title), 'Q3 seed title validate V9');
+  // header pass alone is not Status complete (R7) — headerFlagFromRows only reports proof flag
+  const allPassHdr = headerFlagFromRows(
+    failRows.map((r) => ({ ...r, status: 'pass' }))
+  );
+  ok(allPassHdr === 'pass', 'Q3 header pass when all executable pass');
+  ok(
+    allPassHdr !== 'complete',
+    'Q3 headerFlag never invents Status complete (R7 residual×2 only)'
+  );
 
   console.log('spec-validate self-test PASS');
 }

@@ -320,6 +320,11 @@ const improvePlanningUserOnly = [
   ['PLAN_RUNTIME_CONTRACT token', /PLAN_RUNTIME_CONTRACT/],
   ['PLAN_RUNTIME_CONTRACT Runtime contract', /Runtime contract:/],
   ['PLAN_RUNTIME investigation-P1', /investigation-P1/],
+  [
+    'PLAN_RUNTIME select investigation before packaging',
+    /Select that investigation before packaging/i,
+  ],
+  ['PLAN_RUNTIME close filled or waiver', /filled.*waiver|runtime waiver|Close investigation/i],
   ['HYBRID work-spec spine', /work-spec|work specification|HYBRID spine/i],
   ['HYBRID Validation Spec derived', /Validation Spec|derived prove/i],
   ['PLAN_VALIDATE section', /## Spec validation|PLAN_VALIDATE/],
@@ -340,8 +345,20 @@ const improvePlanningUserOnly = [
   ['PLAN_SPEC_STATUS Spec sync', /Spec sync/],
   ['PLAN_SPEC_SOFT token', /PLAN_SPEC_SOFT|softCheckIntentions|softCheckSpecBundle|soft-check/],
   ['PLAN_SPEC_SOFT no auto-seed', /Never auto-seed P1 from soft|never auto-seed P1 from soft/i],
-  ['PLAN_SPEC_SOFT anti-mirror alias', /softCheckAntiMirror|anti-mirror/i],
+  ['PLAN_SPEC_SOFT coverage-mix canonical', /softCheckCoverageMix/],
+  [
+    'PLAN_SPEC_SOFT not false anti-mirror claim',
+    /coverage-mix is \*\*not\*\* anti-mirror|not\*\* true anti-mirror|Coverage-mix is \*\*not\*\* anti-mirror|not anti-mirror \(row-class/i,
+  ],
   ['PLAN_SPEC_SOFT habitat coverage alias', /softCheckHabitatCoverage|HABITAT_CLAIMED_NO_PROOF/],
+  [
+    'R8 never terminal 3v + continuing',
+    /never treat 3v fail as terminal|continuing cycle K\+1|R8/i,
+  ],
+  [
+    'R7 residual sole complete not all-V',
+    /residual×2 remains sole|never.*all V pass|all V pass.*never|sole `complete` law/i,
+  ],
   ['PLAN_T2_CHALLENGE token', /PLAN_T2_CHALLENGE|T2 challenge \(native\)/],
   ['PLAN_HABITAT_META Habitat claimed', /\*\*Habitat claimed:\*\*|Habitat claimed:/],
   ['PLAN_HABITAT_META residual re-probe', /re-run.*habitat probe|Habitat claimed:\*\* yes.*re-run|re-run\*\* the cheap habitat probe/i],

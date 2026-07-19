@@ -193,11 +193,11 @@ Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 | **PLAN_RESIDUAL** | Residual thin Evidence+Acceptance only — no invented Decision/Preserve |
 | **PLAN_BRIEF** | `## Campaign brief` after Isolation, before Backlog; **work-spec anchors** (Target; skill-law Done when) — no second `## Work Spec` table |
 | **PLAN_CRITERIA** | Orchestrator **Criteria scan** preflight (not a 6th advisor block): surfaces, habitat claim, runtime, C1–C12 → promote\|P2\|waive (≤6); soft never auto-seeds |
-| **PLAN_RUNTIME_CONTRACT** | Habitat claim + runtime state `n/a`\|`filled`\|`investigation-P1:<id>` as work-spec anchors; selection only — never residual×2 / Status gate |
+| **PLAN_RUNTIME_CONTRACT** | Habitat claim + runtime state `n/a`\|`filled`\|`investigation-P1:<id>` as work-spec anchors. **When `investigation-P1:<id>`: Select that investigation before packaging-only items.** Close → rewrite brief to `filled` or scoped waiver Notes. Selection only — never residual×2 / Status gate |
 | **PLAN_VALIDATE** | `## Spec validation` = **Validation Spec** (derived prove view); V-rows + Proofs; Phase **3v** prove gate |
 | **PLAN_SPEC_SYNC** | Validation Spec **derived** from **work-spec** anchors; re-sync when plan diverges since `spec-sync: iter N` |
 | **PLAN_SPEC_STATUS** | Control channel: step ids + Spec sync/prove evidence + one `Validation:` line |
-| **PLAN_SPEC_SOFT** | **Must** run `spec-validate.js soft-check` after `3-spec-sync` and `3v-prove` (Node available): `softCheckSpecBundle` / `softCheckAntiMirror` / `softCheckHabitatCoverage`; never auto-seed P1; never alone blocks residual×2 |
+| **PLAN_SPEC_SOFT** | **Must** run `spec-validate.js soft-check` after `3-spec-sync` and `3v-prove` (Node available): `softCheckSpecBundle` / `softCheckCoverageMix` / `softCheckHabitatCoverage`; never auto-seed P1; never alone blocks residual×2. Coverage-mix is **not** anti-mirror (row-class diversity only) |
 | **PLAN_T2_CHALLENGE** | T2: native 5-block in Last cycle Notes when advisors fail/unconfigured (prefer always on T2); apply **work-spec** revisions **before** PLAN_SPEC_SYNC; degrade only if ledger unwritable |
 | **PLAN_HABITAT_META** | Header `**Habitat claimed:**` + probe fields; residual/soft-check read ledger, not invoke text |
 | **PLAN_ORIENT** | Tab-switch mid-cycle orientation: long-phase triplet, `(cont)` heartbeat, `· on:` footer |
@@ -443,6 +443,18 @@ Header: `**Product residual survey:** pending | done | n/a (defect)`. T0p leaves
 item → investigation Thesis first (no fabricated Decision). When `**Habitat claimed:** yes`
 and install/mount/discovery mechanism is still unknown after the habitat probe, prefer that
 one Unknown investigation over all-`none` packaging-only seeds.
+
+**PLAN_RUNTIME_CONTRACT (operational):** after habitat claim predicate:
+
+| Runtime contract | Selection / seed effect |
+|---|---|
+| `n/a` | Habitat not claimed — no contract work required |
+| `filled` | Compact runtime record present — packaging P1s allowed |
+| `investigation-P1:<id>` | **Select that investigation before packaging-only items** |
+
+Close investigation: rewrite brief `Runtime contract:` → `filled` **or** Notes
+`runtime waiver: <reason>` (scoped). Never leave `investigation-P1` with zero open work.
+**Not a Status gate** — selection/classify only; never residual×2 or terminal Status alone.
 
 **Do not** seed `- [x]` done lines into `## Backlog` — finished work is remembered via the
 git digest, not as backlog clutter. **Also seed Deferred (P2)** from the digest’s union of
@@ -1723,6 +1735,11 @@ header counter ≥ that N → delete `## Log` → Notes `legacy Log collapsed to
 sub-actions; mid-cycle turns end with pulse `· on: <slug>` (see Status reporting).
 
 Select the next **open** (`- [ ]`) **Backlog** item (`P0:` / `P1:` only — title line).
+
+**PLAN_RUNTIME_CONTRACT select:** if brief `Runtime contract:` is `investigation-P1:<id>`
+(or an open item’s Acceptance promises the unsettled runtime), **Select that investigation
+before packaging-only items** (install/docs/frontmatter-only P1s wait). Prefer the open
+item whose id/title matches `<id>` or the habitat Unknown investigation.
 
 **R2 mechanical:** if any open product Acceptance refs `V<k>` and that V-row’s Proof artifact
 is not on disk, select the open test-authoring item for `V<k>` first (T0 may skip).
