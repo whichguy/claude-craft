@@ -84,8 +84,9 @@ commit `IMPROVE_LOOP.md` when permitted, so the ledger advances.
     is a first-class learning, not an omission.
   - **Test evidence** — STATUS plus a one- or two-line summary of the suite result; when
     Phase 3v fired this cycle, also fold
-    `Validation: N pass / M fail (V…) / K n/a [unverified manual: k]`; the
-    `Error signature` on FAIL.
+    `Validation: N pass / M fail (V…) / K n/a [unverified manual: k]`
+    (pending omitted: post-gate executable rows are pass|fail; manual pending is the
+    bracket); the `Error signature` on FAIL.
   - **What landed** — `CHANGED_PATHS`, or `no code landed` for a no-op / ledger-only cycle.
   - **Advisor consolidation** — Phase 3's key agreements, disagreements/risks, and the
     chosen next direction. **Every cycle that runs Phase 3 has a real panel**, including

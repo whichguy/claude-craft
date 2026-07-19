@@ -34,7 +34,7 @@ If the executor declares a file scope and then touches paths outside it, orchest
 
 ## Suite ownership and failure
 
-- May run **narrow/targeted** checks named by the item. Must **not** run the recorded **full** test command — the one Confirm-class suite run is **orchestrator-owned** (U9: never two full suite runs per cycle).
-- On timeout / non-response / crash: return Outcome suggestion `blocked` with what was attempted; do not invent PASS. Orchestrator still owns STATUS.
+- May run **narrow/targeted** checks named by the item. Must **not** run the recorded **full** test command — the one Confirm-class suite run is **orchestrator-owned** (U9: never two full suite runs per cycle). Route side-effect artifact paths back so the orchestrator can add them to `TEST_ARTIFACT_PATHS`.
+- On timeout / non-response / crash: orchestrator treats the item as `blocked` for this cycle, inspects the tree for partial changes before the Phase 1 revert decision — **never re-dispatch the same item twice in one cycle**. Do not invent PASS. Orchestrator still owns STATUS.
 - Report enough for Phase 2: paths changed, thesis, suggested outcome, and any unmet Acceptance / blockers / scope departures known at return (orchestrator reconciles final Outcome against STATUS).
 

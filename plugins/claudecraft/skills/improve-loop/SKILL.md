@@ -89,7 +89,7 @@ Execute in order. For each step, **Read** the linked file and follow it fully.
 | 4 | One commit (or code-dirty/secret veto); body + Validation line when 3v fired; **finalize pulse** | `references/phase-4-commit.md` |
 | 5 | **Emit control-channel progress pulse**; host `goal.complete`/`blocked` if terminal **and** landed | `references/phase-5-decision.md` |
 
-**Load rule:** do not rely on memory of a 900-line monolith — open the phase reference for the phase you are in.
+**Load rule:** do not rely on memory — open the phase reference for the phase you are in (the B runtime monolith is ~2,700 lines; nobody holds it).
 
 ## Contracts (portable)
 

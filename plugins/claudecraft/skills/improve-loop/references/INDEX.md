@@ -2,6 +2,8 @@
 
 Normative one-cycle law. **SKILL.md** is the operator card; open these when executing.
 
+**Cold start:** read `phase-0-resume.md` then `ledger-schema.md` before anything else; contracts are pulled in by the phase that cites them.
+
 | File | Contents |
 |---|---|
 | `ledger-schema.md` | `IMPROVE_LOOP.md` plan-file format (Last cycle + Next, not diary Log), **Until/Max cycles**, **Driver**, non-material streak, blocked tokens |

@@ -29,6 +29,8 @@ progress.emit(markdown [, structured?])
 Compact host/headless pulse — greppable heading, residual×2-safe meter, optional Spec line.
 **Not** a substitute for mid-cycle PLAN_ORIENT chat (triplet / `improve cycle` log pulse).
 
+Pulse kind map: **`draft`** = Phase 2 (Last cycle replace); **`gate`** = Phase 3v prove card cycle; **`final`** = Phase 4/5 finalize + emit.
+
 ```markdown
 ## Improve progress — cycle K/MAX · iter N · <draft|gate|final>
 
