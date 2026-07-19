@@ -15,7 +15,7 @@
 #   destroy → destroyed
 #
 # Subcommands:
-#   create       Detached worktree at launch tip; write run state under .git/
+#   create       Detached worktree at launch tip; write run state in worktree (+ legacy index)
 #   carry        Patch launch WIP into worktree (bootstrap commit), then drain launch
 #                to clean HEAD so S11b is not blocked by launch_dirty
 #   status       Print run JSON + --- summary --- (mid_rebase, suggested_next, …)
@@ -37,7 +37,8 @@
 #
 # Operator messages: structured key=value lines (status= ok|error, command=, next=, …).
 # Side effects: plain git(1); override GIT_CMD for tests. JSON via python3.
-# Canonical state: <repo>/.git/improve-runs/<slug>.json
+# Canonical state (v2): <worktree>/.improve-loop/state.json
+# Dual-read/write one release: also <repo>/.git/improve-runs/<slug>.json (legacy locator)
 #
 set -euo pipefail
 
@@ -57,7 +58,8 @@ Usage:
   improve-worktree.sh recover --run-json <path> | --repo <path> [--slug <s>] [--keep-worktree]
                               [--merge-to-launch | --no-merge-to-launch]
 
-Canonical state: <repo>/.git/improve-runs/<slug>.json
+Canonical state: <worktree>/.improve-loop/state.json
+Legacy dual-write: <repo>/.git/improve-runs/<slug>.json
 status prints full JSON then a --- summary --- block (suggested_next, mid_rebase, …).
 
 Defaults:
@@ -242,6 +244,64 @@ os.replace(tmp,path)
 " "$file" "$patch"
 }
 
+# Worktree-local run state (primary). Dual-writes legacy improve-runs when RUN_JSON set.
+wt_state_path() {
+  printf '%s\n' "${1%/}/.improve-loop/state.json"
+}
+
+# Ignore .improve-loop/ without dirtying the worktree tree (.gitignore would block reintegrate).
+ensure_wt_state_gitignore() {
+  local wt="$1" line=".improve-loop/" excl
+  excl="$(git_c "$wt" rev-parse --git-path info/exclude 2>/dev/null || true)"
+  [[ -n "$excl" ]] || return 0
+  mkdir -p "$(dirname "$excl")"
+  if ! grep -qxF "$line" "$excl" 2>/dev/null && ! grep -qxF '.improve-loop' "$excl" 2>/dev/null; then
+    printf '%s\n' "$line" >>"$excl"
+  fi
+}
+
+# Persist payload to worktree state (+ optional legacy RUN_JSON path).
+persist_run_payload() {
+  local payload="$1"
+  local wt="${WORKTREE_PATH:-}"
+  if [[ -n "$wt" && -d "$wt" ]]; then
+    ensure_wt_state_gitignore "$wt"
+    json_write "$(wt_state_path "$wt")" "$payload"
+  fi
+  if [[ -n "${RUN_JSON:-}" ]]; then
+    json_write "$RUN_JSON" "$payload"
+  fi
+}
+
+# Merge patch into worktree state + legacy improve-runs (durable after destroy).
+persist_run_merge() {
+  local patch="$1"
+  local wt="${WORKTREE_PATH:-}"
+  local wts=""
+  local legacy=""
+  if [[ -n "$wt" && -d "$wt" ]]; then
+    wts="$(wt_state_path "$wt")"
+    if [[ -f "$wts" ]]; then
+      json_merge "$wts" "$patch"
+    fi
+  fi
+  if [[ -n "${RUN_JSON:-}" && -f "$RUN_JSON" ]]; then
+    # Avoid double-merge if RUN_JSON is the wt state path
+    if [[ -z "$wts" || "$(abs_path "$RUN_JSON" 2>/dev/null || echo "$RUN_JSON")" != "$(abs_path "$wts" 2>/dev/null || echo "$wts")" ]]; then
+      json_merge "$RUN_JSON" "$patch"
+    fi
+  fi
+  # Always update legacy index when REPO+SLUG known (survives worktree remove)
+  if [[ -n "${REPO:-}" && -n "${SLUG:-}" ]]; then
+    legacy="$(index_dir_for "$REPO")/${SLUG}.json"
+    if [[ -f "$legacy" ]]; then
+      if [[ -z "$wts" || "$(abs_path "$legacy" 2>/dev/null || echo "$legacy")" != "$(abs_path "${RUN_JSON:-}" 2>/dev/null || echo "")" ]]; then
+        json_merge "$legacy" "$patch" 2>/dev/null || true
+      fi
+    fi
+  fi
+}
+
 require_git_repo() {
   local dir="$1"
   git_c "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die 2 "not a git repository: $dir"
@@ -268,13 +328,41 @@ resolve_run_json() {
   local repo index_dir
   repo="$(require_git_repo "$(abs_path "$REPO_ARG")")"
   index_dir="$(index_dir_for "$repo")"
+
+  # Prefer worktree-local state.json (v2) under active improve worktrees
+  local wt cand best="" best_m=0 m
+  if [[ -n "${SLUG_ARG:-}" ]]; then
+    cand="$repo/.claude/worktrees/improve-${SLUG_ARG}/.improve-loop/state.json"
+    if [[ -f "$cand" ]]; then
+      RUN_JSON="$(abs_path "$cand")"
+      return
+    fi
+  else
+    while IFS= read -r wt; do
+      [[ -z "$wt" ]] && continue
+      cand="$(wt_state_path "$wt")"
+      if [[ -f "$cand" ]]; then
+        m="$(python3 -c "import os,sys; print(int(os.path.getmtime(sys.argv[1])))" "$cand" 2>/dev/null || echo 0)"
+        if [[ "$m" -ge "$best_m" ]]; then
+          best_m=$m
+          best="$cand"
+        fi
+      fi
+    done < <(active_improve_worktrees "$repo" || true)
+    if [[ -n "$best" ]]; then
+      RUN_JSON="$(abs_path "$best")"
+      return
+    fi
+  fi
+
+  # Legacy improve-runs index
   local index_path=""
   if [[ -n "${SLUG_ARG:-}" ]]; then
     index_path="$index_dir/${SLUG_ARG}.json"
     [[ -f "$index_path" ]] || die 8 "no run state for slug: $SLUG_ARG ($index_path)"
   else
     index_path="$(ls -t "$index_dir"/*.json 2>/dev/null | head -1 || true)"
-    [[ -n "$index_path" ]] || die 8 "no IMPROVE_RUN state under $index_dir"
+    [[ -n "$index_path" ]] || die 8 "no IMPROVE_RUN state under $index_dir or worktree .improve-loop/"
   fi
   RUN_JSON="$(abs_path "$index_path")"
 }
@@ -467,13 +555,15 @@ print(json.dumps({
 " "$repo" "$launch_path" "$launch_branch" "$launch_head" "$wt_path" "$slug" "$VERSION")"
 
   run_json="$index_dir/${slug}.json"
-  json_write "$run_json" "$payload"
   RUN_JSON="$run_json"
+  WORKTREE_PATH="$wt_path"
   SLUG="$slug"
   STATE=created
+  # Primary: worktree state; dual-write legacy improve-runs
+  persist_run_payload "$payload"
 
-  printf 'created worktree=%s isolation=detached launch_branch=%s run_json=%s\n' \
-    "$wt_path" "$launch_branch" "$run_json"
+  printf 'created worktree=%s isolation=detached launch_branch=%s run_json=%s wt_state=%s\n' \
+    "$wt_path" "$launch_branch" "$run_json" "$(wt_state_path "$wt_path")"
   ok_status create create "carry-or-cycle" "detached worktree ready"
 }
 
@@ -488,7 +578,7 @@ cmd_carry() {
 
   if [[ -z "$(git_c "$launch" status --porcelain)" ]]; then
     printf 'carry: launch clean, nothing to do\n'
-    json_merge "$RUN_JSON" '{"state":"created"}'
+    persist_run_merge '{"state":"created"}'
     STATE=created
     sync_index
     ok_status carry carry cycle "launch was clean"
@@ -538,7 +628,7 @@ with tarfile.open(out,'w') as tar:
   git_c "$wt" add -A
   if [[ -z "$(git_c "$wt" status --porcelain)" ]]; then
     printf 'carry: nothing to carry (no transferable WIP after filtering improve worktrees)\n'
-    json_merge "$RUN_JSON" '{"state":"created"}'
+    persist_run_merge '{"state":"created"}'
     STATE=created
     sync_index
     ok_status carry carry cycle "nothing to carry"
@@ -579,7 +669,7 @@ with tarfile.open(out,'w') as tar:
     printf 'carry: warning: launch still shows residual porcelain after drain:\n%s\n' "$residual"
   fi
 
-  json_merge "$RUN_JSON" '{"state":"bootstrapped"}'
+  persist_run_merge '{"state":"bootstrapped"}'
   STATE=bootstrapped
   sync_index
   ok_status carry carry cycle "WIP carried into worktree; launch drained"
@@ -691,12 +781,12 @@ cmd_reintegrate() {
     fi
   fi
 
-  json_merge "$RUN_JSON" '{"state":"reintegrating"}'
+  persist_run_merge '{"state":"reintegrating"}'
   STATE=reintegrating
 
   if [[ "$skip_s11a" != "true" ]]; then
     if mid_rebase_p "$wt"; then
-      json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
+      persist_run_merge '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
       STATE=reintegrate_failed
       REINTEGRATE_STATUS=conflict
       record_last_error 5 S11a "rebase already in progress"
@@ -709,7 +799,7 @@ then: improve-worktree.sh reintegrate --repo $REPO --slug $SLUG
     fi
 
     if [[ -n "$(git_c "$wt" status --porcelain)" ]]; then
-      json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"worktree_dirty"}'
+      persist_run_merge '{"state":"reintegrate_failed","reintegrate_status":"worktree_dirty"}'
       STATE=reintegrate_failed
       REINTEGRATE_STATUS=worktree_dirty
       record_last_error 6 S11a "worktree dirty"
@@ -724,7 +814,7 @@ then: improve-worktree.sh reintegrate --repo $REPO --slug $SLUG
         -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
         -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
         rebase "$launch_tip"; then
-      json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
+      persist_run_merge '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
       STATE=reintegrate_failed
       REINTEGRATE_STATUS=conflict
       record_last_error 5 S11a "conflict rebasing onto $LAUNCH_BRANCH"
@@ -741,7 +831,7 @@ then re-run reintegrate (or git rebase --abort to cancel; or recover after conti
 
   if is_true "$do_merge"; then
     if launch_tracked_dirty_p "$launch"; then
-      json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"launch_dirty"}'
+      persist_run_merge '{"state":"reintegrate_failed","reintegrate_status":"launch_dirty"}'
       STATE=reintegrate_failed
       REINTEGRATE_STATUS=launch_dirty
       record_last_error 6 S11b "launch tracked dirty"
@@ -754,7 +844,7 @@ commit or stash on launch, then re-run reintegrate (worktree kept; S11a already 
         -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
         -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
         merge --no-edit "$merge_ref"; then
-      json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
+      persist_run_merge '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
       STATE=reintegrate_failed
       REINTEGRATE_STATUS=conflict
       record_last_error 5 S11b "conflict merging tip into $LAUNCH_BRANCH"
@@ -765,19 +855,19 @@ resolve on launch checkout, or inspect tip $merge_ref; worktree kept: $wt"
     fi
     s11b=merged
     # Persist effective merge: CLI --merge-to-launch override must stick for destroy/recover
-    json_merge "$RUN_JSON" "{\"worktree_tip\":\"$merge_ref\",\"last_s11b\":\"merged\",\"merge_to_launch\":true}"
+    persist_run_merge "{\"worktree_tip\":\"$merge_ref\",\"last_s11b\":\"merged\",\"merge_to_launch\":true}"
     MERGE_TO_LAUNCH="true"
     printf 'reintegrate: S11b merged worktree tip into source branch %s (ref %s)\n' \
       "$LAUNCH_BRANCH" "$merge_ref"
   else
     s11b=skipped
-    json_merge "$RUN_JSON" "{\"worktree_tip\":\"$merge_ref\",\"last_s11b\":\"skipped\",\"merge_to_launch\":false}"
+    persist_run_merge "{\"worktree_tip\":\"$merge_ref\",\"last_s11b\":\"skipped\",\"merge_to_launch\":false}"
     MERGE_TO_LAUNCH="false"
     printf 'reintegrate: S11a rebased onto %s; S11b=skipped (merge_to_launch=false) tip=%s\n' \
       "$LAUNCH_BRANCH" "$merge_ref"
   fi
 
-  json_merge "$RUN_JSON" '{"state":"reintegrated","reintegrate_status":"ok"}'
+  persist_run_merge '{"state":"reintegrated","reintegrate_status":"ok"}'
   STATE=reintegrated
   REINTEGRATE_STATUS=ok
   sync_index
@@ -842,6 +932,10 @@ slug=$SLUG worktree=$WORKTREE_PATH tip=$tip_sha state=$state reintegrate_status=
     fi
   fi
 
+  # Persist destroyed to durable index *before* removing worktree (wt state dies with tree)
+  persist_run_merge '{"state":"destroyed"}' 2>/dev/null || true
+  STATE=destroyed
+
   if [[ -d "$WORKTREE_PATH" ]]; then
     if ! git_c "$REPO" worktree remove --force "$WORKTREE_PATH"; then
       record_last_error 7 destroy "worktree remove failed"
@@ -854,8 +948,14 @@ slug=$SLUG worktree=$WORKTREE_PATH tip=$tip_sha state=$state reintegrate_status=
     git_c "$REPO" branch -D "$IMPROVE_BRANCH" 2>/dev/null || true
   fi
 
-  json_merge "$RUN_JSON" '{"state":"destroyed"}' 2>/dev/null || true
-  STATE=destroyed
+  # Ensure legacy index still says destroyed after wt gone
+  if [[ -n "${REPO:-}" && -n "${SLUG:-}" ]]; then
+    local leg
+    leg="$(index_dir_for "$REPO")/${SLUG}.json"
+    if [[ -f "$leg" ]]; then
+      json_merge "$leg" '{"state":"destroyed"}' 2>/dev/null || true
+    fi
+  fi
   sync_index
   printf 'destroy: removed worktree (source branch %s not modified by destroy)\n' "$LAUNCH_BRANCH"
   ok_status destroy none done "worktree removed"

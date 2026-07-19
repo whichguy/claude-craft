@@ -17,14 +17,15 @@ historical Log.
    (more than ledger) → `blocked:worktree-dirty`; launch tracked dirty when S11b needed →
    `blocked:launch-dirty`; worktree path missing but run JSON active →
    `blocked:worktree-missing`. (Full token list: `ledger-schema.md` `blocked:<token>` catalog.)  
-2. **`run_json`** (if file exists) — slug, worktree_path, launch_branch, merge_to_launch,
-   reintegrate_status.  
+2. **Worktree run state** — prefer `$WORKSPACE/.improve-loop/state.json` (or scan improve
+   worktrees); dual-read legacy `.git/improve-runs/<slug>.json` when wt state missing.
+   Fields: slug, worktree_path, launch_branch, merge_to_launch, reintegrate_status.  
 3. **Ledger header** — Status, test command, iteration counter, **Until**, **Max cycles**,
    Log consistency.  
-4. **`## Driver`** — paths + `next_auto` / `resume_hint` + **mode / until / max_cycles /
-   cycle_index** (campaign stop fields). Prefer header Until/Max cycles if Driver omits them;
-   never invent a **custom** until from chat. If the section is **malformed**, treat as
-   **missing**.  
+4. **`## Driver`** — **campaign** fields only: `next_auto` / `resume_hint` + **mode / until /
+   max_cycles / cycle_index**. Paths are **not** authority (derive from run state / cwd).
+   Prefer header Until/Max cycles if Driver omits them; never invent a **custom** until from
+   chat. If the section is **malformed**, treat as **missing**.  
    **Continuous + empty until:** if `mode` is continuous (header/Driver) and both header
    `Until` and Driver `until` are empty/`none`/absent, **persist the fixed default**
    `no material P0/P1 for 2 consecutive cycles (green tests)` into header + Driver before

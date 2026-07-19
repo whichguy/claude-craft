@@ -353,7 +353,12 @@ Advisor input soft cap: open Backlog + ## Last cycle + compact COMPLETED/DISPROV
 ## Static PLAN_* pin IDs (docs)
 
 `PLAN_TAG` · `PLAN_CLAUSES` · `PLAN_RESIDUAL` · `PLAN_BRIEF` · `PLAN_VALIDATE` ·
-`PLAN_SPEC_SYNC` · `PLAN_SPEC_STATUS` · `PLAN_APPLY` · `PLAN_CLASSIFY` · `PLAN_LEGACY_A`
+`PLAN_SPEC_SYNC` · `PLAN_SPEC_STATUS` · `PLAN_SPEC_SOFT` · `PLAN_APPLY` · `PLAN_CLASSIFY` · `PLAN_LEGACY_A`
+
+**PLAN_SPEC_SOFT:** when Node is present, prefer `softCheckIntentions` /
+`softCheckSyncStale` from dogfood `scripts/spec-validate.js` (or equivalent). Warnings only
+(missing Intention plan-anchor prefix; plan changed since sync marker) — never a sole
+complete gate.
 
 Hard refusals: no Spec Kit dep; no residual theater; no inventing material for residual×2;
 A continuous `[x]` freeze; no hermes SKILL dual-home claim from this contract alone.

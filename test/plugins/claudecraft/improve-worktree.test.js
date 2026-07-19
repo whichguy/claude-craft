@@ -69,13 +69,18 @@ describe('improve-worktree.sh', function () {
     expect(fs.existsSync(wt)).to.equal(true);
     const index = path.join(repo, '.git/improve-runs/t1.json');
     expect(fs.existsSync(index)).to.equal(true);
-    const state = JSON.parse(fs.readFileSync(index, 'utf8'));
+    const wtState = path.join(wt, '.improve-loop/state.json');
+    expect(fs.existsSync(wtState)).to.equal(true);
+    const state = JSON.parse(fs.readFileSync(wtState, 'utf8'));
+    const legacy = JSON.parse(fs.readFileSync(index, 'utf8'));
     expect(state.slug).to.equal('t1');
+    expect(legacy.slug).to.equal('t1');
     expect(state.isolation).to.equal('detached');
     expect(state.improve_branch).to.equal('');
     expect(state.launch_branch).to.equal('main');
     expect(state.merge_to_launch).to.equal(true);
     expect(fs.realpathSync(state.worktree_path)).to.equal(fs.realpathSync(wt));
+    // .improve-loop ignored via worktree git exclude (not a dirtying .gitignore)
     // No permanent improve/* branch
     expect(git(repo, 'branch', '--list', 'improve/t1')).to.equal('');
     // Worktree is detached
