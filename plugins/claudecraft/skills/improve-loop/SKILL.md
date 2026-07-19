@@ -71,7 +71,7 @@ reuses the **same invoke’s** worktree only. Opt-in crash recovery: `--resume` 
 **Package paths** (resolve relative to this skill directory):
 
 ```text
-SKILL_DIR/references/goal-objective.template.md   # optional host /goal body
+SKILL_DIR/references/goal-objective.template.md   # optional host /goal body (only references/* on B/M)
 SKILL_DIR/scripts/shell-probe.sh
 SKILL_DIR/scripts/worktree-enter.js
 SKILL_DIR/scripts/resolve-target-repo.js   # ~/.claude install symlink → real git root
@@ -79,8 +79,20 @@ SKILL_DIR/scripts/campaign-teardown.js
 SKILL_DIR/scripts/pointer.js
 SKILL_DIR/scripts/ledger-status.js
 SKILL_DIR/scripts/merge-back.js
+SKILL_DIR/scripts/lib-paths.js
+SKILL_DIR/scripts/carry-launch-wip.js
+SKILL_DIR/scripts/backlog-blocks.js
+SKILL_DIR/scripts/spec-validate.js
+SKILL_DIR/scripts/package-parity.js        # B↔M ship-set check (H15–H18)
 SKILL_DIR/scripts/contract-check.js
+SKILL_DIR/tests/scripts.test.sh
 ```
+
+**Dual-home shape (H16):** package **B** (this tree) and marketplace **M** are monolith
+SKILL + `scripts/` + `tests/` + **only** `references/goal-objective.template.md`. Package **A**
+(thin SKILL + full `references/`) is law text only — never rsync A `references/` into B/M.
+Ship SKILL + scripts + tests for a behavior in one atomic commit per home (H15). After B
+script changes, copy to M and run `node scripts/package-parity.js --skill-dir "$SKILL_DIR"`.
 
 **Outer goal protocol (optional host signal):** Only **Phase 5** / L1 may call `update_goal`
 (progress each cycle, `completed` only on terminal+landed when a goal is Active). Phases 0–4
@@ -198,6 +210,16 @@ than the new feature — **Preserve** (from material item Preserve clauses), **R
 (recorded Test command / suite green), and **Scope** (brief Out of scope / waived). Prefer
 executable Proofs; pure `manual` Scope never alone blocks complete. Not a second complete
 predicate (R7). Example intention prefixes: `Preserve: …`, `Regression: …`, `Scope: …`.
+
+**Kind `dual-home` Proof (self-improve / skill campaigns):** when both user package and
+marketplace install exist:
+
+```bash
+node "$SKILL_DIR/scripts/package-parity.js" --skill-dir "$SKILL_DIR"
+# or: diff -rq "$HOME/.claude/skills/improve-loop/scripts" \
+#   "$HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop/scripts"
+# success: exit 0 / no diff output
+```
 
 **R2 mechanical:** if open product Acceptance refs `V<k>` and Proof artifact missing on disk,
 select test-authoring item for `V<k>` first (T0 may skip).
@@ -2424,6 +2446,8 @@ Merge-back left blocked → next `/improve` (or resume autonomous) runs merge-ba
 
 ```bash
 node "$SKILL_DIR/scripts/contract-check.js"
+# optional hard B↔M parity (also auto when peer exists): IMPROVE_LOOP_PARITY=1
+node "$SKILL_DIR/scripts/package-parity.js" --skill-dir "$SKILL_DIR"
 bash "$SKILL_DIR/tests/scripts.test.sh"
 ```
 

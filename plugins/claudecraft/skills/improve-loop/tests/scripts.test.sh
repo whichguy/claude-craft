@@ -1674,6 +1674,93 @@ assert "SKILL has Spec validation section" grep -q '## Spec validation' "$ROOT/S
 assert "SKILL has Phase 3v" grep -q 'Phase 3v' "$ROOT/SKILL.md"
 assert "SKILL has unintended-change check-in" grep -qE 'Unintended-change check-in|Preserve / regression / scope' "$ROOT/SKILL.md"
 
+# --- package-parity.js (B↔M ship set; hermetic) ---
+assert "package-parity.js exists" test -f "$SCRIPTS/package-parity.js"
+assert "package-parity self-test" node "$SCRIPTS/package-parity.js" --self-test
+
+# requiredFiles inventory: load-bearing scripts must be listed in contract-check source
+assert "contract-check requiredFiles has backlog-blocks" \
+  grep -q "scripts/backlog-blocks.js" "$CONTRACT"
+assert "contract-check requiredFiles has spec-validate" \
+  grep -q "scripts/spec-validate.js" "$CONTRACT"
+assert "contract-check requiredFiles has package-parity" \
+  grep -q "scripts/package-parity.js" "$CONTRACT"
+assert "contract-check feature pin isReintegrateProtected" \
+  grep -q "isReintegrateProtected" "$CONTRACT"
+assert "contract-check feature pin tryRebaseThenFf" \
+  grep -q "tryRebaseThenFf" "$CONTRACT"
+
+# Live B↔M parity when marketplace peer is present (soft if absent)
+set +e
+node "$SCRIPTS/package-parity.js" --skill-dir "$ROOT" --json \
+  >"$TMP/parity-live.json" 2>"$TMP/parity-live.err"
+PARITY_EC=$?
+set -e
+if grep -q '"skipped": true' "$TMP/parity-live.json" 2>/dev/null; then
+  assert "package-parity live soft-skip peer_missing" test "$PARITY_EC" -eq 0
+else
+  assert "package-parity live exit 0" test "$PARITY_EC" -eq 0
+  assert "package-parity live ok" grep -q '"ok": true' "$TMP/parity-live.json"
+fi
+
+# --- H15/L4: contract-check must FAIL when inventory or feature-surface is broken ---
+# Hermetic package copies under $TMP; disable live B↔M parity (IMPROVE_LOOP_PARITY=0).
+# Prefer real converge skill when present so prose pins still pass except the intentional hole.
+CONVERGE_FOR_HERM="${HOME}/.claude/skills/review-converge/SKILL.md"
+if [[ ! -f "$CONVERGE_FOR_HERM" ]]; then
+  CONVERGE_FOR_HERM="$TMP/converge-stub.md"
+  printf '%s\n' '---' 'name: review-converge' '---' '# Review converge stub' >"$CONVERGE_FOR_HERM"
+fi
+
+HERM_MISS="$TMP/pkg-missing-spec"
+rm -rf "$HERM_MISS"
+mkdir -p "$HERM_MISS"
+# Copy ship set only (avoid copying huge unrelated trees if any)
+cp "$ROOT/SKILL.md" "$HERM_MISS/"
+mkdir -p "$HERM_MISS/references" "$HERM_MISS/scripts" "$HERM_MISS/tests"
+cp "$ROOT/references/goal-objective.template.md" "$HERM_MISS/references/"
+cp -R "$ROOT/scripts/." "$HERM_MISS/scripts/"
+cp -R "$ROOT/tests/." "$HERM_MISS/tests/"
+rm -f "$HERM_MISS/scripts/spec-validate.js"
+set +e
+IMPROVE_LOOP_PARITY=0 node "$CONTRACT" --skill-dir "$HERM_MISS" \
+  --mirror "$HERM_MISS/SKILL.md" \
+  --converge "$CONVERGE_FOR_HERM" \
+  >"$TMP/cc-miss-out.txt" 2>"$TMP/cc-miss-err.txt"
+CC_MISS_EC=$?
+set -e
+assert "missing spec-validate fails contract-check" test "$CC_MISS_EC" -ne 0
+assert "missing spec-validate message" \
+  grep -q 'package missing: scripts/spec-validate.js' "$TMP/cc-miss-err.txt"
+
+HERM_PIN="$TMP/pkg-feature-pin"
+rm -rf "$HERM_PIN"
+mkdir -p "$HERM_PIN"
+cp "$ROOT/SKILL.md" "$HERM_PIN/"
+mkdir -p "$HERM_PIN/references" "$HERM_PIN/scripts" "$HERM_PIN/tests"
+cp "$ROOT/references/goal-objective.template.md" "$HERM_PIN/references/"
+cp -R "$ROOT/scripts/." "$HERM_PIN/scripts/"
+cp -R "$ROOT/tests/." "$HERM_PIN/tests/"
+# Strip feature symbol so pin fails (docs-ahead-of-code regression)
+# macOS sed -i needs backup arg; write via node for portability
+node -e '
+const fs=require("fs");
+const p=process.argv[1];
+let t=fs.readFileSync(p,"utf8");
+t=t.replace(/tryRebaseThenFf/g,"tryRebaseRENAMED");
+fs.writeFileSync(p,t);
+' "$HERM_PIN/scripts/merge-back.js"
+set +e
+IMPROVE_LOOP_PARITY=0 node "$CONTRACT" --skill-dir "$HERM_PIN" \
+  --mirror "$HERM_PIN/SKILL.md" \
+  --converge "$CONVERGE_FOR_HERM" \
+  >"$TMP/cc-pin-out.txt" 2>"$TMP/cc-pin-err.txt"
+CC_PIN_EC=$?
+set -e
+assert "stripped tryRebaseThenFf fails contract-check" test "$CC_PIN_EC" -ne 0
+assert "feature-surface message names tryRebaseThenFf" \
+  grep -q 'feature-surface missing in scripts/merge-back.js: tryRebaseThenFf' "$TMP/cc-pin-err.txt"
+
 echo "---"
 echo "passed=$pass failed=$fail"
 [[ "$fail" -eq 0 ]]

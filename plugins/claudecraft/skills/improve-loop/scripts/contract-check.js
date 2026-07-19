@@ -71,6 +71,7 @@ const mirror = read(mirrorSkill);
 const converge = read(convergeSkill);
 
 // --- package layout (L3) ---
+// Every script that tests or SKILL call by path must appear here (H15 atomic ship).
 const requiredFiles = [
   'SKILL.md',
   'references/goal-objective.template.md',
@@ -85,10 +86,56 @@ const requiredFiles = [
   'scripts/carry-launch-wip.js',
   'scripts/contract-check.js',
   'scripts/converge-ledger-resolve.js',
+  'scripts/backlog-blocks.js',
+  'scripts/spec-validate.js',
+  'scripts/package-parity.js',
   'tests/scripts.test.sh',
 ];
 for (const rel of requiredFiles) {
   ok(exists(path.join(skillDir, rel)), `package missing: ${rel}`);
+}
+
+// Feature-surface pins: docs/SKILL must not outrun script implementations (L4).
+// Update pins in the same commit as intentional renames.
+const featureSurfacePins = [
+  [
+    'scripts/lib-paths.js',
+    [
+      ['isReintegrateProtected', /function isReintegrateProtected|isReintegrateProtected\s*[:(]/],
+      ['gitSpawnEnv', /function gitSpawnEnv|gitSpawnEnv\s*[:(]/],
+      ['ambientProfileName', /function ambientProfileName|AMBIENT_PROFILE/],
+    ],
+  ],
+  [
+    'scripts/merge-back.js',
+    [
+      ['tryRebaseThenFf', /function tryRebaseThenFf|tryRebaseThenFf\s*[:(]/],
+      ['IMPROVE_LOOP_MERGE_REBASE', /IMPROVE_LOOP_MERGE_REBASE/],
+      ['rebase_then_ff', /rebase_then_ff/],
+    ],
+  ],
+  [
+    'scripts/campaign-teardown.js',
+    [
+      ['force-drop-reintegrate', /force-drop-reintegrate/],
+      ['refused_reintegrate_blocked', /refused_reintegrate_blocked/],
+    ],
+  ],
+  [
+    'scripts/spec-validate.js',
+    [
+      ['dual-home kind', /dual-home/],
+      ['validate V seed', /validate V/],
+    ],
+  ],
+];
+for (const [rel, pins] of featureSurfacePins) {
+  const abs = path.join(skillDir, rel);
+  if (!exists(abs)) continue; // requiredFiles already reported missing
+  const body = read(abs);
+  for (const [name, re] of pins) {
+    ok(re.test(body), `feature-surface missing in ${rel}: ${name}`);
+  }
 }
 
 // Executable ledger-resolve decision table (fatal rename paths)
@@ -293,10 +340,6 @@ for (const [name, re] of improveRequired) {
 for (const [name, re] of improvePlanningUserOnly) {
   ok(re.test(user), `user improve-loop planning pin missing: ${name}`);
 }
-ok(
-  exists(path.join(skillDir, 'scripts/backlog-blocks.js')),
-  'scripts/backlog-blocks.js must ship in skill tree'
-);
 
 // Mirror: if present, require same base contracts (marketplace may lag planning pins)
 if (mirror) {
@@ -517,6 +560,29 @@ ok(
   ),
   'user improve-loop missing product-mode ban on residual-only cold-start seed'
 );
+
+// Optional B↔M package parity (H17). Soft-skip when peer absent.
+// Force with IMPROVE_LOOP_PARITY=1; skip with IMPROVE_LOOP_PARITY=0.
+const parityMode = String(process.env.IMPROVE_LOOP_PARITY || 'auto').trim();
+const parityScript = path.join(skillDir, 'scripts/package-parity.js');
+if (parityMode !== '0' && exists(parityScript)) {
+  try {
+    const parity = require(parityScript);
+    const result = parity.checkParity({
+      skillDir,
+      home,
+      softMissingPeer: parityMode !== '1',
+    });
+    if (result.skipped) {
+      // peer missing — soft ok unless forced
+      ok(parityMode !== '1', `package-parity peer missing (forced): ${result.reason || ''}`);
+    } else {
+      ok(result.ok, `package-parity: ${(result.errors || []).join('; ') || 'failed'}`);
+    }
+  } catch (e) {
+    ok(false, `package-parity require/run failed: ${e.message}`);
+  }
+}
 
 if (fails.length) {
   for (const f of fails) console.error('FAIL:', f);
