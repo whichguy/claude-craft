@@ -331,6 +331,7 @@ const improvePlanningUserOnly = [
   ['PLAN_SPEC_STATUS step id', /3-spec-sync/],
   ['PLAN_SPEC_STATUS Spec prove', /Spec prove/],
   ['PLAN_SPEC_STATUS Spec sync', /Spec sync/],
+  ['PLAN_SPEC_SOFT token', /PLAN_SPEC_SOFT|softCheckIntentions/],
   ['PLAN_ORIENT token', /PLAN_ORIENT/],
   ['PLAN_ORIENT improve goal', /improve goal ·/],
   ['PLAN_ORIENT on: footer', /· on:/],

@@ -144,6 +144,48 @@ function writeSectionSeedTitle() {
   return '- [ ] P1: [defect] write Spec validation section (required at tier T2)';
 }
 
+/** Plan-anchor prefixes required on non-n/a Intention cells (PLAN_SPEC_SOFT). */
+const ANCHOR_PREFIX_RE =
+  /^(Feature|Preserve|Regression|Scope|Assumption|Done-when|Lock):\s*/i;
+
+/**
+ * Soft-check: warn when Intention lacks a plan-anchor prefix.
+ * Warnings only — never a complete gate.
+ * @param {ReturnType<typeof parseSpecValidationRows>} rows
+ * @returns {{ ok: boolean, warnings: { id: string, reason: string }[] }}
+ */
+function softCheckIntentions(rows) {
+  const warnings = [];
+  for (const r of rows || []) {
+    if ((r.status || '').toLowerCase() === 'n/a') continue;
+    const intention = (r.intention || '').trim();
+    if (!intention) {
+      warnings.push({ id: r.id, reason: 'empty Intention' });
+      continue;
+    }
+    if (!ANCHOR_PREFIX_RE.test(intention)) {
+      warnings.push({ id: r.id, reason: 'missing plan-anchor prefix' });
+    }
+  }
+  return { ok: warnings.length === 0, warnings };
+}
+
+/**
+ * Soft-check: caller reports plan changed since last sync marker.
+ * @param {{ plan_changed_since_sync?: boolean, markerIter?: number|string|null }} opts
+ * @returns {{ warning: string } | null}
+ */
+function softCheckSyncStale(opts = {}) {
+  if (opts.plan_changed_since_sync === true) {
+    const m =
+      opts.markerIter != null && opts.markerIter !== ''
+        ? ` since iter ${opts.markerIter}`
+        : '';
+    return { warning: `plan may have changed since last spec-sync marker${m}` };
+  }
+  return null;
+}
+
 // --- self-test ---
 function selfTest() {
   const ok = (cond, msg) => {
@@ -194,6 +236,21 @@ function selfTest() {
   ok(needsWriteSectionSeed(plan, { required: true }) === false, 'no section seed when rows');
   ok(writeSectionSeedTitle().includes('Spec validation'), 'write section title');
 
+  // PLAN_SPEC_SOFT
+  const softBad = softCheckIntentions([
+    { id: 'V1', intention: 'dual-read', kind: 'L3-test', status: 'fail' },
+    { id: 'V2', intention: 'Preserve: x', kind: 'suite', status: 'pass' },
+    { id: 'V3', intention: 'Scope: y', kind: 'manual', status: 'n/a' },
+  ]);
+  ok(softBad.ok === false, 'soft missing prefix not ok');
+  ok(softBad.warnings.length === 1 && softBad.warnings[0].id === 'V1', 'soft warns V1 only');
+  const softGood = softCheckIntentions([
+    { id: 'V1', intention: 'Feature: dual-read', kind: 'L3-test', status: 'fail' },
+  ]);
+  ok(softGood.ok === true, 'soft with Feature: ok');
+  ok(softCheckSyncStale({ plan_changed_since_sync: true, markerIter: 3 })?.warning, 'soft stale warning');
+  ok(softCheckSyncStale({}) === null, 'soft stale null when unchanged');
+
   console.log('spec-validate self-test PASS');
 }
 
@@ -214,5 +271,8 @@ module.exports = {
   seedLinesForFails,
   needsWriteSectionSeed,
   writeSectionSeedTitle,
+  softCheckIntentions,
+  softCheckSyncStale,
+  ANCHOR_PREFIX_RE,
   KINDS,
 };

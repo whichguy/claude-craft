@@ -195,6 +195,7 @@ Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 | **PLAN_VALIDATE** | `## Spec validation` after brief; V-rows + Proofs; Phase **3v** prove gate |
 | **PLAN_SPEC_SYNC** | Spec **derived** from plan anchors; re-sync when plan diverges since `spec-sync: iter N` |
 | **PLAN_SPEC_STATUS** | Control channel: step ids + Spec sync/prove evidence + one `Validation:` line |
+| **PLAN_SPEC_SOFT** | Optional `spec-validate.js` soft-check: Intention plan-anchor prefixes; sync-stale warning only |
 | **PLAN_ORIENT** | Tab-switch mid-cycle orientation: long-phase triplet, `(cont)` heartbeat, `· on:` footer |
 | **PLAN_APPLY** | Multi-line contiguous blocks; complete = delete title+clauses; `backlog-blocks.js` |
 | **PLAN_CLASSIFY** | promote / keep P2 / waive + Notes `classify: …` |
@@ -830,10 +831,9 @@ prefer bullets over essays; 3–7 discovery bullets max.
 | **Outcome** | `confirmed\|disproven\|partial\|blocked` · Test `PASS\|FAIL\|n/a` |
 | **What landed** | <paths or _no code_ / ledger-only> |
 | **Commit** | `yes` `<short-sha>` · `improve-loop: iteration N — …` **or** `no — <reason>` |
-| **Open P0/P1** | <k after replan> · non-material streak `<m>` |
 | **Why not complete** | _(omit if complete)_ need residual cycle 2/2 · open P0/P1 remain · suite gate · … |
-| **Stop counters** | no-progress=<i> · same-error=<j> · sig=`<none\|…>` |
-| **Advisors** | <who responded / native-only / skipped> |
+| **Stop counters** | _(omit row when both counters are 0)_ no-progress=<i> · same-error=<j> · sig=`<none\|…>` |
+| **Advisors** | _(omit when native-only/skip and no disagreement)_ <who responded / degraded / decision-relevant> |
 
 **Discovered this cycle**
 - <key finding, confirmation, disproof, risk, or replan insight #1>
@@ -863,7 +863,10 @@ prefer bullets over essays; 3–7 discovery bullets max.
 - <or blocked → concrete operator action>
 ```
 
-(PLAN_ORIENT P2: **Residual meter** sits directly under **Campaign goal**.)
+(PLAN_ORIENT: **Residual meter** under **Campaign goal**. Discovery slim: open P0/P1
+lives only in Residual meter — do not re-print a separate Open row; omit zero Stop
+counters; omit Advisors unless degraded/decision-relevant; omit empty Backlog/Deferred
+subsections; **Next** is one resolved handoff only.)
 
 Also emit a **one-line progress line** (and best-effort `update_goal(message: …)` if a host
 goal is Active) so logs stay greppable — **mandatory every cycle**, including residual-only.
@@ -2166,6 +2169,11 @@ write-section once (fallback). Re-run all executable rows every firing.
 End of sync: Spec sync card **or** skip one-liner. End of 3v: **Spec prove** card — non-pass
 rows only in evidence table; Loop effect never “done”. Validation line (pulse/commit/discovery):
 `Validation: N pass / M fail (V…) / W pending / K n/a … · sync=iter J | skip@J`.
+
+**PLAN_SPEC_SOFT (optional, non-blocking):** when Node available, prefer
+`softCheckIntentions(rows)` from `scripts/spec-validate.js` after sync/3v parse — emit a
+short `· evaluates · soft-check · V2 missing plan-anchor prefix` beat on warnings. Never
+blocks residual×2 complete alone.
 
 **R8 — never treat 3v fail as terminal:** Status stays `active` after seeds; in
 **autonomous** mode L1 **immediately** starts the next L2 cycle (do not ask the user, do not
