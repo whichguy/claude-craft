@@ -12,6 +12,23 @@ description: >-
 
 # Improve loop
 
+> **Home B (runtime monolith).** This tree is the campaign runtime (`SKILL.md` + `scripts/` + `tests/` + goal template). Marketplace mirror is **M** (allowlist copy of B). Normative **law source** is home **A** (`…/claude-craft/…/skills/improve-loop` thin SKILL + `references/**`). **Edit A first for law-text changes**, then mirror here, then M (`dual-home.md` / H15–H18). Sole document H1 is this title; `#` lines inside fenced templates are examples, not outline headings.
+
+## Section map (scan first)
+
+| Section | Tag | Role |
+|---|---|---|
+| [Campaign architecture](#campaign-architecture-logical-separation) | **LAW** | L0/L1/L2/L3, Status continue, dual-home shape |
+| [Planning contracts](#planning-contracts-tiers--multi-line-backlog) | **LAW** | PLAN_* summary, HYBRID spine, soft≠seed |
+| [P0/P1 residual discipline](#p0p1-residual-discipline-default) | **LAW** | residual×2 complete, seed, product mode, caps |
+| [Shell CWD discipline](#shell-cwd-discipline-mandatory) | **OPERATIONAL** | Sticky TARGET_REPO, worktree subshells |
+| [Status reporting](#status-reporting-user-facing--mandatory) | **TEMPLATE** + **OPERATIONAL** | Kickoff / discovery / campaign cards + PLAN_ORIENT |
+| [Invocation](#invocation) | **ENTRY** | Flags, target-repo resolve, test command |
+| [Preconditions](#preconditions) | **ENTRY** | Shell probe, dirty intent, landing priority |
+| [Durable state vs live ledger](#durable-state-vs-live-ledger-self-contained-cycles) | **TEMPLATE** + **LAW** | IMPROVE_LOOP.md shape (fenced example) |
+| [The cycle](#the-cycle) | **LAW** | Phases 0–5 + 3v (mirrors A phase refs) |
+| [Multi-cycle: L1](#multi-cycle-l1-campaign-driver-not-host-re-drive) | **LAW** | Cap / verify package contracts |
+
 ## Campaign architecture (logical separation)
 
 | Layer | Owns | Does not own |
@@ -88,6 +105,8 @@ SKILL_DIR/scripts/package-parity.js        # B↔M only — never A (H15–H18, 
 SKILL_DIR/scripts/contract-check.js
 SKILL_DIR/tests/scripts.test.sh
 ```
+
+*Package-shape map: A `references/dual-home.md` (H15–H18) — ship-procedure law starts in A.*
 
 **Dual-home shape (H16):** package **B** (this tree) and marketplace **M** are monolith
 SKILL + `scripts/` + `tests/` + **only** `references/goal-objective.template.md`. Package **A**
@@ -187,6 +206,8 @@ Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
 
 ## Planning contracts (tiers + multi-line backlog)
 
+*Mirror of A `references/contracts/planning.md` (PLAN_* + HYBRID spine) — law changes start in A (`dual-home.md`). Full R1–R8d table lives in A only; this section is the runtime summary.*
+
 Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 
 | Pin | Meaning |
@@ -248,6 +269,8 @@ select test-authoring item for `V<k>` first (T0 may skip).
 **Open-count (B):** unchecked **title** lines under `## Backlog` matching `^- \[ \] .*P[01]:` (not sub-bullets).
 
 ## P0/P1 residual discipline (default)
+
+*Mirror of A residual×2 / seed / complete law (planning + phase-3/3v) — law changes start in A. R7 sole complete; soft≠seed.*
 
 Applies to **every** `/improve` target (code, skill, docs). Goal: plan improvements from
 evidence, do material work, and only sign off after a second independent residual pass.
@@ -630,6 +653,8 @@ when `TARGET_REPO` is different.
 subshells for WORKSPACE. **Subshells cannot heal an already-dead sticky CWD.**
 
 ## Status reporting (user-facing — mandatory)
+
+*Operator templates + PLAN_ORIENT shapes mirror A `references/contracts/progress.md` — law/shape changes start in A.*
 
 Operators must always see **what goal this campaign set**, **how many cycles are budgeted
 and used**, **what each cycle discovered**, and a **final summary** — not only tool noise or
@@ -1465,6 +1490,8 @@ header counter ≥ that N → delete `## Log` → Notes `legacy Log collapsed to
 
 ## The cycle
 
+*Phase corpus mirrors A `references/phase-0-resume.md` … `phase-5-decision.md` + `phase-3v-validate.md` — law changes start in A; keep phase-specific ops here.*
+
 ### Phase 0 — Resume (native, cheap)
 
 1. Resolve the **single campaign WORKSPACE** (and LAUNCH plumbing), then enforce
@@ -2293,6 +2320,8 @@ T2 challenge (native):
 Prefer writing the native block even when advisors ran (cheap durable artifact). Notes
 `T2 challenge degraded: …` **only** if the live ledger cannot be written. Never claim
 multi-model advisors when only native ran.
+
+*R7/R8 definitions (canonical summary): [P0/P1 residual discipline](#p0p1-residual-discipline-default) + [Planning contracts](#planning-contracts-tiers--multi-line-backlog); full table in package A `contracts/planning.md` § Sequencing rules. Phase ops below — do not paraphrase R7/R8 law here.*
 
 **R8 — never treat 3v fail as terminal:** Status stays `active` after seeds; in
 **autonomous** mode L1 **immediately** starts the next L2 cycle (do not ask the user, do not
