@@ -1727,6 +1727,11 @@ assert "backlog-blocks delete keeps residual" bash -c \
 assert "spec-validate.js exists" test -f "$SCRIPTS/spec-validate.js"
 node "$SCRIPTS/spec-validate.js" self-test
 assert "spec-validate self-test" true
+assert "complete-gate.js exists" test -f "$SCRIPTS/complete-gate.js"
+node "$SCRIPTS/complete-gate.js" self-test
+assert "complete-gate self-test" true
+assert "package-parity documents B↔M only" grep -q 'B↔M only' "$SCRIPTS/package-parity.js"
+assert "SKILL WP0 A references law only" grep -q 'A carries references law only' "$ROOT/SKILL.md"
 assert "SKILL has PLAN_VALIDATE" grep -q 'PLAN_VALIDATE' "$ROOT/SKILL.md"
 assert "SKILL has Spec validation section" grep -q '## Spec validation' "$ROOT/SKILL.md"
 assert "SKILL has Phase 3v" grep -q 'Phase 3v' "$ROOT/SKILL.md"

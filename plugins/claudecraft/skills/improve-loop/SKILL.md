@@ -83,7 +83,8 @@ SKILL_DIR/scripts/lib-paths.js
 SKILL_DIR/scripts/carry-launch-wip.js
 SKILL_DIR/scripts/backlog-blocks.js
 SKILL_DIR/scripts/spec-validate.js
-SKILL_DIR/scripts/package-parity.js        # B↔M ship-set check (H15–H18)
+SKILL_DIR/scripts/complete-gate.js         # R7 pure complete evaluator (WP1)
+SKILL_DIR/scripts/package-parity.js        # B↔M only — never A (H15–H18, WP0)
 SKILL_DIR/scripts/contract-check.js
 SKILL_DIR/tests/scripts.test.sh
 ```
@@ -91,6 +92,8 @@ SKILL_DIR/tests/scripts.test.sh
 **Dual-home shape (H16):** package **B** (this tree) and marketplace **M** are monolith
 SKILL + `scripts/` + `tests/` + **only** `references/goal-objective.template.md`. Package **A**
 (thin SKILL + full `references/`) is law text only — never rsync A `references/` into B/M.
+**A carries references law only; scripts live in B and mirror to M.** `package-parity.js`
+compares **B↔M only** (allowlist above) — never A, never claims A/script sync (WP0).
 Ship SKILL + scripts + tests for a behavior in one atomic commit per home (H15). After B
 script changes, copy to M and run `node scripts/package-parity.js --skill-dir "$SKILL_DIR"`.
 
@@ -392,8 +395,14 @@ uses COMPLETED_SET; residual×2 must re-earn on every new campaign).
 Set `complete` **only if all** of:
 
 1. Open P0/P1 count = 0 after replan.
-2. `consecutive-non-material-cycles >= 2`.
+2. `consecutive-non-material-cycles >= 2` (**consecutive** residual×2).
 3. Green suite gate (Phase 3 cases a/b/c below).
+
+**R7 layer honesty (WP1):** there is **no Status CLI**. The orchestrator writes Status into
+the live ledger following this law. Pure evaluator + truth table:
+`node "$SKILL_DIR/scripts/complete-gate.js" self-test` (`evaluateComplete`). All-V-pass and
+Spec header pass alone never unlock complete. Transitions only (hand-edited complete on
+disk is not auto-refused).
 
 If open P0/P1 = 0 and streak is **1**: leave Status **`active`**. Next cycle is
 **residual-only** (skip Phase 1 execute / investigation Thesis

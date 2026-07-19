@@ -2,6 +2,11 @@
 /**
  * B↔M improve-loop package parity (stdlib only).
  *
+ * ## Scope (WP0 — pin this; greppable)
+ * package-parity compares **B↔M only** (user skill vs marketplace mirror).
+ * **A is out of scope** — A carries references/ law only; scripts live in B and
+ * mirror to M. Never inspects claude-craft A tree; never claims A/script sync.
+ *
  * Ship set compared when both peers exist:
  *   SKILL.md, scripts/**, tests/**, references/goal-objective.template.md
  *

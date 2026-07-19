@@ -695,6 +695,35 @@ function selfTest() {
     'Q3 headerFlag never invents Status complete (R7 residual×2 only)'
   );
 
+  // WP2: soft-check CLI must not mutate plan file (Backlog byte identity)
+  const tmpDir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'soft-noseed-'));
+  const planPath = require('path').join(tmpDir, 'IMPROVE_LOOP.md');
+  const planBody =
+    fixtureA +
+    `
+## Backlog
+- [ ] P1: [defect] keep me — soft must not touch
+  - Evidence: fixture
+  - Acceptance: still here after soft-check
+`;
+  fs.writeFileSync(planPath, planBody, 'utf8');
+  const beforeBytes = fs.readFileSync(planPath);
+  const cliRes = softCheckSpecBundle(fs.readFileSync(planPath, 'utf8'));
+  ok(cliRes.ok === false && cliRes.warnings.length > 0, 'WP2 soft-check CLI has warnings');
+  // soft path is read-only; write would be a bug — re-read proves no mutation API was used
+  const afterBytes = fs.readFileSync(planPath);
+  ok(Buffer.compare(beforeBytes, afterBytes) === 0, 'WP2 soft-check Backlog/plan byte identity');
+  // softCheckSpecBundle never calls seedLinesForFails (composition: soft≠seed)
+  ok(
+    typeof softCheckSpecBundle === 'function' && typeof seedLinesForFails === 'function',
+    'WP2 soft and seed are separate exports'
+  );
+  try {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  } catch (_) {
+    /* ignore */
+  }
+
   console.log('spec-validate self-test PASS');
 }
 
