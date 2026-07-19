@@ -11,7 +11,13 @@ Short operator checklist. Normative law lives in phase/contract files; this page
 | **B** | `~/.claude/skills/improve-loop` | Monolith `SKILL.md` + `scripts/` + `tests/` + **only** `references/goal-objective.template.md` |
 | **M** | `~/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop` | Same ship set as **B** (dogfood / marketplace) |
 
+**A carries references law only; scripts live in B and mirror to M.** `package-parity.js`
+compares **B↔M only** (never A; never claims A/script sync) — WP0.
+
 **Never** `cp -R` A `references/` into B or M. M must not grow A-style phase/contract trees.
+
+**R7 pin layer (WP1 honesty):** Status complete is orchestrator-law into `IMPROVE_LOOP.md`,
+not a Status CLI. Pure evaluator: B `scripts/complete-gate.js` (truth table + residual×2).
 
 ## When you change law text
 
