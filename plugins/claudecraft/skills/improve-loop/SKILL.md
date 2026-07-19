@@ -29,6 +29,8 @@ description: >-
 | [The cycle](#the-cycle) | **LAW** | Phases 0–5 + 3v (mirrors A phase refs) |
 | [Multi-cycle: L1](#multi-cycle-l1-campaign-driver-not-host-re-drive) | **LAW** | Cap / verify package contracts |
 
+*Tags: **LAW** sections govern on any conflict; **OPERATIONAL** describes execution; **TEMPLATE** is copy-source; **ENTRY** is a landing point.*
+
 ## Campaign architecture (logical separation)
 
 | Layer | Owns | Does not own |
@@ -654,7 +656,7 @@ subshells for WORKSPACE. **Subshells cannot heal an already-dead sticky CWD.**
 
 ## Status reporting (user-facing — mandatory)
 
-*Operator templates + PLAN_ORIENT shapes mirror A `references/contracts/progress.md` — law/shape changes start in A.*
+*Operator templates + PLAN_ORIENT shapes mirror A `references/contracts/progress.md` — law/shape changes start in A. Progress-line dialect map (Pulse / PLAN_SPEC_STATUS / PLAN_ORIENT): A `contracts/progress.md` § Dialect map — B emits those shapes here.*
 
 Operators must always see **what goal this campaign set**, **how many cycles are budgeted
 and used**, **what each cycle discovered**, and a **final summary** — not only tool noise or
