@@ -16,6 +16,8 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
+const { spawnSync } = require('child_process');
 
 const KINDS = new Set([
   'suite',
@@ -708,9 +710,9 @@ function selfTest() {
     'Q3 headerFlag never invents Status complete (R7 residual×2 only)'
   );
 
-  // WP2: soft-check CLI must not mutate plan file (Backlog byte identity)
-  const tmpDir = fs.mkdtempSync(require('path').join(require('os').tmpdir(), 'soft-noseed-'));
-  const planPath = require('path').join(tmpDir, 'IMPROVE_LOOP.md');
+  // WP2a: in-process soft path is read-only (composition soft≠seed)
+  const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'soft-noseed-'));
+  const planPath = path.join(tmpDir, 'IMPROVE_LOOP.md');
   const planBody =
     fixtureA +
     `
@@ -721,15 +723,43 @@ function selfTest() {
 `;
   fs.writeFileSync(planPath, planBody, 'utf8');
   const beforeBytes = fs.readFileSync(planPath);
-  const cliRes = softCheckSpecBundle(fs.readFileSync(planPath, 'utf8'));
-  ok(cliRes.ok === false && cliRes.warnings.length > 0, 'WP2 soft-check CLI has warnings');
-  // soft path is read-only; write would be a bug — re-read proves no mutation API was used
-  const afterBytes = fs.readFileSync(planPath);
-  ok(Buffer.compare(beforeBytes, afterBytes) === 0, 'WP2 soft-check Backlog/plan byte identity');
-  // softCheckSpecBundle never calls seedLinesForFails (composition: soft≠seed)
+  const inProc = softCheckSpecBundle(fs.readFileSync(planPath, 'utf8'));
+  ok(inProc.ok === false && inProc.warnings.length > 0, 'WP2a soft-check in-process has warnings');
+  ok(
+    Buffer.compare(beforeBytes, fs.readFileSync(planPath)) === 0,
+    'WP2a in-process soft does not mutate plan file'
+  );
   ok(
     typeof softCheckSpecBundle === 'function' && typeof seedLinesForFails === 'function',
     'WP2 soft and seed are separate exports'
+  );
+
+  // WP2b: real soft-check CLI subprocess (what SKILL runs) — JSON shape + byte identity
+  const cli = spawnSync(
+    process.execPath,
+    [path.join(__dirname, 'spec-validate.js'), 'soft-check', '--plan-file', planPath],
+    { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 }
+  );
+  ok(cli.status === 0, 'WP2b soft-check CLI exit 0');
+  ok(!cli.error, 'WP2b soft-check CLI spawn ok');
+  let cliJson;
+  try {
+    cliJson = JSON.parse(cli.stdout);
+  } catch (e) {
+    console.error('WP2b soft-check CLI stdout not JSON:', (cli.stdout || '').slice(0, 200));
+    process.exit(2);
+  }
+  ok(cliJson && typeof cliJson.ok === 'boolean', 'WP2b CLI JSON has ok');
+  ok(cliJson.meta && typeof cliJson.meta === 'object', 'WP2b CLI JSON has meta');
+  ok(Array.isArray(cliJson.warnings), 'WP2b CLI JSON has warnings array');
+  ok(cliJson.ok === false && cliJson.warnings.length > 0, 'WP2b CLI reports soft warnings');
+  ok(
+    cliJson.warnings.every((w) => w && typeof w.code === 'string' && typeof w.message === 'string'),
+    'WP2b each warning has code + message'
+  );
+  ok(
+    Buffer.compare(beforeBytes, fs.readFileSync(planPath)) === 0,
+    'WP2b soft-check CLI plan file byte identity (read-only)'
   );
   try {
     fs.rmSync(tmpDir, { recursive: true, force: true });

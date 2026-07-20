@@ -11,11 +11,21 @@ This is **not** a full `/improve` prompt → thinking → output harness (see pl
 |---|---|---|
 | This soft case-bank | Soft-check warning codes on written Spec | Campaign planning / Design-time N&S decisions |
 | `spec-sync-matrix.test.js` (S2) | PLAN_SPEC_SYNC row-ops goldens | LLM Spec derive quality |
-| `complete-gate.js self-test` | R7 residual×2 truth table | Live orchestrator Status writes |
-| `ledger-status.js` + `scripts.test.sh` | Parse Status / backlog / cycle / stop counters | PLAN_ORIENT pulse emit in chat |
-| Full L3 suite (~320 asserts) | Scripts, worktree, parity, contracts | Multi-cycle autonomous campaign behavior |
+| `complete-gate.js self-test` | R7 residual×2 truth table (pure `evaluateComplete`) | Live orchestrator Status writes / L1 e2e |
+| `spec-validate.js self-test` | 3v seed/dedupe (V1 vs V10 colon token), soft≠seed composition, **WP2b soft-check CLI spawn** | Agent Phase 3v apply path |
+| `scripts.test.sh` soft-check CLI block | Real `soft-check --plan-file` exit 0 + JSON + **plan byte identity** | Campaign multi-cycle |
+| `ledger-status.js` + rest of suite | Parse Status / backlog / cycle / stop counters | PLAN_ORIENT pulse emit in chat |
+| Full L3 suite | Scripts, worktree, parity, contracts | Multi-cycle autonomous campaign behavior |
 
 **Soft bank ≠ Spec matrix ≠ campaign-loop eval.** A green suite means L3/contracts hold — not that an agent ran a good `/improve` campaign.
+
+### Behavioral-pin inventory (post planning-doc arc)
+
+| Fable ask | Pin home | Residual |
+|---|---|---|
+| R7 sole complete | `complete-gate.js` self-test (+ suite invoke) | No Status CLI — pure evaluator only (intentional) |
+| 3v seed + V1/V10 dedupe | `spec-validate.js` self-test `seedLinesForFails` | Orchestrator apply still LLM-owned |
+| soft≠seed / CLI read-only | self-test WP2b + `scripts.test.sh` CLI block | Done for real CLI spawn |
 
 ## What each case shows
 

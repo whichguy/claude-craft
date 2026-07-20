@@ -1742,6 +1742,34 @@ assert "spec-validate self-test" true
 assert "complete-gate.js exists" test -f "$SCRIPTS/complete-gate.js"
 node "$SCRIPTS/complete-gate.js" self-test
 assert "complete-gate self-test" true
+
+# --- WP2b: real soft-check CLI (SKILL path) — JSON + plan byte identity ---
+# Covers the orchestrator command: node spec-validate.js soft-check --plan-file …
+SOFT_CLI_DIR=$(mktemp -d "${TMPDIR:-/tmp}/improve-soft-cli.XXXXXX")
+SOFT_CLI_PLAN="$SOFT_CLI_DIR/IMPROVE_LOOP.md"
+# thin habitat case fails soft (SUITE_ONLY / MISSING_PRESERVE / HABITAT…) + keep Backlog intact
+cp "$ROOT/tests/cases/thin-habitat-spec.ledger.md" "$SOFT_CLI_PLAN"
+SOFT_CLI_BEFORE=$(wc -c < "$SOFT_CLI_PLAN" | tr -d ' ')
+SOFT_CLI_OUT="$SOFT_CLI_DIR/out.json"
+set +e
+node "$SCRIPTS/spec-validate.js" soft-check --plan-file "$SOFT_CLI_PLAN" >"$SOFT_CLI_OUT" 2>"$SOFT_CLI_DIR/err.txt"
+SOFT_CLI_EC=$?
+set -e
+assert "soft-check CLI exit 0" test "$SOFT_CLI_EC" -eq 0
+assert "soft-check CLI stdout is JSON" node -e '
+const fs=require("fs");
+const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+if (typeof j.ok!=="boolean") process.exit(2);
+if (!j.meta || typeof j.meta!=="object") process.exit(3);
+if (!Array.isArray(j.warnings)) process.exit(4);
+if (j.ok!==false || j.warnings.length<1) process.exit(5);
+if (!j.warnings.every(w=>w && typeof w.code==="string" && typeof w.message==="string")) process.exit(6);
+' "$SOFT_CLI_OUT"
+SOFT_CLI_AFTER=$(wc -c < "$SOFT_CLI_PLAN" | tr -d ' ')
+assert "soft-check CLI plan byte size unchanged" test "$SOFT_CLI_BEFORE" = "$SOFT_CLI_AFTER"
+assert "soft-check CLI plan content unchanged" cmp -s "$ROOT/tests/cases/thin-habitat-spec.ledger.md" "$SOFT_CLI_PLAN"
+rm -rf "$SOFT_CLI_DIR"
+
 # --- S1 case-bank (soft-check only; not Spec-sync matrix host) ---
 assert "run-case-bank.js exists" test -f "$SCRIPTS/run-case-bank.js"
 node "$SCRIPTS/run-case-bank.js"
