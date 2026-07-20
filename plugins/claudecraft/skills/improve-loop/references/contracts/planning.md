@@ -59,11 +59,9 @@ Planning-owned pins → section anchors (law lives in those sections, not here):
 
 ### Canonical sentences
 
-**R7:** residual×2 + green suite is the sole Status `complete` law — never “all V pass ⇒ complete” alone (R7).
-
 **soft≠seed:** Soft evidence (PLAN_SPEC_SOFT, criteria-scan warnings, habitat probes, design-time N&S) classifies — it never auto-seeds backlog and never alone blocks residual×2, Status, or complete.
 
-Downstream restatements **cite** these (or keep test-pinned verbatim instances); do not invent divergent complete predicates.
+R7’s canonical sentence is its table row above. Downstream restatements cite R7 / soft≠seed (or keep test-pinned verbatim instances); do not invent divergent complete predicates.
 
 ### Hard refusals
 
@@ -80,13 +78,12 @@ Downstream restatements **cite** these (or keep test-pinned verbatim instances);
 **One spine, two views** (Codex Soul HYBRID — normative):
 
 ```text
-INTENTION
-  → WORK SPEC: ## Campaign brief + runtime state + material Backlog/Acceptance
-  → VALIDATION SPEC: ## Spec validation (derived V-rows + Proofs)
-  → PROOF ARTIFACTS / TESTS when R2 requires
-  → CODE
-  → 3v PROVE (fail → seed validate V → R8 continue)
-  → residual×2 + green suite → R7 complete
+1. PLAN     — WORK SPEC: ## Campaign brief + runtime state + material Backlog/Acceptance
+2. VALIDATE — VALIDATION SPEC: ## Spec validation V-rows derived from work-spec anchors
+              (+ proof artifacts / tests when R2 requires)
+3. CODE     — product (+ un-quarantine / test fill-in / improve tests in-loop, R6)
+4. PROVE    — Phase 3v runs Proofs; fail → seed validate V<k> → back to 2/3 (R8 continue);
+              residual×2 + green suite → R7 complete
 ```
 
 | View | Owns | Does not own |
@@ -96,15 +93,6 @@ INTENTION
 | **Tests** | Artifacts cited by V-rows | Being the work spec |
 
 Do **not** add a second `## Work Spec` table. Do **not** freeze V-rows before applied brief/backlog anchors. If proof design finds a hole: **revise work-spec first**, then PLAN_SPEC_SYNC. R7 (see Invariants): 3v blocks complete only by seeding open P0/P1 — never a second complete predicate.
-
-```text
-1. PLAN     — work-spec: brief + material Backlog + locks (+ runtime when claimed)
-2. VALIDATE — ## Spec validation V-rows **derived** from work-spec anchors + proof artifacts
-3. CODE     — product (+ un-quarantine / test fill-in)
-4. PROVE    — Phase 3v runs Proofs; fail → seed validate V<k> → back to 2/3
-```
-
-Improve tests in-loop (R6). residual×2 sole complete (R7 — see Invariants).
 
 ### Quarantine convention (red-first proofs)
 
@@ -122,10 +110,9 @@ Improve tests in-loop (R6). residual×2 sole complete (R7 — see Invariants).
 2. Inspect + git digest + habitat
 3. Classify every candidate (promote|keep P2|waive) + Notes
 4. Choose plan tier (see Plan tiers)
-5. Write brief (if required) + ## Spec validation when required (T2 / design-change;
-   optional T0) + header **Spec validation:** n/a|pending|pass
-   + Backlog + Deferred + Product residual survey header
-   Prefer seed test-authoring P1s for missing Proof artifacts before product P1s (R2)
+5. Write brief + ## Spec validation + header flag when required (T2/design-change; optional T0)
+   + Backlog + Deferred + Product residual survey header — forms: PLAN_BRIEF / PLAN_VALIDATE.
+   Prefer test-authoring P1s for missing Proof artifacts before product P1s (R2)
 6. Phase 1 if selecting an open item (incl. residual investigation);
    residual-only cycle only when open count = 0
 ```
@@ -163,9 +150,9 @@ Cold-start T0p does **not** set `done` — mid-campaign gate still fires once wh
 Before Round 1 / native-replanner: surface types; habitat claimed? (predicate below);
 runtime contract state; C1–C12 gaps → promote|P2|waive (≤6); sticky P2 reclassify once;
 operator post-land ≠ product; fidelity preference. Inject into 5-block inputs 1, 2, 4.
-Tokens: `PLAN_CRITERIA`, `Criteria scan`. Soft warnings never auto-seed.
+Tokens: `PLAN_CRITERIA`, `Criteria scan`.
 
-**Design-time N&S (orchestrator preflight; not a 6th advisor block):**
+**Design-time N&S:**
 Fire only on (1) cold-start **material** seed, or (2) promote-class / material-rec apply
 (T2, native 5-block, Criteria → promote). Skip pure residual-only empty promote-class.
 
@@ -177,9 +164,8 @@ outcome changes):
 3. **Layer?** Open P0/P1 · Deferred P2 · docs/pointer · skill-law · nowhere (drop)?
    Prefer the thinnest layer that works.
 
-Inject into 5-block inputs 1, 2, 4. Prefer existing classes `simplify` | `defer` when
-N&S fails — do not invent classes. Orchestrator owns the answer; advisors are not
-required to emit `design:`.
+Prefer existing classes `simplify` | `defer` when N&S fails — do not invent classes.
+Orchestrator owns the answer; advisors are not required to emit `design:`.
 **Soft only** — never alone blocks residual×2, Status, or complete; never auto-seeds.
 Optional Notes only when N&S **changed** the outcome:
 `design: simplify | re-layer | defer | drop — <≤80 chars>`. Silent OK when promote-as-is.
@@ -289,19 +275,16 @@ scope expansion.
 | **Scope** | Brief **Out of scope / waived** + target boundary | prose-sweep / skill-law / manual | T2; vacuous T0 residual may omit |
 
 **Rules:**
-- Prefer **executable** Proofs (R6/R7 unchanged). Pure `manual` Scope rows never alone block complete.
+- Prefer executable Proofs; pure `manual` Scope rows never alone block complete. Check-in
+  rows re-run at every gate firing and fail-seed the same deduped `validate V<k>` P1 — never
+  a second complete predicate (R7).
 - Scope rows should prefer an executable diff-boundary Proof over `manual` when a base ref
   exists (e.g. `git diff --stat <base>.. -- ':!<in-scope path>'` with success = empty/no match).
-- Do **not** treat check-in rows as a second complete predicate — 3v still only seeds open
-  work; residual×2 sole complete (R7).
 - Completing an item (A `[x]` / B block-delete) never removes its Preserve V-row — V-IDs are
   stable and the row remains the post-completion guard.
-- Check-in rows re-run at every gate firing like all executable rows; a Preserve or Regression
-  fail seeds the same deduped `validate V<k>` P1 — no special seed class.
-- Advisors may **add** Preserve/regression rows; may not delete Proofs to force pass.
 - Planning lifts Preserve text into V-row Intention (or cites item id); Phase 1 still enforces
   Preserve at execute time.
-- New regression/preserve tests still land **quarantined** until product un-quarantines.
+- New regression/preserve tests land quarantined (see Quarantine convention).
 
 **Example rows (illustrative):**
 
@@ -312,14 +295,6 @@ scope expansion.
 | V3 | Regression: recorded suite green | suite | — | `\<Test command\>` exit 0 | pending |
 | V4 | Scope: no change outside \<boundary\> | prose-sweep or manual | paths | rg or human | pending |
 | V5 | dual-home: B ship set matches marketplace M | dual-home | improve-loop package | `node "$SKILL_DIR/scripts/package-parity.js" --skill-dir "$SKILL_DIR"` exit 0 | pending |
-
-**Canonical dual-home Proof** (Kind `dual-home` — self-improve / skill campaigns when both
-user package **B** and marketplace **M** exist):
-
-```bash
-node "$SKILL_DIR/scripts/package-parity.js" --skill-dir "$SKILL_DIR"
-# success: exit 0, no content/path drift; M must not carry A-style extra references/*
-```
 
 Package shapes + mirror procedure: `dual-home.md` (H15–H18) — never rsync A `references/` into B/M.
 
@@ -467,9 +442,7 @@ diversity — **not** true anti-mirror; true anti-mirror deferred) /
 `softCheckSyncStale` from dogfood `scripts/spec-validate.js`. Disposition Notes
 `soft: <code> → addressed|waived|unresolved`.
 
-Soft warnings classify promote|P2|waive first; they never auto-seed backlog from soft alone.
-
-**Never auto-seed backlog; never sole complete gate.**
+**Never auto-seed backlog; never sole complete gate** — soft warnings classify promote|P2|waive first (soft≠seed, see Invariants).
 
 ## Product residual + habitat probe outcomes
 
