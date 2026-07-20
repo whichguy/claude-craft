@@ -244,8 +244,8 @@ Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 those anchors (not free-authored product intent; not generic boilerplate) + proof artifacts
 when R2. (3) Code. (4) Phase **3v** prove — fail seeds
 `- [ ] P1: [defect] validate V<k>: …`. If proof design finds a hole: **revise work-spec first**,
-then PLAN_SPEC_SYNC. **R8:** autonomous L1 **auto-continues** next cycle until evaluation
-runs clean (or stop counters). residual×2 remains sole `complete` law
+then PLAN_SPEC_SYNC. **R8:** see “R8 — never treat 3v fail as terminal” (Phase 3).
+residual×2 remains sole `complete` law
 (never “all V pass ⇒ complete” alone). Soft ≠ seed. Rules R1–R8 + quarantine: package A
 `contracts/planning.md` / `phase-3v-validate.md` (normative).
 
