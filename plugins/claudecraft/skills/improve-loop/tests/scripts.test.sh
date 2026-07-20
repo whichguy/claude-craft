@@ -145,11 +145,17 @@ EOF
 node "$SCRIPTS/ledger-status.js" --workspace "$WS" >"$LS"
 assert "status active" grep -q '"status": "active"' "$LS"
 assert "open backlog 1" grep -q '"open_backlog": 1' "$LS"
+assert "checked backlog 1" grep -q '"checked_backlog": 1' "$LS"
 assert "open deferred 1" grep -q '"open_deferred": 1' "$LS"
 assert "checked deferred 1" grep -q '"checked_deferred": 1' "$LS"
 assert "log iterations 1" grep -q '"log_iterations": 1' "$LS"
 assert "legacy cycle_state" grep -q '"cycle_state": "legacy_log"' "$LS"
 assert "not landed pending" grep -q '"landed": false' "$LS"
+assert "no-progress counter 0" grep -q '"consecutive_no_progress": 0' "$LS"
+assert "same-error counter 0" grep -q '"consecutive_same_error": 0' "$LS"
+assert "error signature none" grep -q '"error_signature": "none"' "$LS"
+assert "non-material streak 0" grep -q '"consecutive_non_material_cycles": 0' "$LS"
+assert "not terminal when active" grep -q '"terminal": false' "$LS"
 
 # plan-file shape: ## Last cycle only
 cat >"$WS/IMPROVE_LOOP.md" <<'EOF'
@@ -195,6 +201,12 @@ assert "latest_n 2" grep -q '"latest_n": 2' "$LS"
 assert "log_iterations 0|1 for new shape" grep -qE '"log_iterations": 1' "$LS"
 assert "last cycle outcome" grep -q '"latest_outcome": "confirmed"' "$LS"
 assert "last cycle not landed pending" grep -q '"landed": false' "$LS"
+assert "last-cycle non-material streak 0" grep -q '"consecutive_non_material_cycles": 0' "$LS"
+# residual-streak pin: rewrite counter to 2 (parse only; not complete-gate)
+sed -i.bak 's/consecutive-non-material-cycles: 0/consecutive-non-material-cycles: 2/' "$WS/IMPROVE_LOOP.md"
+node "$SCRIPTS/ledger-status.js" --workspace "$WS" >"$LS"
+assert "non-material streak 2" grep -q '"consecutive_non_material_cycles": 2' "$LS"
+rm -f "$WS/IMPROVE_LOOP.md.bak"
 
 # dual: Last cycle + legacy Log → prefer Last cycle
 cat >"$WS/IMPROVE_LOOP.md" <<'EOF'

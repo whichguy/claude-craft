@@ -131,6 +131,8 @@ const result = {
   consecutive_no_progress: null,
   consecutive_same_error: null,
   error_signature: null,
+  // Residual×2 streak (markdown: consecutive-non-material-cycles); distinct from complete-gate inputs
+  consecutive_non_material_cycles: null,
   landed: false,
   terminal: false,
 };
@@ -172,6 +174,8 @@ const se = text.match(/consecutive-same-error:\s*(\d+)/);
 if (se) result.consecutive_same_error = Number(se[1]);
 const sig = text.match(/consecutive-same-error:\s*\d+\s*\(signature:\s*([^)]+)\)/);
 if (sig) result.error_signature = sig[1].trim();
+const nm = text.match(/consecutive-non-material-cycles:\s*(\d+)/);
+if (nm) result.consecutive_non_material_cycles = Number(nm[1]);
 
 // backlog (section body only — Deferred is a separate ## heading)
 const backlogSection = text.split(/^## Backlog\s*$/m)[1] || '';

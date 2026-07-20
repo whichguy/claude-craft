@@ -380,6 +380,7 @@ const improvePlanningUserOnly = [
   ['PLAN_ORIENT improve goal', /improve goal ·/],
   ['PLAN_ORIENT on: footer', /· on:/],
   ['PLAN_ORIENT cont heartbeat', /\(cont\)/],
+  ['PLAN_ORIENT pulse improve cycle', /improve cycle /],
   ['PLAN_APPLY multi-line block delete', /contiguous block|title \+ clause|delete entire contiguous|title and its contiguous clause/i],
   ['PLAN_CLASSIFY promote-class', /promote-class|classify: promote|keep P2/i],
   ['plan tiers T0 T0p T2', /\bT0p\b|Plan tier|plan tier/i],
