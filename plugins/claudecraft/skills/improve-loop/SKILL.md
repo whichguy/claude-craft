@@ -27,6 +27,7 @@ description: >-
 | [Preconditions](#preconditions) | **ENTRY** | Shell probe, dirty intent, landing priority |
 | [Durable state vs live ledger](#durable-state-vs-live-ledger-self-contained-cycles) | **TEMPLATE** + **LAW** | IMPROVE_LOOP.md shape (fenced example) |
 | [The cycle](#the-cycle) | **LAW** | Phases 0–5 + 3v (mirrors A phase refs) |
+| [Phase 3v — Spec validation gate](#phase-3v--spec-validation-gate-before-complete-rules) | **LAW** | 3v prove; R8 auto-continue; seeds validate V-k; never terminal |
 | [Multi-cycle: L1](#multi-cycle-l1-campaign-driver-not-host-re-drive) | **LAW** | Cap / verify package contracts |
 
 *Tags: **LAW** sections govern on any conflict; **OPERATIONAL** describes execution; **TEMPLATE** is copy-source; **ENTRY** is a landing point.*
@@ -211,7 +212,9 @@ Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
 
 ## Planning contracts (tiers + multi-line backlog)
 
-*Mirror of A `references/contracts/planning.md` (PLAN_* + HYBRID spine) — law changes start in A (`dual-home.md`). Full R1–R8d table lives in A only; this section is the runtime summary.*
+*Mirror of A `references/contracts/planning.md` (PLAN_* + HYBRID spine) — law changes start in A (`dual-home.md`). This section is the runtime summary.*
+
+*R-coverage in this monolith (full table: A `contracts/planning.md` § Sequencing rules): R1 → HYBRID spine step order (derive V-rows before code) · R2 → “R2 mechanical” below · R3 → PLAN_SPEC_SYNC anchor citing · R4/R5 → Phase 3v gate (open P0/P1 = 0; fail seeds `validate V<k>`) · R6 → 3v re-seed `fix target: product | proof` · R7 → P0/P1 residual discipline (sole complete) · R8/R8b–d → “R8 — never treat 3v fail as terminal” + L1 driver. PLAN_SPEC_STATUS / PLAN_ORIENT / PLAN_PROGRESS_ALIGN law homes: A `contracts/progress.md`; PLAN_T2_CHALLENGE / PLAN_HABITAT_META runtime body: this monolith (B/M). planning.md registers planning-owned pins + a routing line. PLAN_LEGACY_A is A-dialect only (not summarized here).*
 
 Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 
@@ -2207,6 +2210,8 @@ Block ends at next title, next `## `, or blank then non-clause. Residual may not
 Decision/Preserve (strip + Notes). Orphan clause lines strip on apply. One line per clause
 (≤200 chars soft). Prefer `backlog-blocks.js` parse/open-count/residual-forbidden.
 
+#### Surgical apply order (PLAN_SPEC_SYNC)
+
 Apply surgically and natively **in this order** (after strips/guards — PLAN_SPEC_SYNC):
 
 1. **`## Campaign brief`** (if rewritten) through next `## `
@@ -2291,7 +2296,9 @@ cycle commit (pathspec only).
 
 Immediately after surgical apply or deliberate non-apply, and without a subagent:
 
-**Phase 3v — Spec validation gate (before complete rules).** Step id `3v-prove`. When open
+#### Phase 3v — Spec validation gate (before complete rules)
+
+Step id `3v-prove`. When open
 P0/P1 = 0 after replan and same-error/no-progress stops have not fired: if product residual
 survey still pending (product/mixed), run that first. Else run Spec validation Proofs
 (orchestrator-native; `scripts/spec-validate.js` for parse/seed/dedupe). Suite-kind Proofs
