@@ -10,7 +10,6 @@ rules fork** (see PLAN_APPLY).
 
 **Home A/B/M vs package A/B:** *Home* letters name dual-home skill packages (law / runtime / marketplace). **Package A / package B** name ledger *dialects* (continuous vs open-only delete-on-complete), historically shipped by those homes — the dialect follows the **target ledger**, not which skill home you loaded.
 
-
 | Term | Meaning |
 |---|---|
 | **Open P0/P1** | Unchecked **title** lines under `## Backlog` that count for residual×2 / complete (package-local open-count) |
@@ -22,24 +21,61 @@ rules fork** (see PLAN_APPLY).
 | **Phase 3v** | Completion-path gate: run executable Proofs when open P0/P1 = 0; fail seeds coding work |
 | **Live plan** | `IMPROVE_LOOP.md` working memory (aka **live ledger** in older pins). History = git commit bodies — not multi-entry Log |
 
-## Promote-class (classify table) — PLAN_CLASSIFY
+## PLAN_* pin index (routing only)
 
-After inspect of limitations / deferred / operator surfaces / habitat SKIP (product-mixed
-always; defect when applicable):
+Planning-owned pins → section anchors (law lives in those sections, not here):
 
-| Class | Criteria (all for **promote**) | Effect |
-|---|---|---|
-| **promote** | (a) surfaced by scan, (b) not COMPLETED_SET / unexcused DISPROVEN_SET, (c) not `limitation waived:` this campaign, (d) implementable in ≤1 cycle under recorded suite | Six-clause material (T2) |
-| **keep P2** | Real but not ≤1-cycle or not worth a material cycle | Deferred one-line P2 |
-| **waive** | Intentional forever / out-of-scope | Notes `limitation waived: <short>` + `classify: waive — <why>` |
+| Pin | Section |
+|---|---|
+| **PLAN_TAG** · **PLAN_CLAUSES** · **PLAN_RESIDUAL** · **PLAN_LEGACY_A** | Canonical backlog forms |
+| **PLAN_BRIEF** | Campaign brief |
+| **PLAN_VALIDATE** | Spec validation (sole owner of this pin) |
+| **PLAN_SPEC_SYNC** | PLAN_SPEC_SYNC (under Spec validation) |
+| **PLAN_SPEC_SOFT** | PLAN_SPEC_SOFT — soft layer |
+| **PLAN_APPLY** | Multi-line grammar + PLAN_APPLY package fork |
+| **PLAN_CLASSIFY** | Promote-class (classify table) |
+| **PLAN_CRITERIA** | PLAN_CRITERIA — orchestrator preflight |
+| **PLAN_RUNTIME_CONTRACT** | PLAN_RUNTIME_CONTRACT |
 
-Every scanned candidate → Last cycle Notes: `classify: promote|keep P2|waive — <why>`.
+**Defined elsewhere (not law in this file):** `PLAN_SPEC_STATUS` · `PLAN_ORIENT` · `PLAN_PROGRESS_ALIGN` → `contracts/progress.md` (+ phase files). `PLAN_T2_CHALLENGE` · `PLAN_HABITAT_META` → package B/M runtime monolith (`SKILL.md` Planning contracts / seed / habitat — not in A `references/`). Verify homes with `rg` under `references/` and B `SKILL.md` when editing.
 
-**T2** iff promote-class non-empty **or** `--plan-deep`.  
-**T0p** iff product/mixed **and** promote-class empty **after** full scan.  
-**T0** (defect) iff no promote-class after inspect.
+## Invariants
 
-## Operator spine (HYBRID work-spec + Validation Spec) — PLAN_VALIDATE lifecycle
+### Sequencing rules (R1–R8, R8b–R8d)
+
+| Rule | Law |
+|---|---|
+| **R1** | Plan + V-rows before product select when T2/design-change requires validation |
+| **R2** | **Mechanical:** if open product Acceptance refs `V<k>` and that V-row’s Proof artifact is **not on disk**, select the open test-authoring item for `V<k>` first (T0 exploratory may skip). Soft warnings never seed — see PLAN_SPEC_SOFT |
+| **R3** | Product Acceptance references `V<k>` when proving that lock |
+| **R4** | Prove (3v) only when open P0/P1 = 0 after replan |
+| **R5** | 3v fail → seed `validate V<k>` → iterate coding/tests |
+| **R6** | Test improvement first-class; a `validate V<k>` item may fix **product or proof** |
+| **R7** | residual×2 + green suite sole Status complete — never “all V pass ⇒ complete” alone |
+| **R8** | 3v fail is **never** a terminal Status and **never** an L1 exit reason. In **autonomous** mode, after 3v seeds any `validate V<k>` (or write-section) item, L1 **must immediately** start the next L2 cycle without asking the user — keep coding/fixing until Spec validation is clean or hard stops fire |
+| **R8b** | Exit campaign only when: (`**Spec validation:** pass` or vacuous `n/a`) **and** residual×2 complete rules fire, **or** hard stop (same-error ×3 / no-progress ×3 / max-cycles / blocked) |
+| **R8c** | `--once` / once mode: still seed and leave Status `active`; **do not** auto multi-cycle — operator re-invokes |
+| **R8d** | Discovery card / pulse after 3v fail: say **continuing** (cycle K+1), never “done” |
+
+### Canonical sentences
+
+**R7:** residual×2 + green suite is the sole Status `complete` law — never “all V pass ⇒ complete” alone (R7).
+
+**soft≠seed:** Soft evidence (PLAN_SPEC_SOFT, criteria-scan warnings, habitat probes, design-time N&S) classifies — it never auto-seeds backlog and never alone blocks residual×2, Status, or complete.
+
+Downstream restatements **cite** these (or keep test-pinned verbatim instances); do not invent divergent complete predicates.
+
+### Hard refusals
+
+- No Spec Kit dep
+- No residual theater
+- No inventing material for residual×2
+- A continuous `[x]` freeze
+- No hermes SKILL dual-home claim from this contract alone
+- No dual peer work-spec tables
+- No all-V-pass complete
+
+## Operator spine (HYBRID work-spec + Validation Spec)
 
 **One spine, two views** (Codex Soul HYBRID — normative):
 
@@ -59,7 +95,7 @@ INTENTION
 | **Validation Spec** (`## Spec validation`) | Proof mapping + latest proof Status | Originating new product intent; Status `complete` |
 | **Tests** | Artifacts cited by V-rows | Being the work spec |
 
-Do **not** add a second `## Work Spec` table. Do **not** freeze V-rows before applied brief/backlog anchors. If proof design finds a hole: **revise work-spec first**, then PLAN_SPEC_SYNC. All V pass alone never completes (R7).
+Do **not** add a second `## Work Spec` table. Do **not** freeze V-rows before applied brief/backlog anchors. If proof design finds a hole: **revise work-spec first**, then PLAN_SPEC_SYNC. R7 (see Invariants): 3v blocks complete only by seeding open P0/P1 — never a second complete predicate.
 
 ```text
 1. PLAN     — work-spec: brief + material Backlog + locks (+ runtime when claimed)
@@ -68,24 +104,7 @@ Do **not** add a second `## Work Spec` table. Do **not** freeze V-rows before ap
 4. PROVE    — Phase 3v runs Proofs; fail → seed validate V<k> → back to 2/3
 ```
 
-Improve tests in-loop (R6). residual×2 + green suite remains the **only** Status `complete`
-law — 3v blocks complete only by seeding open P0/P1 (never a second complete predicate).
-
-### Sequencing rules (R1–R8, R8b–R8d)
-
-| Rule | Law |
-|---|---|
-| **R1** | Plan + V-rows before product select when T2/design-change requires validation |
-| **R2** | **Mechanical:** if open product Acceptance refs `V<k>` and that V-row’s Proof artifact is **not on disk**, select the open test-authoring item for `V<k>` first (T0 exploratory may skip). **PLAN_SPEC_SOFT never seeds backlog** — soft warnings classify promote\|P2\|waive first |
-| **R3** | Product Acceptance references `V<k>` when proving that lock |
-| **R4** | Prove (3v) only when open P0/P1 = 0 after replan |
-| **R5** | 3v fail → seed `validate V<k>` → iterate coding/tests |
-| **R6** | Test improvement first-class; a `validate V<k>` item may fix **product or proof** |
-| **R7** | residual×2 + green suite sole Status complete — never “all V pass ⇒ complete” alone |
-| **R8** | 3v fail is **never** a terminal Status and **never** an L1 exit reason. In **autonomous** mode, after 3v seeds any `validate V<k>` (or write-section) item, L1 **must immediately** start the next L2 cycle without asking the user — keep coding/fixing until Spec validation is clean or hard stops fire |
-| **R8b** | Exit campaign only when: (`**Spec validation:** pass` or vacuous `n/a`) **and** residual×2 complete rules fire, **or** hard stop (same-error ×3 / no-progress ×3 / max-cycles / blocked) |
-| **R8c** | `--once` / once mode: still seed and leave Status `active`; **do not** auto multi-cycle — operator re-invokes |
-| **R8d** | Discovery card / pulse after 3v fail: say **continuing** (cycle K+1), never “done” |
+Improve tests in-loop (R6). residual×2 sole complete (R7 — see Invariants).
 
 ### Quarantine convention (red-first proofs)
 
@@ -102,7 +121,7 @@ law — 3v blocks complete only by seeding open P0/P1 (never a second complete p
 1. SEED_MODE (defect | product | mixed)
 2. Inspect + git digest + habitat
 3. Classify every candidate (promote|keep P2|waive) + Notes
-4. Choose plan tier
+4. Choose plan tier (see Plan tiers)
 5. Write brief (if required) + ## Spec validation when required (T2 / design-change;
    optional T0) + header **Spec validation:** n/a|pending|pass
    + Backlog + Deferred + Product residual survey header
@@ -111,51 +130,33 @@ law — 3v blocks complete only by seeding open P0/P1 (never a second complete p
    residual-only cycle only when open count = 0
 ```
 
+## Promote-class (classify table) — PLAN_CLASSIFY
+
+After inspect of limitations / deferred / operator surfaces / habitat SKIP (product-mixed
+always; defect when applicable):
+
+| Class | Criteria (all for **promote**) | Effect |
+|---|---|---|
+| **promote** | (a) surfaced by scan, (b) not COMPLETED_SET / unexcused DISPROVEN_SET, (c) not `limitation waived:` this campaign, (d) implementable in ≤1 cycle under recorded suite | Six-clause material (T2) |
+| **keep P2** | Real but not ≤1-cycle or not worth a material cycle | Deferred one-line P2 |
+| **waive** | Intentional forever / out-of-scope | Notes `limitation waived: <short>` + `classify: waive — <why>` |
+
+Every scanned candidate → Last cycle Notes: `classify: promote|keep P2|waive — <why>`.
+
+Tier selection: see **Plan tiers** — the T2/T0p/T0 predicates live there.
+
 ## Plan tiers
 
 | Tier | When | Brief | Cold-start seed | Advisors |
 |---|---|---|---|---|
-| **T0** | defect + empty promote-class | Optional | Thin residual survey (**never empty open** on cold-start) | Native-only preferred |
-| **T0p** | product/mixed + empty promote-class after scan | Full | Residual thin product survey; survey flag **pending** | Native-only preferred |
+| **T0** | defect + no promote-class after inspect | Optional | Thin residual survey (**never empty open** on cold-start) | Native-only preferred |
+| **T0p** | product/mixed + promote-class empty after full scan | Full | Residual thin product survey; survey flag **pending** | Native-only preferred |
 | **T2** | promote-class non-empty or `--plan-deep` | Full | 1–3 six-clause (**seed cap**) | Full panel if configured |
 | **T1** | mid-campaign after land | Keep + surgical delta | Preserve clauses; replan free | Panel on stall/disagreement |
 | Mid residual×2 | open count 0 | Keep | Empty open OK | Native |
 
 **Product residual survey header:** `**Product residual survey:** pending | done | n/a (defect)`.  
 Cold-start T0p does **not** set `done` — mid-campaign gate still fires once when open hits 0.
-
-## Campaign brief — PLAN_BRIEF (work-spec anchors)
-
-Work specification = `## Campaign brief` + material six-clause Backlog (+ runtime state).
-Acceptance states **behavioral** outcomes, not proof commands; may cite `V<k>` after derive.
-
-```markdown
-## Campaign brief
-- **Target / desired outcome:** …
-- **Problem / opportunity:** …
-- **In scope:** …
-- **Out of scope / waived:** …
-- **Constraints:** …
-- **Sources inspected / Open questions:** … / none | …
-- **Surface types / Fidelity preference:** … | n/a — headless
-- **Criteria map:** C#: gap → promote|P2|waive (≤6 non-none)   <!-- PLAN_CRITERIA -->
-- **Operator post-land:** none | …
-- **Runtime contract:** n/a | filled | investigation-P1:<id>   <!-- PLAN_RUNTIME_CONTRACT -->
-- **Runtime record:** … (only if filled; 4–6 lines)
-- **T2 challenge:** native | advisor | skipped — <why>
-- **Success / Done when:** residual×2 + green suite only (skill law). Product residual
-  survey may classify/seed work — never a second complete predicate.
-  **Must not invent new complete predicates** (R7 sole complete).
-- **Plan tier:** 0 | 0p | 1 | 2
-```
-
-| Rule | Detail |
-|---|---|
-| **A placement** | After `## Driver`, before `## Backlog` |
-| **B placement** | After `## Isolation`, before `## Backlog` |
-| Delimiter | `## Campaign brief` body through next `## ` |
-| Writer | Orchestrator only; advisors recommend deltas |
-| Soft caps | ≤12 bullets / ~400 words; each clause line ≤200 chars |
 
 ## PLAN_CRITERIA — orchestrator preflight (not a 6th advisor block)
 
@@ -196,11 +197,45 @@ This is not the residual-item `protects:`/`closes:` filter; do not add those tok
 
 Close investigation → rewrite to `filled` or scoped waiver. **Not a Status gate** (selection only).
 
+## Campaign brief — PLAN_BRIEF (work-spec anchors)
+
+Work specification = `## Campaign brief` + material six-clause Backlog (+ runtime state).
+Acceptance states **behavioral** outcomes, not proof commands; may cite `V<k>` after derive.
+
+```markdown
+## Campaign brief
+- **Target / desired outcome:** …
+- **Problem / opportunity:** …
+- **In scope:** …
+- **Out of scope / waived:** …
+- **Constraints:** …
+- **Sources inspected / Open questions:** … / none | …
+- **Surface types / Fidelity preference:** … | n/a — headless
+- **Criteria map:** C#: gap → promote|P2|waive (≤6 non-none)   <!-- PLAN_CRITERIA -->
+- **Operator post-land:** none | …
+- **Runtime contract:** n/a | filled | investigation-P1:<id>   <!-- PLAN_RUNTIME_CONTRACT -->
+- **Runtime record:** … (only if filled; 4–6 lines)
+- **T2 challenge:** native | advisor | skipped — <why>
+- **Success / Done when:** residual×2 + green suite only (skill law). Product residual
+  survey may classify/seed work — never a second complete predicate.
+  **Must not invent new complete predicates** (R7 sole complete).
+- **Plan tier:** 0 | 0p | 1 | 2
+```
+
+| Rule | Detail |
+|---|---|
+| **A placement** | After `## Driver`, before `## Backlog` |
+| **B placement** | After `## Isolation`, before `## Backlog` |
+| Delimiter | `## Campaign brief` body through next `## ` |
+| Writer | Orchestrator only; advisors recommend deltas |
+| Soft caps | ≤12 bullets / ~400 words; each clause line ≤200 chars |
+
 ## Spec validation — PLAN_VALIDATE (Validation Spec — derived prove view)
 
-**Placement:** After `## Campaign brief`, before `## Backlog` (if no brief: after
-Isolation/Driver, before Backlog). Orchestrator-only write; advisors may recommend rows.
-Every non-`n/a` V-row cites a **live work-spec anchor**. V-rows must not invent intent.
+**Sole owner of the PLAN_VALIDATE pin.** Placement: After `## Campaign brief`, before
+`## Backlog` (if no brief: after Isolation/Driver, before Backlog). Orchestrator-only write;
+advisors may recommend rows. Every non-`n/a` V-row cites a **live work-spec anchor**. V-rows
+must not invent intent.
 
 ```markdown
 ## Spec validation
@@ -239,7 +274,7 @@ Every non-`n/a` V-row cites a **live work-spec anchor**. V-rows must not invent 
 
 **Phase 3v** (see `phase-3v-validate.md`): when open P0/P1 = 0 after replan and no counter-stop,
 run executable Proofs; fail seeds deduped `- [ ] P1: [defect] validate V<k>: …`; residual×2
-unchanged as sole complete law.
+unchanged (R7).
 
 ### Unintended-change check-in (planning-time)
 
@@ -283,15 +318,10 @@ user package **B** and marketplace **M** exist):
 
 ```bash
 node "$SKILL_DIR/scripts/package-parity.js" --skill-dir "$SKILL_DIR"
-# equivalent freehand:
-# diff -rq "$HOME/.claude/skills/improve-loop/scripts" \
-#   "$HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop/scripts"
 # success: exit 0, no content/path drift; M must not carry A-style extra references/*
 ```
 
-Package shapes (H16): **A** = thin SKILL + full `references/`; **B/M** = monolith +
-`scripts/` + `tests/` + only `references/goal-objective.template.md`. Never rsync A
-`references/` into M.
+Package shapes + mirror procedure: `dual-home.md` (H15–H18) — never rsync A `references/` into B/M.
 
 ### PLAN_SPEC_SYNC — live, plan-derived Spec (not static)
 
@@ -428,6 +458,19 @@ Apply work-spec revisions **before** PLAN_SPEC_SYNC.
 
 Advisor input soft cap: open Backlog + ## Last cycle + compact COMPLETED/DISPROVEN sets + preflight.
 
+## PLAN_SPEC_SOFT — soft layer (evidence that classifies, never gates)
+
+When Node is present, prefer `softCheckSpecBundle` /
+`softCheckIntentions` / `softCheckProofDiversity` / `softCheckCoverageMix` (row-class
+diversity — **not** true anti-mirror; true anti-mirror deferred) /
+`softCheckHabitatClaim` (`softCheckHabitatCoverage` alias) / `softCheckAssumptionProof` /
+`softCheckSyncStale` from dogfood `scripts/spec-validate.js`. Disposition Notes
+`soft: <code> → addressed|waived|unresolved`.
+
+Soft warnings classify promote|P2|waive first; they never auto-seed backlog from soft alone.
+
+**Never auto-seed backlog; never sole complete gate.**
+
 ## Product residual + habitat probe outcomes
 
 Before `product residual survey: none` (product/mixed): criteria trail (≤6); sticky P2
@@ -441,21 +484,3 @@ reclassify once; if habitat claimed, re-probe and record outcome:
 | `manual/out-of-scope` | Unverified pulse; classify only |
 
 Probes never write Status/streak. Soft-warn if habitat claimed and Spec lacks habitat-relevant row.
-
-## Static PLAN_* pin IDs (docs)
-
-`PLAN_TAG` · `PLAN_CLAUSES` · `PLAN_RESIDUAL` · `PLAN_BRIEF` · `PLAN_VALIDATE` ·
-`PLAN_SPEC_SYNC` · `PLAN_SPEC_STATUS` · `PLAN_SPEC_SOFT` · `PLAN_APPLY` · `PLAN_CLASSIFY` ·
-`PLAN_LEGACY_A` · `PLAN_CRITERIA` · `PLAN_RUNTIME_CONTRACT`
-
-**PLAN_SPEC_SOFT:** when Node is present, prefer `softCheckSpecBundle` /
-`softCheckIntentions` / `softCheckProofDiversity` / `softCheckCoverageMix` (row-class
-diversity — **not** true anti-mirror; true anti-mirror deferred) /
-`softCheckHabitatClaim` (`softCheckHabitatCoverage` alias) / `softCheckAssumptionProof` /
-`softCheckSyncStale` from dogfood `scripts/spec-validate.js`. Disposition Notes
-`soft: <code> → addressed|waived|unresolved`.
-**Never auto-seed backlog; never sole complete gate.**
-
-Hard refusals: no Spec Kit dep; no residual theater; no inventing material for residual×2;
-A continuous `[x]` freeze; no hermes SKILL dual-home claim from this contract alone;
-no dual peer work-spec tables; no all-V-pass complete.
