@@ -1745,9 +1745,11 @@ assert "complete-gate self-test" true
 
 # --- WP2b: real soft-check CLI (SKILL path) — JSON + plan byte identity ---
 # Covers the orchestrator command: node spec-validate.js soft-check --plan-file …
+# thin-habitat fixture is expected soft-fail (ok:false + warnings); pin breaks if that case goes soft-clean.
 SOFT_CLI_DIR=$(mktemp -d "${TMPDIR:-/tmp}/improve-soft-cli.XXXXXX")
+# Chain onto suite EXIT trap so an early exit / kill still removes SOFT_CLI_DIR (and $TMP).
+trap 'rm -rf "${SOFT_CLI_DIR:-}" "$TMP"' EXIT
 SOFT_CLI_PLAN="$SOFT_CLI_DIR/IMPROVE_LOOP.md"
-# thin habitat case fails soft (SUITE_ONLY / MISSING_PRESERVE / HABITAT…) + keep Backlog intact
 cp "$ROOT/tests/cases/thin-habitat-spec.ledger.md" "$SOFT_CLI_PLAN"
 SOFT_CLI_BEFORE=$(wc -c < "$SOFT_CLI_PLAN" | tr -d ' ')
 SOFT_CLI_OUT="$SOFT_CLI_DIR/out.json"
@@ -1769,6 +1771,8 @@ SOFT_CLI_AFTER=$(wc -c < "$SOFT_CLI_PLAN" | tr -d ' ')
 assert "soft-check CLI plan byte size unchanged" test "$SOFT_CLI_BEFORE" = "$SOFT_CLI_AFTER"
 assert "soft-check CLI plan content unchanged" cmp -s "$ROOT/tests/cases/thin-habitat-spec.ledger.md" "$SOFT_CLI_PLAN"
 rm -rf "$SOFT_CLI_DIR"
+unset SOFT_CLI_DIR
+trap 'rm -rf "$TMP"' EXIT
 
 # --- S1 case-bank (soft-check only; not Spec-sync matrix host) ---
 assert "run-case-bank.js exists" test -f "$SCRIPTS/run-case-bank.js"

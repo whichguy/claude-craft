@@ -21,11 +21,11 @@ This is **not** a full `/improve` prompt → thinking → output harness (see pl
 
 ### Behavioral-pin inventory (post planning-doc arc)
 
-| Fable ask | Pin home | Residual |
+| Fable ask | Pin home | Still open |
 |---|---|---|
-| R7 sole complete | `complete-gate.js` self-test (+ suite invoke) | No Status CLI — pure evaluator only (intentional) |
-| 3v seed + V1/V10 dedupe | `spec-validate.js` self-test `seedLinesForFails` | Orchestrator apply still LLM-owned |
-| soft≠seed / CLI read-only | self-test WP2b + `scripts.test.sh` CLI block | Done for real CLI spawn |
+| R7 sole complete | `complete-gate.js` self-test (+ suite invoke) | Live orchestrator Status write path (no Status CLI — intentional) |
+| 3v seed + V1/V10 dedupe | `spec-validate.js` self-test `seedLinesForFails` | Orchestrator apply of seed lines still LLM-owned |
+| soft≠seed / CLI read-only | self-test WP2b + `scripts.test.sh` CLI block | **Closed** at L3 CLI (real `soft-check --plan-file` spawn) |
 
 ## What each case shows
 
