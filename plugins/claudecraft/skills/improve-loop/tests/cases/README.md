@@ -1,79 +1,90 @@
-# improve-loop illustrative case bank (Tier 1)
+# improve-loop soft case-bank
 
-Deterministic **ledger → soft-check codes** cases for debugging Spec quality rules.
+Deterministic `ledger.md → soft-check codes` examples for Spec-quality checks.
 
-This is **not** a full `/improve` prompt → thinking → output harness (see planning-suite
-`test-prompt-harness` for that shape; improve-loop campaign fixtures do not exist yet).
+## Verification layers
 
-## What hermetic tests prove (and do not)
+| Layer | Path | Proves | Does not prove |
+|---|---|---|---|
+| soft case-bank | `tests/cases` | Spec soft-check codes | Campaigns |
+| cycle-sim | `tests/cycle-sim` | Phase-2/R9/complete/stop pure law | Real testee suites / LLM |
+| scenarios | `tests/scenarios` | Testee red→green + residual sequencing + oracle | A substitute for product campaigns |
+| operator card | `docs/improve-loop-testee-operator-card.md` | Campaign habit | Package law |
 
-| Layer | Proves | Does **not** prove |
-|---|---|---|
-| This soft case-bank | Soft-check warning codes on written Spec | Campaign planning / Design-time N&S decisions |
-| `spec-sync-matrix.test.js` (S2) | PLAN_SPEC_SYNC row-ops goldens | LLM Spec derive quality |
-| `complete-gate.js self-test` | R7 residual×2 truth table (pure `evaluateComplete`) | Live orchestrator Status writes / L1 e2e |
-| `spec-validate.js self-test` | 3v seed/dedupe (V1 vs V10 colon token), soft≠seed composition, **WP2b soft-check CLI spawn** | Agent Phase 3v apply path |
-| `scripts.test.sh` soft-check CLI block | Real `soft-check --plan-file` exit 0 + JSON + **plan byte identity** | Campaign multi-cycle |
-| `ledger-status.js` + rest of suite | Parse Status / backlog / cycle / stop counters | PLAN_ORIENT pulse emit in chat |
-| Full L3 suite | Scripts, worktree, parity, contracts | Multi-cycle autonomous campaign behavior |
-| **cycle-sim** (`tests/cycle-sim/`) | Phase-2 matrix + R9 + complete-gate + stop-decision on pre-seeded fixtures | Agent Phase-1 edits / full `/improve` campaign |
-
-**Soft bank ≠ Spec matrix ≠ campaign-loop eval.** A green suite means L3/contracts hold — not that an agent ran a good `/improve` campaign.
-
-For **repeatable residual / R9 / complete decision traces**, run:
-
-```bash
-node tests/cycle-sim/run.js
+```text
+written ledger/spec
+      ↓
+run-case-bank.js
+      ↓
+softCheckSpecBundle()
+      ↓
+expected warning-code comparison
 ```
 
-See `tests/cycle-sim/README.md`.
+The case bank does not invoke an LLM or execute an `/improve` campaign. It also does
+not replace the scenario harness: scenarios now exist under `tests/scenarios/`, but
+they test a different boundary.
 
-**Testee scenario harness** (red→green + residual sequencing): `tests/scenarios/` (`run-scenario.sh --smoke-all`, `run-scripted-campaign.sh --all`).
+## What this bank checks
 
-**Real campaigns (testee truth):** hermetic banks above never substitute for the
-[testee operator card](../../../../../../docs/improve-loop-testee-operator-card.md)
-(`docs/improve-loop-testee-operator-card.md` at repo root) — Expected effects, suite
-delta, CLASS → backlog on the **product** under improve.
+Each `*.ledger.md` fixture is passed to `softCheckSpecBundle`; its sibling
+`*.expected.json` names the expected `ok` result and warning-code set.
 
-### Behavioral-pin inventory (post planning-doc arc)
+| File | Intended result |
+|---|---|
+| `thin-habitat-spec.ledger.md` | Soft-check warnings for a thin Spec/Habitat claim |
+| `good-t2-spec.ledger.md` | `ok: true` with no warning codes |
 
-| Fable ask | Pin home | Still open |
-|---|---|---|
-| R7 sole complete | `complete-gate.js` self-test (+ suite invoke) | Live orchestrator Status write path (no Status CLI — intentional) |
-| 3v seed + V1/V10 dedupe | `spec-validate.js` self-test `seedLinesForFails` | Orchestrator apply of seed lines still LLM-owned |
-| soft≠seed / CLI read-only | self-test WP2b + `scripts.test.sh` CLI block | **Closed** at L3 CLI (real `soft-check --plan-file` spawn) |
+The runner also smoke-checks metadata parsing for the thin Habitat fixture.
 
-## What each case shows
+## Commands
 
-| File | Input | Expected output |
-|---|---|---|
-| `thin-habitat-spec.ledger.md` | Thin packaging Spec + Habitat claimed | Soft-check warning codes |
-| `good-t2-spec.ledger.md` | Good T2 Spec with habitat Proof | `ok: true`, no warnings |
-
-## Run
+From the improve-loop skill root:
 
 ```bash
-SKILL="$HOME/.claude/skills/improve-loop"
-node "$SKILL/scripts/run-case-bank.js"
-# or one case:
-node "$SKILL/scripts/spec-validate.js" soft-check \
-  --plan-file "$SKILL/tests/cases/thin-habitat-spec.ledger.md"
-# status facts (not this bank): node scripts/ledger-status.js --workspace <wt>
+node scripts/run-case-bank.js
+node scripts/run-case-bank.js --cases-dir path/to/cases
 ```
 
-## Adding a case
+For one written plan, run the underlying soft-check command:
 
-1. Add `name.ledger.md` (IMPROVE_LOOP-shaped markdown with headers + Spec table).
-2. Add `name.expected.json`: `{ "ok": false, "codes": ["SUITE_ONLY_PROOFS", ...] }`  
-   or `{ "ok": true, "codes": [] }`.
-3. Re-run `node scripts/run-case-bank.js` (and dual-home copy if shipping).
+```bash
+node scripts/spec-validate.js soft-check \
+  --plan-file tests/cases/thin-habitat-spec.ledger.md
+```
 
-**Do not** put ledger-status JSON goldens here — soft-check only. Status parse coverage lives in `tests/scripts.test.sh` (and complete-gate self-test for residual×2 inputs).
+The case-bank runner exits `0` when all cases pass, `1` for usage, and `2` when one
+or more cases fail.
 
-## Layers
+## Related checks, with boundaries
 
-| Layer | Exists? | Captures thinking? |
+| Check | What it adds | Still does not establish |
 |---|---|---|
-| This bank (soft-check) | yes | no |
-| L3 `tests/scripts.test.sh` | yes | no |
-| LLM prompt → thinking → text | no for improve-loop | harness exists elsewhere only |
+| `spec-sync-matrix.test.js` | PLAN_SPEC_SYNC row-operation goldens | LLM Spec derivation quality |
+| `complete-gate.js self-test` | R7 residual×2 truth table | Live orchestrator Status writes |
+| `spec-validate.js self-test` | 3v seed/dedupe and soft-check composition | Agent Phase-3v application |
+| `tests/scripts.test.sh` soft-check block | CLI JSON/exit behavior and plan-byte identity | Autonomous campaign behavior |
+| `tests/cycle-sim/run.js` | Phase-2/R9/complete/stop decisions on JSON | A real suite or agent edits |
+| `tests/scenarios/run-scenario.sh` and scripted runner | Fixture testee suite/probe plus post-state oracle | Product-repository campaign quality |
+
+A green package suite says the checked scripts and fixtures satisfy their asserted
+contracts. It does not say an agent executed a good multi-cycle campaign.
+
+For scenario commands, see [the scenario README](../scenarios/README.md). For real
+campaign diagnostics—Expected effects, suite delta, CLASS, durable carriers, and
+honest-empty discipline—use the
+[testee operator card](../../../../../../docs/improve-loop-testee-operator-card.md).
+
+## Adding a soft-check case
+
+1. Add `name.ledger.md` in this directory.
+2. Add `name.expected.json`, for example:
+
+   ```json
+   { "ok": false, "codes": ["SUITE_ONLY_PROOFS"] }
+   ```
+
+3. Run `node scripts/run-case-bank.js`.
+
+Do not put ledger-status or cycle-counter goldens in this directory. Those belong in
+the script suite or cycle-sim, respectively.

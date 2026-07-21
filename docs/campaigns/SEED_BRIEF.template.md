@@ -8,7 +8,7 @@ Copy to `docs/campaigns/<date>-<slug>/SEED_BRIEF.md` (or paste into `IMPROVE_LOO
 | Repo (testee) | |
 | Slug | |
 | Mode | continuous \| once |
-| Until | default: no material P0/P1 for 2 consecutive cycles (green tests) |
+| Until | default: no material P0/P1 for 2 consecutive cycles (green tests; still requires the operator-card diagnostic discipline) |
 | Max cycles | 8 (default) |
 | Test command | |
 | Seed mode | defect \| product \| mixed |
@@ -30,6 +30,9 @@ Full rules: `docs/improve-loop-testee-operator-card.md`
 2. Min diagnostic every cycle (`SUITE_DELTA`, `CLASS`, `ERROR_SIG`, `trace=`, …).  
 3. Material CLASS → open **testee** P0/P1 or explicit waive before honest-empty.  
 4. Durable carriers: artifact + commit body + backlog (Last cycle is not the archive).
+
+The package’s cycle-sim and fixture scenarios are verification aids, not campaign
+evidence for this testee. Record the commands and diagnostics actually run here.
 
 ## Material items
 

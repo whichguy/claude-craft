@@ -36,7 +36,7 @@ Verify with `/plugin list`.
 | `slides-suite`     | reveal.js or Google Slides decks |
 | `comms`            | Slack tagging |
 | `form990`          | IRS Form 990 preparation orchestrator |
-| `claudecraft`      | Campaign-default tested improvement (`/improve` multi-cycle L1): residual×2 complete, git learnings digest, multi-model replan; law at `law/improve-loop/`; optional thin continuous host `/claudecraft:improve` |
+| `claudecraft`      | Campaign-default improvement driver (`/improve` multi-cycle L1): residual×2 completion, git learnings digest, and multi-model replan. Package has deterministic law and testee-fixture checks; real campaign diagnostics remain testee/operator work. Law: `law/improve-loop/`; optional thin host: `/claudecraft:improve`. |
 | `c-thru`           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM. **Requires `./install.sh` from the c-thru repo first** — plugin adds Claude Code surfaces (commands, skills, hooks); proxy binary and model-map come from the installer. |
 
 Cross-bundle dependency edges (declared in each `plugin.json`):
@@ -84,7 +84,7 @@ A consolidated set of skills for iterating on prompts, system prompts, and evalu
 | `/process-feedback` | Ingest the `feedback-collector` plugin's backlog and propose surgical prompt updates (propose-only — never auto-edits SKILL.md). |
 | `/optimize-system-prompt` | Optimize/refine the GAS Sheets Chat system prompt (compression + refinement). Subsumes `/ideate-system-prompt` via `--mode ideate` (autonomous hypothesis generation + benchmarking). |
 | `/improve-system-prompt` | Benchmark pre-coded GAS system prompt variants (V2/V2a/V2b/V2c) against scenarios. Sibling of `/optimize-system-prompt` for projects with predefined variants. |
-| `/improve` / `/improve-loop` | **claudecraft:** campaign-default multi-cycle improve (B L1; `--once` for one cycle). Residual×2 complete; law under `plugins/claudecraft/law/improve-loop/`. Optional `/claudecraft:improve` thin worktree host. |
+| `/improve` / `/improve-loop` | **claudecraft:** campaign-default multi-cycle improve (B L1; `--once` for one cycle). Residual×2 completion; law under `plugins/claudecraft/law/improve-loop/`. Deterministic law and fixture checks do not hermetically test an LLM campaign; use testee diagnostics in an actual campaign. Optional `/claudecraft:improve` thin worktree host. |
 | `/derive-questions` | Mine failures and extract evaluator questions from real runs. |
 | `/optimize-questions` | Token-efficiency optimization for plan-review questions. Uses `/compare-questions` as its internal A/B engine. |
 | `/compare-questions` | Pairwise A/B testing of two evaluator questions against plan fixtures. |

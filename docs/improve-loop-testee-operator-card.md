@@ -7,7 +7,23 @@
 `~/.grok/skills/advisors/runs/20260721T160929Z-1774/final.md`  
 **Fable final plan:** session plan 2026-07-21 — adopt as habit; pin law only after retro proves need.
 
-**Related (different layer):** `plugins/claudecraft/skills/improve-loop/tests/cycle-sim/` is an API-free **law-sim** for Phase-2 / R9 / complete-gate / stop-decision. It does **not** replace this card or prove real testee quality. See also that directory’s README boundary section and `docs/campaigns/SEED_BRIEF.template.md` for paste-ready campaign seeds.
+**Related (different layer):** `plugins/claudecraft/skills/improve-loop/tests/cycle-sim/` is a deterministic **law-sim** for Phase-2 / R9 / complete-gate / stop-decision. It does **not** replace this card or prove real testee quality. See also `tests/scenarios/` for deterministic testee fixtures and `docs/campaigns/SEED_BRIEF.template.md` for paste-ready campaign seeds.
+
+---
+
+## Verification-layer boundary
+
+| Layer | Path | Proves | Does not prove |
+|---|---|---|---|
+| soft case-bank | `plugins/claudecraft/skills/improve-loop/tests/cases` | Spec soft-check codes | Campaigns |
+| cycle-sim | `plugins/claudecraft/skills/improve-loop/tests/cycle-sim` | Phase-2/R9/complete/stop pure law | Real testee suites / LLM |
+| scenarios | `plugins/claudecraft/skills/improve-loop/tests/scenarios` | Testee red→green + residual sequencing + oracle | A substitute for product campaigns |
+| this card | `docs/improve-loop-testee-operator-card.md` | Campaign habit | Package law |
+
+Scenario `--smoke-all` checks fixture seed and golden suites; its scripted runner
+uses known deterministic fixture changes. Neither hermetically tests an LLM
+multi-cycle improve campaign. This card is the operational standard for evaluating
+an actual testee campaign.
 
 ---
 
