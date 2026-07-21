@@ -1,11 +1,11 @@
 {
   "name": "claudecraft",
-  "version": "0.1.0",
-  "description": "Autonomous worktree-isolated improve campaign (/improve): open-only P0/P1 backlog, residual×2 complete, git commit-body learnings digest (Thesis/Outcome/What landed/Notes → COMPLETED_SET + DISPROVEN_SET), multi-model replan, ambient launch-dirt tolerance, live reasoning trail.",
+  "version": "0.2.0",
+  "description": "Campaign-default improve (/improve multi-cycle L1): residual×2 complete, git learnings digest, multi-model replan, ambient launch-dirt tolerance. Normative law at law/improve-loop/; thin improve continuous host optional. Ship set is B monolith + scripts.",
   "author": { "name": "whichguy", "url": "https://github.com/whichguy" },
   "homepage": "https://github.com/whichguy/claude-craft",
   "repository": "https://github.com/whichguy/claude-craft",
   "license": "MIT",
-  "keywords": ["claude-code", "improve-loop", "iteration", "tested-improvement"],
+  "keywords": ["claude-code", "improve-loop", "improve", "iteration", "tested-improvement", "worktree"],
   "dependencies": []
 }

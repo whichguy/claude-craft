@@ -144,6 +144,7 @@ const CLAUDE_CODE_BUILTINS = new Set([
     'output-style', 'reset', 'loop', 'fast', 'schedule', 'rename', 'restore',
     'ide', 'hooks', 'usage', 'install-github-app', 'pr_comments', 'add-dir',
     'resume', 'continue', 'prompts',
+    'goal', // host goal facility (optional observability for improve campaigns)
 ]);
 
 // References that look like /xxx but are NOT slash commands.
@@ -172,6 +173,8 @@ const HISTORICAL_BREADCRUMBS = new Set([
 const EXTERNAL_MARKETPLACE_COMMANDS = new Set([
     'ralph-loop',            // ralph-loop plugin (claude-plugins-official) — outer quota wrapper
     'cancel-ralph',          // ralph-loop plugin — cancels an active ralph loop
+    'review-converge',       // sibling skill outside this marketplace (improvement-loop family)
+    'grok-review-converge',  // deprecated alias of review-converge
 ]);
 
 // Internal-only agents/skills that are exempt from the dead-code detector
@@ -196,6 +199,7 @@ const USER_FACING_NO_REFS_OK = new Set([
     'enable-abilities',
     'execute-plan',
     'form990',
+    'improve',
     'improve-loop',
     'slack-tag',
     'test-delivery-agent',  // harness invoked via /test-delivery-agent, not dispatched

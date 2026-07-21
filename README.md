@@ -36,7 +36,7 @@ Verify with `/plugin list`.
 | `slides-suite`     | reveal.js or Google Slides decks |
 | `comms`            | Slack tagging |
 | `form990`          | IRS Form 990 preparation orchestrator |
-| `claudecraft`      | Autonomous tested improvement campaigns (`/improve`): open-only P0/P1 backlog, residual×2 complete, git learnings digest, multi-model replan |
+| `claudecraft`      | Campaign-default tested improvement (`/improve` multi-cycle L1): residual×2 complete, git learnings digest, multi-model replan; law at `law/improve-loop/`; optional thin continuous host `/claudecraft:improve` |
 | `c-thru`           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM. **Requires `./install.sh` from the c-thru repo first** — plugin adds Claude Code surfaces (commands, skills, hooks); proxy binary and model-map come from the installer. |
 
 Cross-bundle dependency edges (declared in each `plugin.json`):
@@ -84,7 +84,7 @@ A consolidated set of skills for iterating on prompts, system prompts, and evalu
 | `/process-feedback` | Ingest the `feedback-collector` plugin's backlog and propose surgical prompt updates (propose-only — never auto-edits SKILL.md). |
 | `/optimize-system-prompt` | Optimize/refine the GAS Sheets Chat system prompt (compression + refinement). Subsumes `/ideate-system-prompt` via `--mode ideate` (autonomous hypothesis generation + benchmarking). |
 | `/improve-system-prompt` | Benchmark pre-coded GAS system prompt variants (V2/V2a/V2b/V2c) against scenarios. Sibling of `/optimize-system-prompt` for projects with predefined variants. |
-| `/improve` / `/improve-loop` | **claudecraft:** worktree-isolated autonomous improve campaign — open-only P0/P1 backlog, residual×2 complete, git commit-body learnings (not backlog `[x]`), multi-model replan. Use `--once` for a single cycle. |
+| `/improve` / `/improve-loop` | **claudecraft:** campaign-default multi-cycle improve (B L1; `--once` for one cycle). Residual×2 complete; law under `plugins/claudecraft/law/improve-loop/`. Optional `/claudecraft:improve` thin worktree host. |
 | `/derive-questions` | Mine failures and extract evaluator questions from real runs. |
 | `/optimize-questions` | Token-efficiency optimization for plan-review questions. Uses `/compare-questions` as its internal A/B engine. |
 | `/compare-questions` | Pairwise A/B testing of two evaluator questions against plan fixtures. |
@@ -322,7 +322,7 @@ claude-craft/
 │   ├── slides-suite/      # reveal.js + Google Slides decks
 │   ├── comms/             # Slack tagging
 │   ├── form990/           # IRS Form 990
-│   └── claudecraft/       # /improve (improve-loop skill package)
+│   └── claudecraft/       # /improve campaign + law/improve-loop + tools
 │   # Note: c-thru is a marketplace git-subdir (not plugins/c-thru/); model-router → whichguy/c-thru
 ├── hooks/                 # Hook system
 │   └── scripts/           # Hook scripts (.sh) → ~/.claude/hooks/
