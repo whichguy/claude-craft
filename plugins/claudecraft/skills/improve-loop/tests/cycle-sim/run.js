@@ -27,9 +27,48 @@ const {
   HONEST_EMPTY,
 } = require('./phase2-counters.js');
 const { evaluateComplete } = require('../../scripts/complete-gate.js');
-const {
-  deriveStopDecision,
-} = require('../../../../tools/improve-stop-decision.js');
+
+/**
+ * Resolve stop-decision module across dual-home layouts:
+ * - Publish (claudecraft): plugins/claudecraft/tools/improve-stop-decision.js
+ * - Live (user skill under grok-build-additions/claude/skills/...): walk-up / env
+ * Never hard-require a single relative path that only works under claudecraft.
+ */
+function loadStopDecision() {
+  const name = 'improve-stop-decision.js';
+  const candidates = [];
+  if (process.env.IMPROVE_STOP_DECISION) {
+    candidates.push(process.env.IMPROVE_STOP_DECISION);
+  }
+  // Classic Publish layout: tests/cycle-sim → …/claudecraft/tools/
+  candidates.push(path.join(__dirname, '../../../../tools', name));
+  // Vendored into skill scripts/ (optional)
+  candidates.push(path.join(__dirname, '../../scripts', name));
+  // Walk up looking for tools/<name> or plugins/claudecraft/tools/<name>
+  let dir = __dirname;
+  for (let i = 0; i < 10; i++) {
+    candidates.push(path.join(dir, 'tools', name));
+    candidates.push(path.join(dir, 'plugins', 'claudecraft', 'tools', name));
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  const seen = new Set();
+  for (const c of candidates) {
+    if (!c || seen.has(c)) continue;
+    seen.add(c);
+    try {
+      if (fs.existsSync(c)) return require(c);
+    } catch {
+      /* try next */
+    }
+  }
+  throw new Error(
+    'Cannot find improve-stop-decision.js (set IMPROVE_STOP_DECISION or install under plugins/claudecraft/tools/)',
+  );
+}
+
+const { deriveStopDecision } = loadStopDecision();
 
 const ROOT = __dirname;
 const DEFAULT_CASES = path.join(ROOT, 'cases');
