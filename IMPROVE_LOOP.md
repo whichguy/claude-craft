@@ -1,8 +1,8 @@
 # Improve Loop: Operator-card pilot — discoverability + residual honesty packaging
 
 **Test command:** `node plugins/claudecraft/skills/improve-loop/tests/cycle-sim/run.js --skip-self-test && node plugins/claudecraft/skills/improve-loop/tests/cycle-sim/phase2-counters.js self-test`
-**Started:** 2026-07-21          **Status:** active
-**Iteration counter:** 2
+**Started:** 2026-07-21          **Status:** complete
+**Iteration counter:** 3
 **Until:** no material P0/P1 for 2 consecutive cycles (green tests)
 **Max cycles:** 4
 **Seed mode:** product
@@ -21,14 +21,14 @@
 - mode: continuous
 - until: no material P0/P1 for 2 consecutive cycles (green tests)
 - max_cycles: 4
-- cycle_index: 2
+- cycle_index: 3
 - slug: operator-card-pilot-d2d268
 - repo: /Users/dadleet/src/claude-craft
 - launch_branch: main
 - worktree_path: /Users/dadleet/src/claude-craft/.claude/worktrees/improve-operator-card-pilot-d2d268
 - run_json: /Users/dadleet/src/claude-craft/.git/improve-runs/operator-card-pilot-d2d268.json
 - test_command: node plugins/claudecraft/skills/improve-loop/tests/cycle-sim/run.js --skip-self-test && node plugins/claudecraft/skills/improve-loop/tests/cycle-sim/phase2-counters.js self-test
-- next_auto: cycle
+- next_auto: reintegrate
 - resume_hint: residual survey cycle 2
 - updated: 2026-07-21T16:35:00Z
 
@@ -47,31 +47,28 @@ _(open: empty)_
 ## Stop-condition tracking
 - consecutive-no-progress: 0
 - consecutive-same-error: 0
-- consecutive-non-material-cycles: 1
+- consecutive-non-material-cycles: 2
 - error_signature: none
 
 ## Last cycle
-**N:** 2
-**Thesis:** Product residual survey after discoverability land
+**N:** 3
+**Thesis:** Second consecutive honest-empty residual (residual×2 complete)
 **Outcome:** partial
 **Test result:** PASS
 **Committed:** pending
 **Error signature:** none
-**CHANGED_PATHS:** (empty — residual survey only; ledger+diagnostic)
+**CHANGED_PATHS:** (empty)
 **Notes:**
 SUITE: exit=0 fail=0
-RUN_IDENTITY: hermetic cycle-sim
-BASELINE: comparable=yes; ref=prior-cycle empty fails
 SUITE_DELTA: NEW=[] FIXED=[] STILL=[]
-INTENDED: residual packaging=met
-acceptance: pass|links+template+suite
-preserve: pass|cycle-sim 15/15
+INTENDED: residual×2=met
+acceptance: pass
+preserve: pass
 CLASS: OK
 ERROR_SIG: none
-CAUSALITY: n/a
 THESIS: re-verified
-trace=docs/campaigns/2026-07-21-operator-card-pilot/iter-2-test-diagnostic.md
+trace=docs/campaigns/2026-07-21-operator-card-pilot/iter-3-test-diagnostic.md
 replan-seed: none
-RESIDUAL_HINT: no non-weak open gaps
 honest-empty: residual survey — no non-weak open gaps
 product residual survey: none
+consecutive-non-material-cycles: 2 → complete via until-default + R7 residual×2
