@@ -395,7 +395,7 @@ for “what we already learned”:
    - **Backlog body** — **open only** `- [ ] P0:` / `- [ ] P1:` (material; residual streak).
      **Never** emit `- [x]` in Backlog. Do **not** re-propose COMPLETED_SET / DISPROVEN_SET
      items without re-open rationale.
-   - **Deferred body** — open `- [ ] P2:` only (or `Next deferred: (none)`).
+   - **Deferred body** — open `- [ ] P2:` with `weak:<enum>` only (or `Next deferred: (none)`).
 4. Prefer concrete P0/P1 from target inspection + digest **gaps** over vague residual-only
    seeds — **excluding** semantic overlap with COMPLETED_SET / unexcused DISPROVEN_SET.
 5. **Do not auto-promote** Deferred → P0/P1. Promote only when residual survey / advisors
@@ -619,9 +619,10 @@ When open defect-style P0/P1 hit **0** after replan and `SEED_MODE` ∈ {`produc
    `consecutive-non-material-cycles` → **0**. Residual×2 must **not** complete in the same
    cycle that discovers a promote-class habitat failure without reopening work.
 6. If material items found (including promote from step 5) → open P0/P1, streak **0**.
-7. If none → Notes `product residual survey: none` **only after** criteria trail (step 2);
-   streak may advance; residual×2 still required. Frontmatter/docs-only packaging is not a
-   substitute for a failed habitat probe when Habitat claimed is yes.
+7. If none → Notes `product residual survey: none` **and** `honest-empty: residual survey — no non-weak open gaps`
+   **only after** criteria trail (step 2); streak may advance under R9; residual×2 still required.
+   Frontmatter/docs-only packaging is not a substitute for a failed habitat probe when Habitat
+   claimed is yes.
 8. Cap: **one** product residual survey per campaign (unless new evidence lands).  
    `SEED_MODE=defect`: skip this step (catalog residual-only remains valid).
 
@@ -1449,8 +1450,8 @@ complete commit on `main` tip must **not** prevent a new campaign from seeding (
   - Acceptance: …
 
 ## Deferred (P2)
-<!-- open P2 only -->
-- [ ] P2: <item> — <why deferred / not material this campaign>
+<!-- open P2 only — weakness bar: weak enum required (R9) -->
+- [ ] P2: <item> — weak:<out-of-scope|waived|yagni|multi-campaign|operator> — <why>
 
 ## Stop-condition tracking
 - consecutive-no-progress: 0
@@ -2216,8 +2217,9 @@ fallback—must be **two section bodies** (not a free-form essay or whole-file r
 1. **Backlog body** — **open only** multi-line item blocks: title `- [ ]` with `P0:`/`P1:` plus
    kind, then clause sub-bullets (six-clause material or residual thin). Empty OK when
    residual complete path. **Never** include `- [x]` lines.
-2. **Deferred body** — **open only** `- [ ] P2:` for `## Deferred (P2)`, or explicit empty
-   (`(none)` / no open P2 lines). Cap ~8–12 open P2s; dedupe.
+2. **Deferred body** — **open only** `- [ ] P2:` with `weak:<out-of-scope|waived|yagni|multi-campaign|operator>`
+   for `## Deferred (P2)`, or explicit empty (`(none)` / no open P2 lines). Cap ~8–12 open P2s;
+   dedupe. Size alone is not weak — decompose-not-defer.
 
 **Multi-line grammar (PLAN_APPLY):** a contiguous **item block** = title + immediate
 sub-bullets matching `Evidence:|Decision:|Preserve:|Unknown:|Acceptance:` (2–4 spaces).
@@ -2540,14 +2542,15 @@ below). No second clear commit.
     Equivalent short form `Next backlog: (empty) — consecutive-non-material-cycles: <n>` is
     also fine. Status `complete` only if n ≥ 2 and suite green; else still active.
   - **Next deferred** — required on **every** cycle (including residual-only, empty-tree
-    allow-empty residual, and terminal). Open items **must** be `P2:`. No product file
+    allow-empty residual, and terminal). Open items **must** be `P2:` with a weakness-bar
+    enum (`weak:<out-of-scope|waived|yagni|multi-campaign|operator>`). No product file
     changes are required to land deferred metadata (ledger-only / terminal archive /
     commit-body-only residual is enough). Residual empty-tree commits **must still** emit
     this field so P2s remain greppable:
 
     ```
     Next deferred:
-    - [ ] P2: <item> — <why deferred>
+    - [ ] P2: <item> — weak:<out-of-scope|waived|yagni|multi-campaign|operator> — <why>
     ```
 
     Or when none: `Next deferred: (none)`.

@@ -144,7 +144,7 @@ Rules:
 ## Deferred (P2)
 <!-- Open P2 only — consider later; does **not** count as open P0/P1 / residual×2.
      Phase 3 apply order: brief → Backlog → Deferred → Spec → 3v. Link: Next deferred in commits. -->
-- [ ] P2: <item> — <why deferred / not material this campaign>
+- [ ] P2: <item> — weak:<out-of-scope|waived|yagni|multi-campaign|operator> — <why>
 
 ## Stop-condition tracking
 - consecutive-no-progress: 0

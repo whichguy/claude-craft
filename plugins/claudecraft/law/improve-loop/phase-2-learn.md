@@ -38,8 +38,16 @@ Use this explicit matrix:
   Resets `consecutive-non-material-cycles` to 0. Do **not** require a "P0/P1" label on the
   backlog line — any real code land breaks the clean streak (safe default).  
 - **Non-material:** suite PASS and (a) empty non-ledger `CHANGED_PATHS` (ledger-only or
-  no-op), or (b) Notes **explicitly** say P2/YAGNI-only for the only lands. Increments streak.  
+  no-op), or (b) Notes **explicitly** say P2/YAGNI-only for the only lands. May increment
+  streak **only under R9** (below).  
 - FAIL/blocked: **hold** the non-material streak (not a clean non-material cycle).
+
+**R9 — honest-empty (continuous residual advance):** table rows that would **+1**
+`consecutive-non-material-cycles` do so **only when** Last cycle Notes include
+`honest-empty: residual survey — no non-weak open gaps` (canonical: `contracts/planning.md`).
+Missing attestation → **hold** streak; Notes `honest-empty missing — streak held`. Empty
+open-count / empty `CHANGED_PATHS` alone never advances streak. Weakness bar / decompose-not-defer
+still apply when classifying Deferred vs open work.
 
 **Precedence (evaluate top to bottom; first match wins):**
 1. Outcome `blocked` — key it on the **Outcome, not on whether tests ran**: use the blocked
@@ -53,18 +61,21 @@ Use this explicit matrix:
 2. **STATUS PASS with empty `CHANGED_PATHS`** (reconciled to `partial` in Phase 1) — use the
    empty-`CHANGED_PATHS` row: `consecutive-no-progress` **+1** (a green no-op is not progress
    and must **not** reset the stall counter), `consecutive-same-error` reset → 0 / signature
-   none; non-material streak **+1**.
+   none; non-material streak **+1** only if R9 honest-empty attested (else hold).
 3. Then the normal PASS/FAIL rows above — for non-empty lands evaluate **P2/YAGNI Notes row
-   before** the default material row (table order is load-bearing).
+   before** the default material row (table order is load-bearing). Non-material **+1** from
+   those rows also requires R9 honest-empty attestation.
 4. Separately, the empty-backlog lightweight path (Phase 0 step 5) holds *both* stall counters
    and the signature. For **non-material streak**:
    - If header/Driver `until` matches the **default P0/P1×2 form** (continuous no-criteria
      stop): treat a lightweight cycle with Test result PASS (or confirmation-suite PASS in
-     Phase 3 that does **not** complete) as non-material **+1**. This is what accumulates
+     Phase 3 that does **not** complete) as non-material **+1** only when Notes include
+     `honest-empty: residual survey — no non-weak open gaps` (R9). This is what accumulates
      the two consecutive clean surveys; rule 4 is suppressed so completion is only via
-     streak ≥ 2 in Phase 3 rule 3.
+     streak ≥ 2 in Phase 3 rule 3. Missing attestation → hold streak.
    - Otherwise (once mode / custom until): non-material **+1** only if STATUS PASS after
-     any completion-suite (else hold) — once-mode still completes via Phase 3 rule 4.
+     any completion-suite **and** R9 attestation present (else hold) — once-mode still
+     completes via Phase 3 rule 4.
 
 Derive an error signature deterministically. Prefer the first failing test node id or
 file+line greppable from `TEST_OUTPUT_TAIL`, using language-agnostic lines matching

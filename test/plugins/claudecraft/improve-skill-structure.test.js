@@ -395,9 +395,13 @@ describe('claudecraft improve skill structure', function () {
     expect(p2).to.match(/consecutive-non-material-cycles|non-material/);
     expect(p2).to.match(/default = material|default when code lands/i);
     // Empty-backlog under default until must +1 non-material streak (two clean surveys)
+    // R9: +1 only with honest-empty attestation (continuous residual, not open-count alone)
     expect(p2).to.match(/default P0\/P1×2 form|default P0\/P1x2 form/i);
     expect(p2).to.match(/as non-material \*\*\+1\*\*/i);
     expect(p2).to.match(/empty-backlog lightweight path/i);
+    expect(p2).to.match(/R9 — honest-empty|honest-empty: residual survey — no non-weak open gaps/);
+    expect(p2).to.match(/only if R9 honest-empty attested|only when.*honest-empty|R9 attestation present/i);
+    expect(p2).to.match(/honest-empty missing — streak held|Missing attestation → \*\*hold\*\*|Missing attestation → hold/);
     // P2/YAGNI row must appear before default material non-empty row (table order)
     const p2idx = p2.indexOf('P2/YAGNI-only');
     const matIdx = p2.indexOf('default = material');
@@ -764,6 +768,14 @@ describe('claudecraft improve skill structure', function () {
       'utf8'
     );
     const skill = fs.readFileSync(path.join(CC, 'skills/improve-loop/SKILL.md'), 'utf8');
+    const p2learn = fs.readFileSync(
+      path.join(CC, 'law/improve-loop/phase-2-learn.md'),
+      'utf8'
+    );
+    const ledger = fs.readFileSync(
+      path.join(CC, 'law/improve-loop/ledger-schema.md'),
+      'utf8'
+    );
 
     expect(planning).to.match(/\*\*R9\*\*/);
     expect(planning).to.match(/weakness bar/);
@@ -780,6 +792,20 @@ describe('claudecraft improve skill structure', function () {
     // Streak table requires attestation for +1
     expect(skill).to.match(
       /Open P0\/P1 count = 0 \*\*and\*\* Notes include `honest-empty|honest-empty[\s\S]{0,80}\*\*\+1\*\*/
+    );
+    // Deferred template + advisor/Next deferred bodies require weak enum (G1)
+    expect(skill).to.match(
+      /P2: <item> — weak:<out-of-scope\|waived\|yagni\|multi-campaign\|operator>/
+    );
+    expect(skill).to.match(/Deferred body[\s\S]{0,120}weak:</);
+
+    // Continuous residual path (G2): phase-2-learn gates non-material +1 on R9
+    expect(p2learn).to.match(/honest-empty: residual survey — no non-weak open gaps/);
+    expect(p2learn).to.match(/R9 — honest-empty|only if R9 honest-empty attested/);
+
+    // Ledger Deferred template carries weak enum
+    expect(ledger).to.match(
+      /P2: <item> — weak:<out-of-scope\|waived\|yagni\|multi-campaign\|operator>/
     );
   });
 
