@@ -283,6 +283,10 @@ select test-authoring item for `V<k>` first (T0 may skip).
 
 *Mirror of A residual×2 / seed / complete law (planning + phase-3/3v) — law changes start in A. R7 sole complete; soft≠seed.*
 
+Continuous-host default until (cite A `goal.md` / `outer-loop.md`):  
+`no material P0/P1 for 2 consecutive cycles (green tests)` — same residual×2 law; Phase 3
+rule 4 empty-backlog complete is suppressed under this default.
+
 Applies to **every** `/improve` target (code, skill, docs). Goal: plan improvements from
 evidence, do material work, and only sign off after a second independent residual pass.
 
