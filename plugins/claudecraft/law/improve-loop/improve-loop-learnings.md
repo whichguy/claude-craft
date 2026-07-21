@@ -1,0 +1,298 @@
+# improve-loop quality-review learnings
+
+> **Archive.** Operative hygiene law: `dual-home.md` (H15–H18). Do not treat this bank as load-bearing at runtime.
+
+Banked while auditing **improve-loop** + dependent tools (`improve-next-auto.js`,
+`improve-worktree.sh`, improve driver lifecycle docs).
+
+## Invariants
+
+1. **One cycle per improve-loop invoke** (or Phase 0 short-circuit / ledger flush).
+2. **Disk beats chat** for control flow (Phase 0 priority: git hard stops → run_json →
+   header → Driver hints).
+3. **`next_auto` catalog** is closed (`ledger-schema.md`); do not invent blocked synonyms.
+4. **Tip not on launch ≠ done.** After reintegrate ok with `merge_to_launch=false` or
+   `tip_on_launch=no`, use `blocked:open-pr` even if `keep_worktree` — match
+   `improve-worktree` recover/status.
+5. **Destroy/recover refuse uncommitted dirt** without `--force`; never FORCE-destroy from
+   auto recover paths.
+6. Prefer pure helpers: `improve-next-auto.js`, `improve-progress-format.js`,
+   `improve-worktree.sh status` (`resume_hint`, `tip_on_launch`).
+
+## Iteration log
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 1 | material | `ac278b8` | next-auto keep→done + phase-5 “or done with PR” contradicted worktree open-pr |
+| 2 | **clean** | `ce8258a` | contract CLI + mocha 33; no new P0/P1 |
+| 3 | **clean** | (this) | contract-iter3b FAIL=0 + mocha 33 (honest re-run) |
+
+## Related tools
+
+- `tools/improve-next-auto.js` — deriveNextAuto snapshot (optional `tip_on_launch`)
+- `tools/improve-worktree.sh` — S11a/S11b lifecycle (authoritative for tip ancestry)
+- `skills/improve/` — continuous driver S0–S13
+
+## Stop (improve-loop goal da393bbeb079)
+
+Material `ac278b8` then two independent cleans:
+- **2** → `ce8258a`
+- **3** → this commit
+
+Key fix: tip unmerged → `blocked:open-pr` in next-auto + phase docs (not done).
+
+
+Note: cycle 3 uses terminal status=complete fixtures for teardown next_auto checks.
+
+## Continuous driver S12 (skeptic follow-up)
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 4 | material | `14fd07c` | improve SKILL S12 / lifecycle flowchart open-pr; open-pr hint tip-aware |
+| 5 | **clean** | `89b79a5` | contract-iter5 + mocha 34 |
+| 6 | **clean** | (this) | contract-iter6 + mocha 34 |
+
+## Stop after continuous improve S12 skeptic fix
+
+Material `14fd07c` then two cleans:
+- **5** → `89b79a5`
+- **6** → this commit
+
+Continuous improve driver S12/S13 + lifecycle flowchart match tip-on-launch open-pr.
+
+## Status→snapshot field mapping (post-compaction audit)
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 7 | material | `567bf37` | status emits `worktree_exists` + yes/no; next-auto used `worktree_present` + `!!` so `"no"`/`"false"` were truthy and wrong-key snapshots false-`done` |
+
+**Fix:** `flag()` / `explicitFalse()` + `worktree_exists` alias; mocha pins status-style
+snapshots; phase-0 documents the map. Invariants 4–6 unchanged.
+
+
+## Clean after status-mapping
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 8 | **clean** | `06266d4` | contract-iter8 FAIL=0; mocha 41; status-style + S12 laws hold |
+| 9 | **clean** | pair after `06266d4` | contract-iter9 FAIL=0; mocha 41; second consecutive (subject: iter 9 clean) |
+
+## Stop after status-mapping (goal da393bbeb079)
+
+Material `567bf37` then two independent cleans:
+- **8** → `06266d4`
+- **9** → pair after `06266d4` (docs subject: quality-review iter 9 clean)
+
+Agents may feed improve-worktree status keys into next-auto; flags must parse yes/no.
+
+
+## open-pr resume_hint safety (goal efef0b908b27)
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 10 | material | `149cedc` | worktree `resume_hint_for blocked:open-pr` peer-promoted `destroy --force` with open-PR; tip may be only copy |
+
+**Fix:** align open-pr hint with next-auto (Tip not on launch + PR / --merge-to-launch); recover prints de-emphasize force; mocha pin no `resume_hint=.*destroy --force` after no-merge status.
+
+## Clean after open-pr hint (efef0b908b27)
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 11 | **clean** | `cf9e7aa` | contract-iter2 FAIL=0; mocha 70; open-pr hint + status flags hold |
+| 12 | **clean** | pair after `cf9e7aa` | contract-iter3 FAIL=0; mocha 70; second consecutive |
+
+## Stop after open-pr hint (goal efef0b908b27)
+
+Material `149cedc` then two independent cleans:
+- **11** → `cf9e7aa`
+- **12** → pair after `cf9e7aa` (subject: quality-review iter 12 clean)  
+Agents must not treat destroy --force as a peer next step on `blocked:open-pr`.
+
+## Drop ralph; multi-cycle via host goal (historical)
+
+**Thesis:** improve-loop must not require a Stop-hook re-invoke plugin; one cycle remains
+atomic; multi-cycle is host **goal** iterating improve-loop (or `/improve` S8).
+
+**Outcome:** stripped normative ralph / `IMPROVE_LOOP_DONE` / `ralph-loop.local.md` from
+improve-loop + improve surface; outer-loop + goal contracts rank goal → improve; Phase 5
+signals `goal.complete`/`goal.blocked` when terminal+landed.
+
+**Key learnings:**
+1. One cycle ≠ continuous campaign — goal iterates.
+2. Finite host/improve caps replace re-invoke max_iterations.
+3. Do not complete host goal over uncommitted ledger (same as old promise ban).
+
+## Continuous defaults + disk until (state handoff)
+
+Default continuous when target clear; until = no P0/P1 ×2 green on disk (header+Driver+streak). improve S0 writes until/mode/max_cycles; improve-loop never invents until.
+
+## Custom until S8 evaluation
+
+Custom until must be judged by improve S8 against disk; Phase 3 only auto-completes default P0/P1×2 form.
+
+## Host-goal custom until + S9 catalog (goal 2124cb734ba1)
+
+**Thesis:** Preferred continuous host is host **goal**, not only improve S8. Custom until
+eval and S9 stop-reason catalog must work on that path.
+
+**Findings (skeptic):**
+1. After S8-only custom-until fix, host-goal campaigns could still ignore custom until
+   until max_cycles — stop predicate #2 and outer-loop lacked goal-turn procedure.
+2. S9 / lifecycle listed only `until: no-P0/P1×2` while caps allowed `until: <short>`.
+
+**Fix:** goal.md #2 + outer-loop until table (outer host = goal or S8); lifecycle + improve
+SKILL S9 include `until: <short>`; caps.md outer-host wording; structure pins.
+
+| Iter | Verdict | Finding |
+|---|---|---|
+| material | host-goal custom until / S9 catalog | `0d50180` |
+| clean | first after host-goal fix | contract-iter4 FAIL=0; mocha 75 |
+| clean | second consecutive | contract-iter5 FAIL=0; mocha 75 |
+
+**Stop:** two consecutive cleans after material. No further material P0/P1 on this surface.
+
+## Clean after custom-until S8 (goal 2124cb734ba1)
+
+| Iter | Verdict | Finding |
+|---|---|---|
+| material | custom until ignored by S8 | caps S8 must evaluate custom until against disk |
+| clean | first after fix | contract-iter2 FAIL=0; mocha 15 |
+| clean | second consecutive | contract-iter3 FAIL=0; mocha 15 |
+
+
+## Stop after custom-until S8 quality-review
+
+Material `c7553c3` then two cleans (pair after). Residual skeptic (host goal + S9) → section above.
+
+## 0.1.2 stop / ownership / intent / helper series (goal Fable3)
+
+| SHA | One-line |
+|---|---|
+| `2898159` | stop/ownership: zero open P0/P1 + **current-cycle** suite PASS; Confirm when suite skipped; rule-4 suppress for non-`none` until; once may create/reintegrate |
+| `e3b9a22` | material six-clause fidelity through replan; residual thin `[residual]` Evidence+Acceptance — no theater |
+| `ee57287` | pure `deriveStopDecision` / `until_kind` caller-derived; dual version pin 0.1.2 |
+
+Follow-up: `classifyUntilKind` (caller-side; single-source `DEFAULT_UNTIL`) sits **beside** derive — never inside (purity).
+
+### Invariants from history (do not reverse)
+
+| ID | Invariant | SHA / evidence |
+|---|---|---|
+| H1 | Tip-unique recovery never peer-promotes force destroy/drop | `149cedc` open-pr resume_hint |
+| H2 | Status/flags are explicit yes/no — never `!!` truthy coerce | `567bf37` |
+| H3 | One improve-loop cycle ≠ continuous; host goal iterates | `7e2c2ab` |
+| H4 | Custom until judged by S8 or host goal against disk | `c7553c3`, `0d50180` |
+| H5 | Code land defaults material; P2/YAGNI row before default material | `c51e760`, `f182ebd` |
+| H6 | Dirty launch → carry drain + bootstrap — not force-clear protect tips | `232b1f6` |
+| H7 | not-landed terminal must not set `goal.blocked` | `f017175` |
+| H8 | Complete needs zero open P0/P1 + current-cycle PASS (confirm when skipped) | `2898159` |
+| H9 | Material six-clause; residual thin `[residual]` — no theater | `e3b9a22` |
+| H10 | Stop helper pure; until_kind caller-derived (`classifyUntilKind` beside) | `ee57287` |
+| H11 | Residual×2 empty-complete without inventing P0/P1 is correct | Hermes 179 catalog |
+| H12 | agent-home allowlists path-qualified hermes_release_watch only | gif-search class |
+| H13 | Disk beats chat for control flow | learnings bank |
+| H14 | Package A ≠ B ≠ C; equalize B→hermes only | Fable series |
+
+## Post-E0–F1 land (Fable4)
+
+| SHA | Note |
+|---|---|
+| `84224e7` | classifyUntilKind + DEFAULT_UNTIL single-source; dual version pin 0.1.2→0.1.3 |
+| `e573f664` | hermes dual-home equalize protect / suite pins from B SoT |
+
+**Catalog EC honesty (disk-only under hermes `.improve-catalog`, gitignored):** suite fail
+must use exit **20/21**, never 10/11 (enter carried/protect). Merge-back 3/4 passthrough.
+Wave `mark_fail` on suite; `mark_blocked` only on real protect family.
+
+## Decision package (post-Fable4 default slice)
+
+- **C1:** keep hermes `.improve-catalog` gitignored (do not allow-list unless multi-host catalog).
+- **G:** skip material pilot this arc; run product-mode dogfood only before a real product `/improve`.
+- **E3:** skipped — product residual + limitation waived + confirmation greps green.
+
+## Planning enrichment (Spec-Kit-lite, no Spec Kit dep)
+
+| Surface | Note |
+|---|---|
+| `contracts/planning.md` | Tiers T0/T0p/T1/T2, promote-class, multi-line grammar, PLAN_APPLY A vs B fork |
+| Ledger `## Campaign brief` | After Driver (A) / Isolation (B); skill-law Done when only |
+| PLAN_* pins | Static docs + B user-skill contract-check; mirror not forced for PLAN_* |
+| B `backlog-blocks.js` | parse / open-count / deleteBlock / residual-forbidden; scripts.test fixtures |
+| H9 / H11 / H14 | Six-clause + residual thin; mid residual empty OK; A continuous `[x]` freeze |
+
+
+
+## Live plan shape (Log → Last cycle, plan-file)
+
+| Surface | Note |
+|---|---|
+| Live `IMPROVE_LOOP.md` | **Now-state plan**: brief + open Backlog/Deferred + stop counters + soft **## Next** + replace-each-cycle **## Last cycle** |
+| History | **Git commit bodies** (Thesis/Outcome/What landed/Next backlog/deferred/stop) — not multi-entry Log |
+| H13 | Disk still required mid-campaign; collapse diary only, keep Driver/Isolation |
+| H14 | A continuous `[x]` freeze; B open-only; shared change is Log→Last cycle only |
+| Cross-cycle same-error | Stop-condition signature at Phase 2 start — not prior diary entry |
+
+## PLAN_VALIDATE + Phase 3v (spec-first spine)
+
+| Surface | Note |
+|---|---|
+| Spine | **Plan → Spec validation/tests → Code → Prove** (R1–R8) |
+| `## Spec validation` | V-rows with Proof commands; header `**Spec validation:**` |
+| Phase 3v | When open=0 after replan; fail seeds `validate V<k>` P1; residual×2 sole complete |
+| **R8** | 3v fail never terminal; autonomous L1 auto-continues until validation clean or stop |
+| Quarantine | Red-first proofs quarantined so default suite stays green |
+| Helper | B `scripts/spec-validate.js` parse/seed/dedupe |
+| vs Spec Kit | Spec-before-code without Spec Kit dep; we **close the loop** until prove clean (CI-gate shape) |
+
+## Quality pass (post-R8 polish)
+
+| Finding | Fix |
+|---|---|
+| Heading/pointer **R1–R7** while table had R8 | Renamed to **R1–R8** (planning, INDEX, phase-3v) |
+| Spec validation could pass feature-only | **Unintended-change check-in**: Preserve / regression / scope at planning-time |
+| A operator card still “Append Log” | Last cycle replace + Phase 3v row + planning contract link |
+| Live ledger vs live plan wording | Glossary synonym; prefer live plan in new prose; no mass rename (pins) |
+| Fable quality **PASS** residual | R8d at phase-5 + progress pulse; in-repo structure pin for PLAN_VALIDATE/R8/3v; check-in rules (diff-boundary Scope, Preserve V-row outlives complete) |
+
+## Dual-home ship hygiene (post marketplace cleanup)
+
+Evidence: `356adac` shipped SKILL + tests for rebase/reintegrate/backlog while implementing
+scripts stayed dirty; A-style `references/` dump appeared under marketplace; `backlog-blocks.js`
+was missing from M until cleanup `5da10d5`.
+
+| ID | Invariant |
+|---|---|
+| **H15** | Ship **SKILL + scripts + tests** for a behavior in **one atomic commit per home**; never land tests/docs that call a missing script surface |
+| **H16** | Package shapes: **A** = thin SKILL + full `references/`; **B/M** = monolith SKILL + `scripts/` + `tests/` + **only** `references/goal-objective.template.md`. Never rsync A `references/` → M |
+| **H17** | Law text: deliberate A↔B edit; **runtime** always B→M copy + suite; verify with `scripts/package-parity.js` |
+| **H18** | Partial marketplace sync after dogfood = **P0 hygiene** (same class as this cleanup) |
+
+L3: B `scripts/package-parity.js` + `contract-check` `requiredFiles` includes
+`backlog-blocks.js`, `spec-validate.js`, `package-parity.js`; feature-surface pins on
+reintegrate/rebase helpers.
+
+## PLAN_SPEC_SYNC + PLAN_SPEC_STATUS + PLAN_ORIENT
+
+| Surface | Note |
+|---|---|
+| **PLAN_SPEC_SYNC** | Spec validation derived from plan anchors; re-sync when plan diverges since `spec-sync: iter N`; apply Spec **after** applied Backlog; exclude validate-seed lifecycle from thrash |
+| **PLAN_SPEC_STATUS** | One `▸` banner dialect + step ids; Spec sync/prove evidence; one `Validation:` line; prove card = non-pass rows only; R8 “continuing” never “done” |
+| **PLAN_ORIENT** | Intra-cycle tab-switch orientation: long-phase triplet (`▸` + `improve goal ·` + pulse), `(cont)` heartbeat, turn-end `· on:` footer, STOP+pulse, residual meter under goal, resolved Phase 5 Next; no mega-banner / no % bars |
+| **PLAN_PROGRESS_ALIGN** | Host/formatter `## Improve progress` uses open P0/P1 + residual streak + cycle K + iter N (not checked/total as residual meter); R8d clamp on Validation fail |
+| P2 later | `spec-validate.js` soft-check Intention prefixes + marker staleness; discovery full slim |
+
+## HYBRID work-spec + Validation Spec (M1–M9, Soul)
+
+Evidence: packaging-complete residual×2 while habitat/product intent unproven (Backchain Hermes
+improve-loop 2026-07-19); Spec mirrored packaging P1s; residual “none” without re-probe.
+
+| ID | Law |
+|---|---|
+| **PLAN_CRITERIA** | Orchestrator preflight (not 6th advisor block): surface types, habitat claim, runtime state, C1–C12 → promote\|P2\|waive (≤6); tokens `PLAN_CRITERIA`, `Criteria scan` |
+| **PLAN_RUNTIME_CONTRACT** | Habitat claim predicate + state `n/a`\|`filled`\|`investigation-P1:<id>`; selection only — never residual×2 / Status gate |
+| **HYBRID spine** | Intention → **work-spec** (brief + material Backlog + runtime) → **Validation Spec** derived prove view → proof artifacts → code → 3v. No peer dual-spec; no mega-table; no `## Work Spec` section |
+| **PLAN_SPEC_SOFT** | Soft helpers audit derived mapping; disposition only; **never** auto-seed backlog or write Status/streak |
+| **Kind habitat** | Executable when Proof non-empty and not manual; suite alone never passes habitat Feature |
+| **Product residual** | Criteria trail Notes before `product residual survey: none`; probe outcomes pass\|reachable-fail\|unavailable\|manual; probes never write Status |
+| **Further improve?** | Campaign report honesty from Deferred — not a complete predicate |
+| **R7 / R8** | Unchanged: residual×2 sole complete; 3v fail never terminal |
