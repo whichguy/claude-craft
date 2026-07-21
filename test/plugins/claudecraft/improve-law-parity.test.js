@@ -102,6 +102,15 @@ const CANONICAL = [
     id: 'validate-fix-no-in-gate-loop',
     phrase: 'in-gate fix/re-prove loop',
   },
+  // R9 — honest-empty residual advance + decompose-not-defer
+  {
+    id: 'R9-honest-empty',
+    phrase: 'honest-empty: residual survey — no non-weak open gaps',
+  },
+  {
+    id: 'R9-decompose-not-defer',
+    phrase: 'decompose-not-defer',
+  },
 ];
 
 describe('claudecraft improve-loop A↔B law phrase parity', function () {
@@ -132,6 +141,6 @@ describe('claudecraft improve-loop A↔B law phrase parity', function () {
 
   it('lists every pin so a deliberate A-only edit is red (registry non-empty)', function () {
     expect(CANONICAL.length).to.be.at.least(6);
-    expect(CANONICAL.length).to.be.at.most(15);
+    expect(CANONICAL.length).to.be.at.most(20);
   });
 });

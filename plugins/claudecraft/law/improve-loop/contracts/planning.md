@@ -41,7 +41,7 @@ Planning-owned pins → section anchors (law lives in those sections, not here):
 
 ## Invariants
 
-### Sequencing rules (R1–R8, R8b–R8d)
+### Sequencing rules (R1–R8, R8b–R8d, R9)
 
 | Rule | Law |
 |---|---|
@@ -56,12 +56,22 @@ Planning-owned pins → section anchors (law lives in those sections, not here):
 | **R8b** | Exit campaign only when: (`**Spec validation:** pass` or vacuous `n/a`) **and** residual×2 complete rules fire, **or** hard stop (same-error ×3 / no-progress ×3 / max-cycles / blocked) |
 | **R8c** | `--once` / once mode: still seed and leave Status `active`; **do not** auto multi-cycle — operator re-invokes |
 | **R8d** | Discovery card / pulse after 3v fail: say **continuing** (cycle K+1), never “done” |
+| **R9** | residual streak **+1** only when open P0/P1 = 0 **and** an **honest-empty attestation** is present this cycle; empty open count alone never advances streak. Non-weak gaps must stay open P0/P1 (weakness bar) — demote-to-P2 to empty the backlog is residual theater and **forbids** streak +1 |
 
 ### Canonical sentences
 
 **soft≠seed:** Soft evidence (PLAN_SPEC_SOFT, criteria-scan warnings, habitat probes, design-time N&S) classifies — it never auto-seeds backlog and never alone blocks residual×2, Status, or complete.
 
-R7’s canonical sentence is its table row above. Downstream restatements cite R7 / soft≠seed (or keep test-pinned verbatim instances); do not invent divergent complete predicates.
+**weakness bar:** Only **weak** gaps may land as Deferred P2 without blocking residual×2. Weak = `out-of-scope` \| `waived` \| `yagni` \| `multi-campaign` \| `operator` (explicit enum on the P2 line or Notes). **Non-weak** gaps (reachable defects, broken claimed proofs, in-scope operator/UX holes, promote-class limitations without waiver) **must** stay open P0/P1. Parking non-weak work as P2 to empty the backlog is residual theater and **forbids** streak +1 (R9).
+
+**honest-empty:** When open P0/P1 = 0 after replan, Last cycle Notes **must** include a greppable attestation before residual streak +1:
+`honest-empty: residual survey — no non-weak open gaps` (optional ≤80-char why). Missing attestation → **hold** streak (do not +1); Status stays `active`. Residual 1→2 surveys re-attest.
+
+**continue (non-weak):** L1 autonomous continues while Status `active` — including open non-weak P0/P1, 3v-seeded work (R8), or residual streak &lt; 2 after honest-empty. Soft warnings and weak Deferred alone never decide continue vs complete.
+
+**honest stop:** residual×2 (two consecutive **honest-empty** advances) + green suite (R7), **or** hard stop (same-error ×3 / no-progress ×3 / max-cycles / blocked). Weak Deferred P2 does not block complete.
+
+R7’s canonical sentence is its table row above. Downstream restatements cite R7 / R9 / soft≠seed / weakness bar (or keep test-pinned verbatim instances); do not invent divergent complete predicates.
 
 ### Hard refusals
 
@@ -124,11 +134,12 @@ always; defect when applicable):
 
 | Class | Criteria (all for **promote**) | Effect |
 |---|---|---|
-| **promote** | (a) surfaced by scan, (b) not COMPLETED_SET / unexcused DISPROVEN_SET, (c) not `limitation waived:` this campaign, (d) implementable in ≤1 cycle under recorded suite | Six-clause material (T2) |
-| **keep P2** | Real but not ≤1-cycle or not worth a material cycle | Deferred one-line P2 |
+| **promote** | (a) surfaced by scan, (b) not COMPLETED_SET / unexcused DISPROVEN_SET, (c) not `limitation waived:` this campaign, (d) **either** implementable in ≤1 cycle under recorded suite **or** decomposable into ≤1-cycle P0/P1 slices — **decompose-not-defer** (size alone is **not** keep-P2) | Six-clause material (T2); multi-slice → seed first slice now, park remaining slices as open P1 or well-labeled Deferred only if weak |
+| **keep P2** | Real but **weak** under the weakness bar (`out-of-scope` \| `waived` \| `yagni` \| `multi-campaign` \| `operator`) — **not** “too big” alone | Deferred one-line P2 with `weak:<enum>` in title/why |
 | **waive** | Intentional forever / out-of-scope | Notes `limitation waived: <short>` + `classify: waive — <why>` |
 
 Every scanned candidate → Last cycle Notes: `classify: promote|keep P2|waive — <why>`.
+**Decompose-not-defer:** if the only reason against promote is blast radius / multi-cycle size, **split** into ≤1-cycle open P0/P1 slices — do **not** demote the whole gap to P2.
 
 Tier selection: see **Plan tiers** — the T2/T0p/T0 predicates live there.
 

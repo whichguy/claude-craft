@@ -614,13 +614,15 @@ describe('claudecraft improve skill structure', function () {
     expect(index).to.match(/phase-3v-validate/);
     expect(index).to.match(/R1–R8|R1-R8/);
 
-    // Law table R1–R8
-    // Heading may include R8b–R8d when the table covers those rows (structure pass S7)
+    // Law table R1–R8 (+ R8b–d, R9)
+    // Heading may include R8b–R8d / R9 when the table covers those rows
     expect(planning).to.match(
-      /Sequencing rules \(R1–R8(?:, R8b–R8d)?\)|Sequencing rules \(R1-R8(?:, R8b-R8d)?\)/
+      /Sequencing rules \(R1–R8(?:, R8b–R8d)?(?:, R9)?\)|Sequencing rules \(R1-R8(?:, R8b-R8d)?(?:, R9)?\)/
     );
     expect(planning).to.match(/\*\*R8\*\*/);
     expect(planning).to.match(/\*\*R8b\*\*/);
+    expect(planning).to.match(/\*\*R9\*\*/);
+    expect(planning).to.match(/honest-empty|weakness bar/i);
     expect(planning).to.match(/never.*terminal Status|never a terminal Status/i);
     expect(planning).to.match(/residual×2|residual\*2|sole Status complete/i);
 
@@ -673,6 +675,7 @@ describe('claudecraft improve skill structure', function () {
       path.join(CC, 'law/improve-loop/contracts/planning.md'),
       'utf8'
     );
+    const skill = fs.readFileSync(path.join(CC, 'skills/improve-loop/SKILL.md'), 'utf8');
     const ledger = fs.readFileSync(
       path.join(CC, 'law/improve-loop/ledger-schema.md'),
       'utf8'
@@ -708,11 +711,15 @@ describe('claudecraft improve skill structure', function () {
     expect(planning).to.match(/PLAN_RESIDUAL|thin template/i);
     expect(planning).to.match(/strip Decision\/Preserve|only Evidence \+ Acceptance/i);
 
-    // PLAN_CLASSIFY + tiers
+    // PLAN_CLASSIFY + tiers + R9 decompose-not-defer / weak enum
     expect(planning).to.match(/PLAN_CLASSIFY|promote-class|classify: promote/i);
     expect(planning).to.match(/\bT0p\b/);
     expect(planning).to.match(/\bT2\b/);
     expect(planning).to.match(/promote\|keep P2\|waive|keep P2/);
+    expect(planning).to.match(/decompose-not-defer/);
+    expect(planning).to.match(/weak:.*out-of-scope|out-of-scope.*waived.*yagni/i);
+    expect(skill).to.match(/honest-empty: residual survey — no non-weak open gaps/);
+    expect(skill).to.match(/decompose-not-defer|Decompose-not-defer/);
 
     // PLAN_APPLY fork — A continuous [x] preserve
     expect(planning).to.match(/PLAN_APPLY|Apply \(A continuous\)/i);
@@ -745,6 +752,35 @@ describe('claudecraft improve skill structure', function () {
     expect(planning).to.match(/\bhabitat\b/);
     expect(planning).to.match(/softCheck|PLAN_SPEC_SOFT/);
     expect(planning).to.match(/never auto-seed|never seeds backlog/i);
+  });
+
+  /**
+   * R9 honest-empty / weakness bar / decompose-not-defer — continue meter honesty.
+   * Residual streak must not advance on empty open-count alone; size alone is not P2.
+   */
+  it('R9 honest-empty + weakness bar + decompose-not-defer anchors', function () {
+    const planning = fs.readFileSync(
+      path.join(CC, 'law/improve-loop/contracts/planning.md'),
+      'utf8'
+    );
+    const skill = fs.readFileSync(path.join(CC, 'skills/improve-loop/SKILL.md'), 'utf8');
+
+    expect(planning).to.match(/\*\*R9\*\*/);
+    expect(planning).to.match(/weakness bar/);
+    expect(planning).to.match(/honest-empty:/);
+    expect(planning).to.match(/decompose-not-defer/);
+    expect(planning).to.match(/size alone is \*\*not\*\* keep-P2|size alone is \*\*not\*\* keep/);
+    expect(planning).to.match(/continue \(non-weak\)|continue \(non-weak\)/i);
+    expect(planning).to.match(/honest stop/);
+
+    expect(skill).to.match(/honest-empty: residual survey — no non-weak open gaps/);
+    expect(skill).to.match(/honest-empty missing — streak held/);
+    expect(skill).to.match(/weak:<out-of-scope|weak:out-of-scope/);
+    expect(skill).to.match(/decompose-not-defer|Decompose-not-defer/);
+    // Streak table requires attestation for +1
+    expect(skill).to.match(
+      /Open P0\/P1 count = 0 \*\*and\*\* Notes include `honest-empty|honest-empty[\s\S]{0,80}\*\*\+1\*\*/
+    );
   });
 
   /**

@@ -214,7 +214,7 @@ Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
 
 *Mirror of A `references/contracts/planning.md` (PLAN_* + HYBRID spine) — law changes start in A (`dual-home.md`). This section is the runtime summary.*
 
-*R-coverage in this monolith (full table: A `contracts/planning.md` § Sequencing rules): R1 → HYBRID spine step order (derive V-rows before code) · R2 → “R2 mechanical” below · R3 → PLAN_SPEC_SYNC anchor citing · R4/R5 → Phase 3v gate (open P0/P1 = 0; fail seeds `validate V<k>`) · R6 → 3v re-seed `fix target: product | proof` · R7 → P0/P1 residual discipline (sole complete) · R8/R8b–d → “R8 — never treat 3v fail as terminal” + L1 driver. PLAN_SPEC_STATUS / PLAN_ORIENT / PLAN_PROGRESS_ALIGN law homes: A `contracts/progress.md`; PLAN_T2_CHALLENGE / PLAN_HABITAT_META runtime body: this monolith (B/M). planning.md registers planning-owned pins + a routing line. PLAN_LEGACY_A is A-dialect only (not summarized here).*
+*R-coverage in this monolith (full table: A `contracts/planning.md` § Sequencing rules): R1 → HYBRID spine step order (derive V-rows before code) · R2 → “R2 mechanical” below · R3 → PLAN_SPEC_SYNC anchor citing · R4/R5 → Phase 3v gate (open P0/P1 = 0; fail seeds `validate V<k>`) · R6 → 3v re-seed `fix target: product | proof` · R7 → P0/P1 residual discipline (sole complete) · R8/R8b–d → “R8 — never treat 3v fail as terminal” + L1 driver · R9 → residual streak +1 only with honest-empty attestation + weakness bar (decompose-not-defer). PLAN_SPEC_STATUS / PLAN_ORIENT / PLAN_PROGRESS_ALIGN law homes: A `contracts/progress.md`; PLAN_T2_CHALLENGE / PLAN_HABITAT_META runtime body: this monolith (B/M). planning.md registers planning-owned pins + a routing line. PLAN_LEGACY_A is A-dialect only (not summarized here).*
 
 Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 
@@ -246,7 +246,7 @@ when R2. (3) Code. (4) Phase **3v** prove — fail seeds
 `- [ ] P1: [defect] validate V<k>: …`. If proof design finds a hole: **revise work-spec first**,
 then PLAN_SPEC_SYNC. **R8:** see “R8 — never treat 3v fail as terminal” (Phase 3).
 residual×2 remains sole `complete` law
-(never “all V pass ⇒ complete” alone). Soft ≠ seed. Rules R1–R8 + quarantine: package A
+(never “all V pass ⇒ complete” alone). Soft ≠ seed. Rules R1–R9 + quarantine: package A
 `contracts/planning.md` / `phase-3v-validate.md` (normative).
 
 **PLAN_SPEC_SYNC (live Validation Spec):** each V-row Intention cites a **work-spec anchor**
@@ -363,16 +363,19 @@ lines in `## Backlog`. Do **not** put `- [x]` lines in `## Backlog` (strip with 
 
 **Deferred (P2) — consider later, not residual blockers.** Open-only under
 `## Deferred (P2)` / `Next deferred:` (same purity rule — drop finished deferred; history is
-git + Notes):
+git + Notes). **Weakness bar (R9):** only **weak** gaps belong here — demoting non-weak
+work to empty the Backlog is residual theater and **forbids** residual streak +1.
 
 ```text
-- [ ] P2: <item> — <why deferred / not material this campaign>
+- [ ] P2: <item> — weak:<out-of-scope|waived|yagni|multi-campaign|operator> — <why>
 ```
 
 Unchecked `P2:` lines are **not** material, are **never** selected for Phase 1 execute, and
-**do not** reset or block `consecutive-non-material-cycles`. Cap ~8–12 open deferred lines;
-dedupe/drop stale with a Notes line. One-off observations that are not “consider later” may
-stay in Last cycle Notes only.
+**do not** reset or block `consecutive-non-material-cycles` **when honestly weak**. Cap ~8–12
+open deferred lines; dedupe/drop stale with a Notes line. One-off observations that are not
+“consider later” may stay in Last cycle Notes only. **Decompose-not-defer:** size alone is
+not weak — split multi-cycle gaps into ≤1-cycle open P0/P1 slices instead of parking the
+whole gap as P2.
 
 ### Planning (every Phase 3) — live open queue **and** git history (mandatory)
 
@@ -411,17 +414,20 @@ Track in live ledger **and** commit body:
 consecutive-non-material-cycles: <n>
 ```
 
-Update **after Phase 3 replan** (before Phase 4), independent of the Phase 2 no-progress matrix:
+Update **after Phase 3 replan** (before Phase 4), independent of the Phase 2 no-progress matrix.
+**R9 — honest-empty:** empty open count alone never advances streak.
 
 | After replan | `consecutive-non-material-cycles` |
 |---|---|
-| Open P0/P1 count = 0 | **+1** |
+| Open P0/P1 count = 0 **and** Notes include `honest-empty: residual survey — no non-weak open gaps` | **+1** |
+| Open P0/P1 count = 0 **without** honest-empty attestation | **hold** (do not +1); Notes `honest-empty missing — streak held`; Status stays `active` |
 | Open P0/P1 count ≥ 1 | **reset → 0** |
 
-A cycle that lands the last P1 and then replans empty still **+1**s the streak (that cycle
-counts as non-material for residual purposes). Status stays **`active`** until streak ≥ 2.
-Operator-facing phrasing: residual ×2 is **two consecutive post-replan empty P0/P1 cycles**,
-not necessarily two pure residual-only cycles after all work — the finishing cycle is streak 1.
+A cycle that lands the last P1 and then replans empty still **+1**s the streak **only when**
+honest-empty is attested (that cycle counts as non-material for residual purposes once
+attested). Status stays **`active`** until streak ≥ 2. Operator-facing phrasing: residual ×2
+is **two consecutive post-replan honest-empty P0/P1 cycles**, not necessarily two pure
+residual-only cycles after all work — the finishing cycle is streak 1 when attested.
 
 Recover streak from the **live ledger** when present (same campaign / `--resume`). On
 **cold-start**, streak always starts at **0** — do **not** copy
@@ -444,8 +450,10 @@ disk is not auto-refused).
 
 If open P0/P1 = 0 and streak is **1**: leave Status **`active`**. Next cycle is
 **residual-only** (skip Phase 1 execute / investigation Thesis
-`residual survey (non-material streak 1→2)`); Phase 3 re-surveys; if still zero open P0/P1 →
-streak 2 → complete. Do **not** invent fake P0/P1 to force work.
+`residual survey (non-material streak 1→2)`); Phase 3 re-surveys **and re-attests**
+`honest-empty: residual survey — no non-weak open gaps`; if still zero open P0/P1 **with**
+attestation → streak 2 → complete. Missing re-attestation holds streak at 1. Do **not** invent
+fake P0/P1 to force work; do **not** demote non-weak gaps to P2 to force empty (R9).
 
 If open P0/P1 = 0 and streak ≥ 2 but suite fails confirmation: do **not** complete (existing
 completion-gate rules).
@@ -457,9 +465,10 @@ completion-gate rules).
 T0/T0p/T2 (5) write `## Campaign brief` when required (6) seed Backlog.
 
 **Promote-class** = candidates that (a) appear in scan, (b) not COMPLETED_SET/unexcused DISPROVEN,
-(c) not `limitation waived:` this campaign, (d) implementable in ≤1 cycle under the suite.
-**T2** if promote-class non-empty or `--plan-deep`. **T0p** if product/mixed and promote-class
-empty after full scan. **T0** if defect and no promote-class.
+(c) not `limitation waived:` this campaign, (d) **either** implementable in ≤1 cycle under the
+suite **or** decomposable into ≤1-cycle slices (**decompose-not-defer** — size alone is not
+keep-P2). **T2** if promote-class non-empty or `--plan-deep`. **T0p** if product/mixed and
+promote-class empty after full scan. **T0** if defect and no promote-class.
 
 Seed **1–3 open (`[ ]`) P0/P1-tagged** items from digest + target (T2 seed cap for six-clause
 material). Prefer concrete material gaps that are **not** semantic duplicates of
@@ -533,8 +542,8 @@ For each candidate line, classify:
 
 | Class | Action |
 |---|---|
-| **promote** | cheap, in-scope, not COMPLETED_SET → open `- [ ] P1:` (or P0 if broken proof) |
-| **keep P2** | real but deferred → `- [ ] P2:` under Deferred with why |
+| **promote** | cheap, in-scope, not COMPLETED_SET → open `- [ ] P1:` (or P0 if broken proof); multi-cycle size → **decompose** into ≤1-cycle slices, not demote |
+| **keep P2** | real but **weak** (`weak:out-of-scope\|waived\|yagni\|multi-campaign\|operator`) → `- [ ] P2:` under Deferred with weak enum + why |
 | **drop / waive** | intentional forever (security boundary, out-of-scope substrate) → Notes `limitation waived: <short>` — required before product-mode residual×2 complete if promote-class was skipped |
 
 **Forbidden:** Status `complete` in product/mixed mode while any **promote**-class limitation
@@ -2369,7 +2378,10 @@ Then update **residual streak** then Status *in this exact order*:
 
 0. **Open P0/P1 count** after replan **and 3v seeds** = number of unchecked **Backlog** lines containing
    `P0:` or `P1:` (**ignore** `## Deferred (P2)` / `P2:` lines entirely).
-   - If count = 0 → `consecutive-non-material-cycles` **+1**.
+   - If count = 0 **and** Notes include `honest-empty: residual survey — no non-weak open gaps`
+     (R9) → `consecutive-non-material-cycles` **+1**.
+   - If count = 0 **without** that attestation → **hold** streak; Notes
+     `honest-empty missing — streak held`.
    - If count ≥ 1 → `consecutive-non-material-cycles` **reset → 0**.
 1. `consecutive-same-error >= 3` → `stopped (same-error ×3)`
 2. `consecutive-no-progress >= 3` → `stopped (no-progress ×3)`

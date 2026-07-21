@@ -27,8 +27,13 @@
  *   suiteGreen: boolean,
  *   allVPass?: boolean,
  *   headerSpecPass?: boolean,
+ *   honestEmptyAttested?: boolean,
  * }} input
  * @returns {{ complete: boolean, reason: string }}
+ *
+ * R9: when `honestEmptyAttested` is provided and false, complete is refused even if
+ * streak ≥ 2 (orchestrator should not advance streak without attestation; this gate
+ * catches callers that pass a synthetic streak). Omitted → legacy R7 cells only.
  */
 function evaluateComplete(input) {
   const open = Number(input.openP0P1) || 0;
@@ -40,6 +45,9 @@ function evaluateComplete(input) {
   }
   if (streak < 2) {
     return { complete: false, reason: 'residual_streak_lt_2' };
+  }
+  if (input.honestEmptyAttested === false) {
+    return { complete: false, reason: 'honest_empty_missing' };
   }
   if (!suite) {
     return { complete: false, reason: 'suite_not_green' };
@@ -104,6 +112,31 @@ function selfTest() {
   const invertedWouldLie =
     evaluateComplete({ openP0P1: 0, consecutiveNonMaterial: 1, suiteGreen: true }).complete;
   ok(invertedWouldLie === false, 'reachable-fail: streak=1 cannot complete (suite would catch invert)');
+
+  // R9 — honest-empty: explicit false refuses complete even at residual×2 + green
+  ok(
+    evaluateComplete({
+      openP0P1: 0,
+      consecutiveNonMaterial: 2,
+      suiteGreen: true,
+      honestEmptyAttested: false,
+    }).complete === false,
+    'R9: honestEmptyAttested=false blocks complete at residual×2'
+  );
+  ok(
+    evaluateComplete({
+      openP0P1: 0,
+      consecutiveNonMaterial: 2,
+      suiteGreen: true,
+      honestEmptyAttested: true,
+    }).complete === true,
+    'R9: honestEmptyAttested=true allows residual×2 complete'
+  );
+  ok(
+    evaluateComplete({ openP0P1: 0, consecutiveNonMaterial: 2, suiteGreen: true }).complete ===
+      true,
+    'R9: omitted honestEmptyAttested keeps legacy residual×2 path'
+  );
 
   console.log('complete-gate self-test PASS');
 }

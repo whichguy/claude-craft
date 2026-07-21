@@ -383,6 +383,13 @@ const improvePlanningUserOnly = [
   ['PLAN_ORIENT pulse improve cycle', /improve cycle /],
   ['PLAN_APPLY multi-line block delete', /contiguous block|title \+ clause|delete entire contiguous|title and its contiguous clause/i],
   ['PLAN_CLASSIFY promote-class', /promote-class|classify: promote|keep P2/i],
+  [
+    'R9 honest-empty attestation',
+    /honest-empty: residual survey — no non-weak open gaps/,
+  ],
+  ['R9 streak hold without attestation', /honest-empty missing — streak held/],
+  ['R9 decompose-not-defer', /decompose-not-defer|Decompose-not-defer/],
+  ['R9 weakness bar weak enum', /weak:<out-of-scope|weak:out-of-scope|weakness bar/i],
   ['plan tiers T0 T0p T2', /\bT0p\b|Plan tier|plan tier/i],
   ['product residual survey header', /Product residual survey/i],
   ['product residual criteria trail', /criteria:|Criteria trail/i],
