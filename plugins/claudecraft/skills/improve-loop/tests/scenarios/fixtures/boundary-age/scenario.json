@@ -1,0 +1,32 @@
+{
+  "id": "boundary-age",
+  "description": "False-green: suite passes on seed but acceptance probe fails at age 18; campaign must fix + add boundary test (test debt)",
+  "max_cycles": 5,
+  "mode": "continuous",
+  "until": "no material P0/P1 for 2 consecutive cycles (green tests)",
+  "test_command": "node --test test/age.test.js",
+  "seed_mode": "defect",
+  "operator_card": true,
+  "seed_suite_exit": 0,
+  "seed_probe": "node scripts/acceptance-probe.js",
+  "seed_probe_exit": 1,
+  "expected_effects": {
+    "must_now_pass": ["acceptance probe isAdult(18)", "suite including boundary 18"],
+    "must_stay_true": ["adult at 20", "not adult at 10"],
+    "must_not_change": ["no new deps"]
+  },
+  "oracle": {
+    "final_status": "complete",
+    "suite_exit": 0,
+    "min_non_material_streak": 2,
+    "open_p0_p1": 0,
+    "require_honest_empty_attests": 2,
+    "src_file": "src/age.js",
+    "src_must_match": ">=\\s*18|age\\s*>=",
+    "src_must_not_equal_literal": "return age > 18",
+    "require_probe_pass": true,
+    "probe_command": "node scripts/acceptance-probe.js",
+    "require_class_in_commits_or_ledger": true,
+    "require_test_debt_signal": "adult at boundary 18|boundary 18|isAdult\\(18\\)"
+  }
+}

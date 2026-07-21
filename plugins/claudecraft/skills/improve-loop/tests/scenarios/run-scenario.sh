@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# run-scenario.sh — prepare isolated testee from fixture; optional smoke; oracle
+# run-scenario.sh — prepare isolated testee from fixture; smokes; oracle
 #
 # Usage:
-#   bash run-scenario.sh --scenario greeter-bug --prepare
-#   bash run-scenario.sh --scenario greeter-bug --smoke-seed   # seed suite must FAIL
-#   bash run-scenario.sh --scenario greeter-bug --smoke-fixed  # apply golden fix + suite PASS
-#   bash run-scenario.sh --scenario greeter-bug --validate --workspace <path>
-#   bash run-scenario.sh --scenario greeter-bug --agent-runbook
+#   bash run-scenario.sh --scenario <id> --prepare
+#   bash run-scenario.sh --scenario <id> --smoke-seed
+#   bash run-scenario.sh --scenario <id> --smoke-fixed
+#   bash run-scenario.sh --scenario <id> --validate --workspace <path>
+#   bash run-scenario.sh --list
+#   bash run-scenario.sh --smoke-all
+#   bash run-scenario.sh --scenario <id> --agent-runbook
 #
 # Exit: 0 ok · 1 usage · 2 smoke/oracle fail
 set -euo pipefail
@@ -25,24 +27,61 @@ while [[ $# -gt 0 ]]; do
     --smoke-fixed) MODE=smoke-fixed; shift ;;
     --validate) MODE=validate; shift ;;
     --agent-runbook) MODE=runbook; shift ;;
+    --list) MODE=list; shift ;;
+    --smoke-all) MODE=smoke-all; shift ;;
     --workspace) WORKSPACE="$2"; shift 2 ;;
     --keep) KEEP=1; shift ;;
     -h|--help)
-      sed -n '2,20p' "$0"
+      sed -n '2,18p' "$0"
       exit 0
       ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
 done
 
-[[ -n "$SCENARIO_ID" ]] || { echo "need --scenario <id>" >&2; exit 1; }
+json_field() {
+  # json_field <file> <js-expr returning value>
+  node -e "const s=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); const v=($2); console.log(v==null?'':v)" "$1"
+}
+
+list_scenarios() {
+  for d in "$ROOT"/fixtures/*/; do
+    local base
+    base="$(basename "$d")"
+    [[ "$base" == _* ]] && continue
+    [[ -f "${d}scenario.json" ]] || continue
+    echo "$base"
+  done | sort
+}
+
+if [[ "$MODE" == "list" ]]; then
+  list_scenarios
+  exit 0
+fi
+
+if [[ "$MODE" == "smoke-all" ]]; then
+  fail=0
+  while IFS= read -r id; do
+    echo "=== smoke $id ==="
+    if ! bash "$0" --scenario "$id" --smoke-seed; then fail=1; fi
+    if ! bash "$0" --scenario "$id" --smoke-fixed; then fail=1; fi
+  done < <(list_scenarios)
+  [[ "$fail" -eq 0 ]] || exit 2
+  echo "smoke-all PASS"
+  exit 0
+fi
+
+[[ -n "$SCENARIO_ID" ]] || { echo "need --scenario <id> (or --list / --smoke-all)" >&2; exit 1; }
 
 FIX="$ROOT/fixtures/$SCENARIO_ID"
 SCENARIO_JSON="$FIX/scenario.json"
 SEED="$FIX/seed"
 [[ -d "$SEED" && -f "$SCENARIO_JSON" ]] || { echo "fixture missing: $FIX" >&2; exit 1; }
 
-TEST_CMD="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).test_command)" "$SCENARIO_JSON")"
+TEST_CMD="$(json_field "$SCENARIO_JSON" 's.test_command')"
+SEED_SUITE_EXIT="$(json_field "$SCENARIO_JSON" 's.seed_suite_exit!=null?s.seed_suite_exit:1')"
+SEED_PROBE="$(json_field "$SCENARIO_JSON" 's.seed_probe||""')"
+SEED_PROBE_EXIT="$(json_field "$SCENARIO_JSON" 's.seed_probe_exit!=null?s.seed_probe_exit:1')"
 
 prepare_workspace() {
   local dest="${1:-}"
@@ -50,34 +89,39 @@ prepare_workspace() {
     dest="$(mktemp -d "${TMPDIR:-/tmp}/improve-scenario-${SCENARIO_ID}.XXXXXX")"
   fi
   mkdir -p "$dest"
-  # copy seed
   cp -R "$SEED"/. "$dest"/
   git -C "$dest" init -q -b main
   git -C "$dest" config user.email "scenario@example.com"
   git -C "$dest" config user.name "Scenario"
   git -C "$dest" add -A
-  git -C "$dest" commit -q -m "seed: broken greeter ($SCENARIO_ID)"
+  git -C "$dest" commit -q -m "seed: $SCENARIO_ID fixture"
   echo "$dest"
 }
 
 apply_golden_fix() {
   local dest="$1"
-  # Known-good one-line fix for greeter-bug
-  cat >"$dest/src/greeter.js" <<'JS'
+  if [[ -d "$FIX/golden" ]]; then
+    cp -R "$FIX/golden"/. "$dest"/
+    return 0
+  fi
+  # legacy greeter-bug only
+  if [[ "$SCENARIO_ID" == "greeter-bug" ]]; then
+    cat >"$dest/src/greeter.js" <<'JS'
 'use strict';
-
-function greet(name) {
-  return `Hello, ${name}!`;
-}
-
+function greet(name) { return `Hello, ${name}!`; }
 module.exports = { greet };
 JS
+    return 0
+  fi
+  echo "no golden/ for $SCENARIO_ID" >&2
+  return 1
 }
 
 write_seed_ledger() {
   local dest="$1"
-  local max_cycles
-  max_cycles="$(node -e "const s=require(process.argv[1]); console.log(s.max_cycles||4)" "$SCENARIO_JSON")"
+  local max_cycles done_when
+  max_cycles="$(json_field "$SCENARIO_JSON" 's.max_cycles||4')"
+  done_when="$(json_field "$SCENARIO_JSON" 's.description||"scenario complete"')"
   cat >"$dest/IMPROVE_LOOP.md" <<EOF
 # Improve Loop: scenario $SCENARIO_ID
 
@@ -94,9 +138,9 @@ write_seed_ledger() {
 **Habitat probe:** n/a
 **Habitat probe result:** n/a
 **Habitat probe evidence:** none
-**Operator done-when:** Suite green for greet-by-name; residual×2 with honest-empty
+**Operator done-when:** $done_when
 **Install mechanism:** n/a
-**Operator card:** paste from claude-craft docs/improve-loop-testee-operator-card.md
+**Operator card:** docs/improve-loop-testee-operator-card.md (claude-craft)
 
 ## Driver
 - mode: continuous
@@ -108,25 +152,20 @@ write_seed_ledger() {
 - next_auto: cycle
 
 ## Brief
-Scenario fixture **$SCENARIO_ID**: fix intentional greeter bug. Follow operator card:
-Expected effects, acceptance + preservation probes, greppable CLASS Notes, durable carriers.
+Scenario **$SCENARIO_ID**. Follow operator card (Expected effects, CLASS Notes, durable carriers, honest-empty residual×2).
 
 ## Backlog
-- [ ] P0: Fix greet(name) to return Hello, <name>!
+- [ ] P0: Resolve $SCENARIO_ID seed defect(s)
   - kind: defect
-  - Evidence: seed suite fails greets by name
-  - Decision: interpolate name in src/greeter.js
-  - Preserve: greets with non-empty name still runs
+  - Evidence: seed fixture
+  - Decision: land minimal fix (+ test debt if false-green)
+  - Preserve: existing green suite cases
   - Unknown: none
-  - Acceptance: node --test test/greeter.test.js exits 0
-  - Expected effects:
-    - Must now pass: greets by name
-    - Must stay true: greets with non-empty name still runs
-    - Must not change: no new deps
-    - Evidence commands: $TEST_CMD
+  - Acceptance: $TEST_CMD exits 0; probes pass if any
+  - Expected effects: see fixtures/$SCENARIO_ID/scenario.json
 
 ## Deferred (P2)
-- [ ] P2: Extra locale greetings — weak:yagni — out of scenario
+- [ ] P2: Extra scenarios polish — weak:yagni — out of this run
 
 ## Stop-condition tracking
 - consecutive-no-progress: 0
@@ -146,8 +185,7 @@ case "$MODE" in
     echo "workspace=$WS"
     echo "scenario=$SCENARIO_ID"
     echo "test_command=$TEST_CMD"
-    echo "next=run improve-loop continuous in workspace (max_cycles from scenario.json)"
-    echo "then: bash $0 --scenario $SCENARIO_ID --validate --workspace $WS"
+    echo "next=run improve continuous then --validate --workspace $WS"
     ;;
   smoke-seed)
     WS="$(prepare_workspace)"
@@ -155,13 +193,26 @@ case "$MODE" in
     (cd "$WS" && bash -lc "$TEST_CMD") >/tmp/scenario-seed-suite.txt 2>&1
     EC=$?
     set -e
-    if [[ "$EC" -eq 0 ]]; then
-      echo "FAIL: seed suite unexpectedly green" >&2
-      cat /tmp/scenario-seed-suite.txt >&2
+    if [[ "$EC" -ne "$SEED_SUITE_EXIT" ]]; then
+      echo "FAIL: seed suite exit=$EC want=$SEED_SUITE_EXIT ($SCENARIO_ID)" >&2
+      tail -20 /tmp/scenario-seed-suite.txt >&2
       [[ "$KEEP" -eq 1 ]] || rm -rf "$WS"
       exit 2
     fi
-    echo "PASS: seed suite fails (exit=$EC) as required"
+    echo "PASS: seed suite exit=$EC (want $SEED_SUITE_EXIT)"
+    if [[ -n "$SEED_PROBE" ]]; then
+      set +e
+      (cd "$WS" && bash -lc "$SEED_PROBE") >/tmp/scenario-seed-probe.txt 2>&1
+      PEC=$?
+      set -e
+      if [[ "$PEC" -ne "$SEED_PROBE_EXIT" ]]; then
+        echo "FAIL: seed probe exit=$PEC want=$SEED_PROBE_EXIT" >&2
+        cat /tmp/scenario-seed-probe.txt >&2
+        [[ "$KEEP" -eq 1 ]] || rm -rf "$WS"
+        exit 2
+      fi
+      echo "PASS: seed probe exit=$PEC (want $SEED_PROBE_EXIT) — false-green signal OK"
+    fi
     [[ "$KEEP" -eq 1 ]] || rm -rf "$WS"
     ;;
   smoke-fixed)
@@ -172,12 +223,26 @@ case "$MODE" in
     EC=$?
     set -e
     if [[ "$EC" -ne 0 ]]; then
-      echo "FAIL: golden fix suite not green" >&2
+      echo "FAIL: golden suite exit=$EC" >&2
       cat /tmp/scenario-fixed-suite.txt >&2
       [[ "$KEEP" -eq 1 ]] || rm -rf "$WS"
       exit 2
     fi
-    echo "PASS: golden fix suite green"
+    echo "PASS: golden suite green"
+    PROBE="$(json_field "$SCENARIO_JSON" 's.oracle&&s.oracle.probe_command||s.seed_probe||""')"
+    if [[ -n "$PROBE" ]]; then
+      set +e
+      (cd "$WS" && bash -lc "$PROBE") >/tmp/scenario-fixed-probe.txt 2>&1
+      PEC=$?
+      set -e
+      if [[ "$PEC" -ne 0 ]]; then
+        echo "FAIL: golden probe exit=$PEC" >&2
+        cat /tmp/scenario-fixed-probe.txt >&2
+        [[ "$KEEP" -eq 1 ]] || rm -rf "$WS"
+        exit 2
+      fi
+      echo "PASS: golden probe green"
+    fi
     [[ "$KEEP" -eq 1 ]] || rm -rf "$WS"
     ;;
   validate)
@@ -186,28 +251,21 @@ case "$MODE" in
     ;;
   runbook)
     cat <<EOF
-# Agent runbook — scenario $SCENARIO_ID
+# Agent runbook — $SCENARIO_ID
 
-1. Prepare:
-   bash $ROOT/run-scenario.sh --scenario $SCENARIO_ID --prepare
-   # note workspace= path
+\`\`\`bash
+bash $ROOT/run-scenario.sh --scenario $SCENARIO_ID --prepare
+# improve continuous in workspace (max_cycles from scenario.json)
+bash $ROOT/run-scenario.sh --scenario $SCENARIO_ID --validate --workspace <path>
+\`\`\`
 
-2. In that workspace (cwd), run improve-loop continuous:
-   - max_cycles from scenario.json
-   - until: residual×2 (default)
-   - Follow docs/improve-loop-testee-operator-card.md habits
-   - Material cycle: fix src/greeter.js; suite green; CLASS: OK in Notes + commit body
-   - Two residual cycles with: honest-empty: residual survey — no non-weak open gaps
-   - Status: complete when streak >= 2 and open P0/P1 = 0
-
-3. Validate:
-   bash $ROOT/run-scenario.sh --scenario $SCENARIO_ID --validate --workspace <path>
-
-4. Expect oracle PASS (suite green, status complete, streak>=2, 2× honest-empty, src fixed).
+Seed suite exit want: $SEED_SUITE_EXIT
+Seed probe: ${SEED_PROBE:-'(none)'}
+Test: $TEST_CMD
 EOF
     ;;
   *)
-    echo "need --prepare | --smoke-seed | --smoke-fixed | --validate | --agent-runbook" >&2
+    echo "need a mode: --prepare --smoke-seed --smoke-fixed --validate --agent-runbook --list --smoke-all" >&2
     exit 1
     ;;
 esac

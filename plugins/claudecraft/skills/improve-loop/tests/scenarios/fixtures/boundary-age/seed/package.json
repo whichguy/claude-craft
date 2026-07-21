@@ -1,0 +1,9 @@
+{
+  "name": "boundary-age-testee",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/age.test.js",
+    "probe": "node scripts/acceptance-probe.js"
+  }
+}
