@@ -1779,7 +1779,7 @@ assert "run-case-bank.js exists" test -f "$SCRIPTS/run-case-bank.js"
 node "$SCRIPTS/run-case-bank.js"
 assert "run-case-bank" true
 
-# --- cycle-sim: Phase-2 + R9 + complete-gate + stop-decision (API-free e2e) ---
+# --- cycle-sim: Phase-2 + R9 + complete-gate + stop-decision (pure law-sim) ---
 # Isolated under tests/cycle-sim/; pre-seeded fixtures (blank / partial / stalls).
 CYCLE_SIM="$ROOT/tests/cycle-sim/run.js"
 assert "cycle-sim runner exists" test -f "$CYCLE_SIM"
