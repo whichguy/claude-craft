@@ -70,7 +70,28 @@ function runCmd(workspace, cmd) {
   };
 }
 
+/**
+ * Commit message bodies for honest-empty counts.
+ * Only when `workspace` is itself a git toplevel — never walk up into an
+ * enclosing host repo (e.g. claude-craft history) or negative fixtures inherit
+ * the parent log and false-pass R9 attestation checks (host-dependent green).
+ */
 function gitLogBodies(workspace) {
+  const top = spawnSync('git', ['-C', workspace, 'rev-parse', '--show-toplevel'], {
+    encoding: 'utf8',
+  });
+  if (top.status !== 0) return '';
+  const toplevel = (top.stdout || '').trim();
+  if (!toplevel) return '';
+  let wsReal;
+  let topReal;
+  try {
+    wsReal = fs.realpathSync(workspace);
+    topReal = fs.realpathSync(toplevel);
+  } catch {
+    return '';
+  }
+  if (wsReal !== topReal) return '';
   const r = spawnSync('git', ['-C', workspace, 'log', '--format=%B---COMMIT---'], {
     encoding: 'utf8',
   });
