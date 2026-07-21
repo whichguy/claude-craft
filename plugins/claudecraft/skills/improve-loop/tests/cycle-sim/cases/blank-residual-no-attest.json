@@ -1,0 +1,39 @@
+{
+  "id": "blank-residual-no-attest",
+  "description": "Cold residual survey: empty open work, empty paths, no honest-empty attestation → streak held",
+  "tags": ["r9", "blank", "residual"],
+  "expected_changes": [
+    "consecutive-non-material-cycles stays 0 (not inflated by empty open-count)",
+    "Notes append honest-empty missing — streak held",
+    "Status remains active (continue)"
+  ],
+  "input": {
+    "status": "PASS",
+    "outcome": "partial",
+    "changedPaths": [],
+    "notes": "residual survey — open P0/P1 empty; no attestation yet",
+    "openP0P1": 0,
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "none"
+    }
+  },
+  "expect": {
+    "row": "empty_changed_paths",
+    "nonMaterial": "hold",
+    "advancedNonMaterial": false,
+    "counters": {
+      "consecutive_no_progress": 1,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "none"
+    },
+    "notesAppendIncludes": "honest-empty missing — streak held",
+    "complete": false,
+    "gate_reason": "residual_streak_lt_2",
+    "stop_decision": "continue",
+    "stop_reason": "none"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "fail-same-signature-stall",
+  "description": "Repeated FAIL with same signature increments same-error; non-material held",
+  "tags": ["stall", "fail"],
+  "expected_changes": [
+    "consecutive-same-error 2→3",
+    "stop-decision stop (same-error) when ≥3",
+    "non-material not advanced on FAIL"
+  ],
+  "input": {
+    "status": "FAIL",
+    "outcome": "partial",
+    "changedPaths": ["src/bug.js"],
+    "notes": "suite red again",
+    "errorSignatureNew": "test:auth-login",
+    "openP0P1": 1,
+    "counters": {
+      "consecutive_no_progress": 2,
+      "consecutive_same_error": 2,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "test:auth-login"
+    }
+  },
+  "expect": {
+    "row": "fail_same_signature",
+    "nonMaterial": "hold",
+    "counters": {
+      "consecutive_no_progress": 3,
+      "consecutive_same_error": 3,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "test:auth-login"
+    },
+    "complete": false,
+    "stop_decision": "stop",
+    "stop_reason": "same-error"
+  }
+}

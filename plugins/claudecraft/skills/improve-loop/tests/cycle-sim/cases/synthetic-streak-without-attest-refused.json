@@ -1,0 +1,33 @@
+{
+  "id": "synthetic-streak-without-attest-refused",
+  "description": "Regression: streak already 2 but this cycle lacks attestation → complete-gate refuses when flag false",
+  "tags": ["r9", "complete-gate", "regression"],
+  "expected_changes": [
+    "Phase-2 empty without attest holds streak at 2",
+    "complete-gate reason honest_empty_missing",
+    "stop-decision would still say complete if it trusted streak alone — gate is the R9 hard stop for callers that pass the flag"
+  ],
+  "input": {
+    "status": "PASS",
+    "outcome": "partial",
+    "changedPaths": [],
+    "notes": "empty residual but forgot attestation",
+    "openP0P1": 0,
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 2,
+      "error_signature": "none"
+    }
+  },
+  "step_opts": {},
+  "expect": {
+    "row": "empty_changed_paths",
+    "counters": { "consecutive_non_material_cycles": 2 },
+    "notesAppendIncludes": "honest-empty missing",
+    "complete": false,
+    "gate_reason": "honest_empty_missing",
+    "stop_decision": "complete",
+    "stop_reason": "until-default"
+  }
+}

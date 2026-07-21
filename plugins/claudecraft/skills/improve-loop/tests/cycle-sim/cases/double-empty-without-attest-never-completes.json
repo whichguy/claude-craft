@@ -1,0 +1,48 @@
+{
+  "id": "double-empty-without-attest-never-completes",
+  "description": "Two empty residual cycles without R9 attestation never advance streak → never complete",
+  "tags": ["r9", "regression", "false-complete"],
+  "chain": true,
+  "expected_changes": [
+    "Streak remains 0 after two empty surveys",
+    "No false residual×2 complete"
+  ],
+  "steps": [
+    {
+      "input": {
+        "status": "PASS",
+        "outcome": "partial",
+        "changedPaths": [],
+        "notes": "looks empty but no attestation",
+        "openP0P1": 0,
+        "counters": {
+          "consecutive_no_progress": 0,
+          "consecutive_same_error": 0,
+          "consecutive_non_material_cycles": 0,
+          "error_signature": "none"
+        }
+      },
+      "expect": {
+        "counters": { "consecutive_non_material_cycles": 0 },
+        "notesAppendIncludes": "honest-empty missing",
+        "complete": false,
+        "stop_decision": "continue"
+      }
+    },
+    {
+      "inherit_counters": true,
+      "input": {
+        "status": "PASS",
+        "outcome": "partial",
+        "changedPaths": [],
+        "notes": "still no attestation",
+        "openP0P1": 0
+      },
+      "expect": {
+        "counters": { "consecutive_non_material_cycles": 0 },
+        "complete": false,
+        "stop_decision": "continue"
+      }
+    }
+  ]
+}

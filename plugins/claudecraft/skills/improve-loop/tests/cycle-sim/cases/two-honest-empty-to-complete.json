@@ -1,0 +1,51 @@
+{
+  "id": "two-honest-empty-to-complete",
+  "description": "Two consecutive honest-empty residual cycles earn residual×2 complete",
+  "tags": ["r9", "residual", "complete", "multi-cycle"],
+  "chain": true,
+  "expected_changes": [
+    "Cycle 1: streak 0→1, continue",
+    "Cycle 2: streak 1→2, complete via until-default + r7 residual×2"
+  ],
+  "steps": [
+    {
+      "input": {
+        "status": "PASS",
+        "outcome": "partial",
+        "changedPaths": [],
+        "notes": "honest-empty: residual survey — no non-weak open gaps",
+        "openP0P1": 0,
+        "counters": {
+          "consecutive_no_progress": 0,
+          "consecutive_same_error": 0,
+          "consecutive_non_material_cycles": 0,
+          "error_signature": "none"
+        }
+      },
+      "expect": {
+        "counters": { "consecutive_non_material_cycles": 1 },
+        "complete": false,
+        "stop_decision": "continue",
+        "expected_changes": ["first clean residual survey"]
+      }
+    },
+    {
+      "inherit_counters": true,
+      "input": {
+        "status": "PASS",
+        "outcome": "partial",
+        "changedPaths": [],
+        "notes": "honest-empty: residual survey — no non-weak open gaps",
+        "openP0P1": 0
+      },
+      "expect": {
+        "counters": { "consecutive_non_material_cycles": 2 },
+        "complete": true,
+        "gate_reason": "r7_residual2_and_green_suite",
+        "stop_decision": "complete",
+        "stop_reason": "until-default",
+        "expected_changes": ["second consecutive honest-empty → Status complete"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "open-backlog-blocks-complete",
+  "description": "Streak 2 + green but open P0/P1 remains → continue (partial campaign)",
+  "tags": ["complete", "partial"],
+  "input": {
+    "status": "PASS",
+    "outcome": "partial",
+    "changedPaths": [],
+    "notes": "honest-empty: residual survey — no non-weak open gaps",
+    "openP0P1": 2,
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 1,
+      "error_signature": "none"
+    }
+  },
+  "expect": {
+    "counters": { "consecutive_non_material_cycles": 2 },
+    "complete": false,
+    "gate_reason": "open_p0p1",
+    "stop_decision": "continue"
+  }
+}

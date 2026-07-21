@@ -1778,6 +1778,16 @@ trap 'rm -rf "$TMP"' EXIT
 assert "run-case-bank.js exists" test -f "$SCRIPTS/run-case-bank.js"
 node "$SCRIPTS/run-case-bank.js"
 assert "run-case-bank" true
+
+# --- cycle-sim: Phase-2 + R9 + complete-gate + stop-decision (API-free e2e) ---
+# Isolated under tests/cycle-sim/; pre-seeded fixtures (blank / partial / stalls).
+CYCLE_SIM="$ROOT/tests/cycle-sim/run.js"
+assert "cycle-sim runner exists" test -f "$CYCLE_SIM"
+node "$CYCLE_SIM" --skip-self-test
+assert "cycle-sim fixtures" true
+node "$ROOT/tests/cycle-sim/phase2-counters.js" self-test
+assert "phase2-counters self-test" true
+
 # --- S2 Spec-sync matrix (checker/golden row-ops; not case-bank / not derive) ---
 assert "spec-sync-matrix.test.js exists" test -f "$SCRIPTS/spec-sync-matrix.test.js"
 node "$SCRIPTS/spec-sync-matrix.test.js"

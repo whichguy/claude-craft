@@ -1,0 +1,35 @@
+{
+  "id": "p2-yagni-without-attest-hold",
+  "description": "P2/YAGNI-only lands without R9 attestation do not advance residual streak",
+  "tags": ["r9", "deferred", "weak"],
+  "expected_changes": [
+    "Row p2_yagni_only (not material reset)",
+    "non-material streak held",
+    "no-progress reset (land happened)"
+  ],
+  "input": {
+    "status": "PASS",
+    "outcome": "confirmed",
+    "changedPaths": ["docs/later.md"],
+    "notes": "lands are P2/YAGNI-only — weak polish",
+    "openP0P1": 0,
+    "counters": {
+      "consecutive_no_progress": 2,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 1,
+      "error_signature": "none"
+    }
+  },
+  "expect": {
+    "row": "p2_yagni_only",
+    "nonMaterial": "hold",
+    "advancedNonMaterial": false,
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_non_material_cycles": 1
+    },
+    "notesAppendIncludes": "honest-empty missing",
+    "complete": false,
+    "stop_decision": "continue"
+  }
+}

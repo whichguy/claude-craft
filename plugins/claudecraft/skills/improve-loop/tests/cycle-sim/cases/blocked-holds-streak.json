@@ -1,0 +1,35 @@
+{
+  "id": "blocked-holds-streak",
+  "description": "Outcome blocked (+1 no-progress, hold same-error signature and non-material)",
+  "tags": ["blocked", "partial"],
+  "expected_changes": [
+    "no-progress +1 only",
+    "same-error and signature preserved",
+    "non-material held (not a clean residual cycle)"
+  ],
+  "input": {
+    "status": "PASS",
+    "outcome": "blocked",
+    "changedPaths": ["src/x.js"],
+    "notes": "scope violation — blocked despite green suite",
+    "openP0P1": 1,
+    "counters": {
+      "consecutive_no_progress": 1,
+      "consecutive_same_error": 2,
+      "consecutive_non_material_cycles": 1,
+      "error_signature": "prior-sig"
+    }
+  },
+  "expect": {
+    "row": "blocked",
+    "nonMaterial": "hold",
+    "counters": {
+      "consecutive_no_progress": 2,
+      "consecutive_same_error": 2,
+      "consecutive_non_material_cycles": 1,
+      "error_signature": "prior-sig"
+    },
+    "complete": false,
+    "stop_decision": "continue"
+  }
+}

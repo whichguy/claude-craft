@@ -1,0 +1,36 @@
+{
+  "id": "empty-paths-with-honest-empty",
+  "description": "Empty paths + R9 attestation advances non-material streak 0→1; still not complete",
+  "tags": ["r9", "residual"],
+  "expected_changes": [
+    "consecutive-non-material-cycles 0→1",
+    "no-progress +1 (green no-op is not progress)",
+    "complete stays false until residual×2"
+  ],
+  "input": {
+    "status": "PASS",
+    "outcome": "partial",
+    "changedPaths": [],
+    "notes": "honest-empty: residual survey — no non-weak open gaps",
+    "openP0P1": 0,
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "none"
+    }
+  },
+  "expect": {
+    "row": "empty_changed_paths",
+    "nonMaterial": "plus1",
+    "advancedNonMaterial": true,
+    "counters": {
+      "consecutive_no_progress": 1,
+      "consecutive_non_material_cycles": 1
+    },
+    "notesAppendEmpty": true,
+    "complete": false,
+    "gate_reason": "residual_streak_lt_2",
+    "stop_decision": "continue"
+  }
+}

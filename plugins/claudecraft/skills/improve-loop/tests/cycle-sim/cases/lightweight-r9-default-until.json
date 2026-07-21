@@ -1,0 +1,36 @@
+{
+  "id": "lightweight-r9-default-until",
+  "description": "Empty-backlog lightweight path holds stall counters; R9 advances non-material",
+  "tags": ["r9", "empty-backlog", "lightweight"],
+  "expected_changes": [
+    "stall counters unchanged",
+    "non-material +1 with attestation"
+  ],
+  "input": {
+    "status": "PASS",
+    "outcome": "partial",
+    "pathKind": "empty_backlog_lightweight",
+    "untilKind": "default",
+    "changedPaths": [],
+    "notes": "honest-empty: residual survey — no non-weak open gaps",
+    "openP0P1": 0,
+    "counters": {
+      "consecutive_no_progress": 2,
+      "consecutive_same_error": 1,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "held-sig"
+    }
+  },
+  "expect": {
+    "row": "empty_backlog_lightweight",
+    "nonMaterial": "plus1",
+    "counters": {
+      "consecutive_no_progress": 2,
+      "consecutive_same_error": 1,
+      "consecutive_non_material_cycles": 1,
+      "error_signature": "held-sig"
+    },
+    "complete": false,
+    "stop_decision": "continue"
+  }
+}

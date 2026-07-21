@@ -1,0 +1,25 @@
+{
+  "id": "lightweight-no-attest-hold",
+  "description": "Lightweight empty-backlog without honest-empty holds non-material streak",
+  "tags": ["r9", "empty-backlog"],
+  "input": {
+    "status": "PASS",
+    "pathKind": "empty_backlog_lightweight",
+    "notes": "confirmation suite green, no residual attestation",
+    "openP0P1": 0,
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 1,
+      "error_signature": "none"
+    }
+  },
+  "expect": {
+    "row": "empty_backlog_lightweight",
+    "nonMaterial": "hold",
+    "counters": { "consecutive_non_material_cycles": 1 },
+    "notesAppendIncludes": "honest-empty missing",
+    "complete": false,
+    "stop_decision": "continue"
+  }
+}

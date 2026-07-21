@@ -1,0 +1,26 @@
+{
+  "id": "p2-yagni-with-honest-empty",
+  "description": "P2/YAGNI-only + honest-empty advances non-material (weak deferred is clean)",
+  "tags": ["r9", "deferred"],
+  "input": {
+    "status": "PASS",
+    "outcome": "confirmed",
+    "changedPaths": ["docs/later.md"],
+    "notes": "P2/YAGNI-only; honest-empty: residual survey — no non-weak open gaps",
+    "openP0P1": 0,
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 1,
+      "error_signature": "none"
+    }
+  },
+  "expect": {
+    "row": "p2_yagni_only",
+    "nonMaterial": "plus1",
+    "counters": { "consecutive_non_material_cycles": 2 },
+    "complete": true,
+    "stop_decision": "complete",
+    "stop_reason": "until-default"
+  }
+}

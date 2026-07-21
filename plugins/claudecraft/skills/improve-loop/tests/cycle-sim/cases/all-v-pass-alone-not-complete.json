@@ -1,0 +1,31 @@
+{
+  "id": "all-v-pass-alone-not-complete",
+  "description": "Known revision needed: allVPass alone never unlocks complete (R7 sole residual×2)",
+  "tags": ["r7", "regression"],
+  "expected_changes": [
+    "gate remains residual_streak_lt_2 even if all V pass"
+  ],
+  "input": {
+    "status": "PASS",
+    "outcome": "partial",
+    "changedPaths": [],
+    "notes": "honest-empty: residual survey — no non-weak open gaps",
+    "openP0P1": 0,
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "none"
+    }
+  },
+  "completeGate": {
+    "allVPass": true,
+    "headerSpecPass": true
+  },
+  "expect": {
+    "counters": { "consecutive_non_material_cycles": 1 },
+    "complete": false,
+    "gate_reason": "residual_streak_lt_2",
+    "stop_decision": "continue"
+  }
+}

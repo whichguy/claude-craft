@@ -16,8 +16,17 @@ This is **not** a full `/improve` prompt → thinking → output harness (see pl
 | `scripts.test.sh` soft-check CLI block | Real `soft-check --plan-file` exit 0 + JSON + **plan byte identity** | Campaign multi-cycle |
 | `ledger-status.js` + rest of suite | Parse Status / backlog / cycle / stop counters | PLAN_ORIENT pulse emit in chat |
 | Full L3 suite | Scripts, worktree, parity, contracts | Multi-cycle autonomous campaign behavior |
+| **cycle-sim** (`tests/cycle-sim/`) | Phase-2 matrix + R9 + complete-gate + stop-decision on pre-seeded fixtures | Agent Phase-1 edits / full `/improve` campaign |
 
 **Soft bank ≠ Spec matrix ≠ campaign-loop eval.** A green suite means L3/contracts hold — not that an agent ran a good `/improve` campaign.
+
+For **repeatable residual / R9 / complete decision traces**, run:
+
+```bash
+node tests/cycle-sim/run.js
+```
+
+See `tests/cycle-sim/README.md`.
 
 ### Behavioral-pin inventory (post planning-doc arc)
 

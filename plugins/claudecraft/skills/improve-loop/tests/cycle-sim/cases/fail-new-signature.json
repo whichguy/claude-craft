@@ -1,0 +1,29 @@
+{
+  "id": "fail-new-signature",
+  "description": "FAIL with new signature resets same-error to 1 and stores new signature",
+  "tags": ["stall", "fail"],
+  "input": {
+    "status": "FAIL",
+    "outcome": "partial",
+    "changedPaths": ["src/other.js"],
+    "errorSignatureNew": "test:billing",
+    "openP0P1": 2,
+    "counters": {
+      "consecutive_no_progress": 1,
+      "consecutive_same_error": 2,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "test:auth-login"
+    }
+  },
+  "expect": {
+    "row": "fail_new_signature",
+    "counters": {
+      "consecutive_no_progress": 2,
+      "consecutive_same_error": 1,
+      "error_signature": "test:billing",
+      "consecutive_non_material_cycles": 0
+    },
+    "complete": false,
+    "stop_decision": "continue"
+  }
+}

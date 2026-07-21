@@ -1,0 +1,36 @@
+{
+  "id": "material-land-resets-streak",
+  "description": "Partial campaign: material code land after streak 1 resets non-material to 0",
+  "tags": ["material", "partial"],
+  "expected_changes": [
+    "consecutive-non-material-cycles reset → 0",
+    "no-progress / same-error reset",
+    "complete false (open backlog still 1)"
+  ],
+  "input": {
+    "status": "PASS",
+    "outcome": "confirmed",
+    "changedPaths": ["src/feature.js", "test/feature.test.js"],
+    "notes": "implemented P1 fix; honest-empty: residual survey — no non-weak open gaps",
+    "openP0P1": 1,
+    "counters": {
+      "consecutive_no_progress": 1,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 1,
+      "error_signature": "none"
+    }
+  },
+  "expect": {
+    "row": "material_land",
+    "nonMaterial": "reset",
+    "counters": {
+      "consecutive_no_progress": 0,
+      "consecutive_same_error": 0,
+      "consecutive_non_material_cycles": 0,
+      "error_signature": "none"
+    },
+    "complete": false,
+    "gate_reason": "open_p0p1",
+    "stop_decision": "continue"
+  }
+}
