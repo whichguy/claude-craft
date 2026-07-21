@@ -70,17 +70,17 @@ JS
   bash "$ROOT/run-scenario.sh" --scenario "$id" --validate --workspace "$WS"
 }
 
+_test_cmd() {
+  node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).test_command)" \
+    "$ROOT/fixtures/${SCENARIO_ID}/scenario.json"
+}
+
 _cycle_material() {
   local WS="$1" N="$2" thesis="$3" paths="$4"
   local extra="${5:-}"
   cd "$WS"
   local TEST_CMD
-  TEST_CMD="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).test_command)" "$ROOT/fixtures/$SCENARIO_ID/scenario.json" 2>/dev/null || true)"
-  # detect scenario from path
-  local sid
-  sid="$(basename "$(dirname "$(dirname "$ROOT/fixtures/x")")")" # unused
-  # use env SCENARIO_ID from caller
-  TEST_CMD="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).test_command)" "$ROOT/fixtures/${SCENARIO_ID}/scenario.json")"
+  TEST_CMD="$(_test_cmd)"
   set +e
   bash -lc "$TEST_CMD" >/tmp/scripted-suite.txt 2>&1
   local EC=$?
@@ -142,7 +142,7 @@ _cycle_material_red() {
   local WS="$1" N="$2" thesis="$3" paths="$4"
   cd "$WS"
   local TEST_CMD
-  TEST_CMD="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).test_command)" "$ROOT/fixtures/${SCENARIO_ID}/scenario.json")"
+  TEST_CMD="$(_test_cmd)"
   set +e
   bash -lc "$TEST_CMD" >/tmp/scripted-suite.txt 2>&1
   local EC=$?
@@ -195,7 +195,7 @@ _cycle_residual() {
   local status="${4:-active}"
   cd "$WS"
   local TEST_CMD
-  TEST_CMD="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).test_command)" "$ROOT/fixtures/${SCENARIO_ID}/scenario.json")"
+  TEST_CMD="$(_test_cmd)"
   set +e
   bash -lc "$TEST_CMD" >/tmp/scripted-suite.txt 2>&1
   local EC=$?

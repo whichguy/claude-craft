@@ -28,6 +28,8 @@ node tests/cycle-sim/run.js
 
 See `tests/cycle-sim/README.md`.
 
+**Testee scenario harness** (red→green + residual sequencing): `tests/scenarios/` (`run-scenario.sh --smoke-all`, `run-scripted-campaign.sh --all`).
+
 **Real campaigns (testee truth):** hermetic banks above never substitute for the
 [testee operator card](../../../../../../docs/improve-loop-testee-operator-card.md)
 (`docs/improve-loop-testee-operator-card.md` at repo root) — Expected effects, suite

@@ -100,21 +100,11 @@ prepare_workspace() {
 
 apply_golden_fix() {
   local dest="$1"
-  if [[ -d "$FIX/golden" ]]; then
-    cp -R "$FIX/golden"/. "$dest"/
-    return 0
+  if [[ ! -d "$FIX/golden" ]]; then
+    echo "no golden/ for $SCENARIO_ID (required for --smoke-fixed)" >&2
+    return 1
   fi
-  # legacy greeter-bug only
-  if [[ "$SCENARIO_ID" == "greeter-bug" ]]; then
-    cat >"$dest/src/greeter.js" <<'JS'
-'use strict';
-function greet(name) { return `Hello, ${name}!`; }
-module.exports = { greet };
-JS
-    return 0
-  fi
-  echo "no golden/ for $SCENARIO_ID" >&2
-  return 1
+  cp -R "$FIX/golden"/. "$dest"/
 }
 
 write_seed_ledger() {
