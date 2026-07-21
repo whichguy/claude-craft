@@ -12,7 +12,7 @@ description: >-
 
 # Improve loop
 
-> **Home B (runtime monolith).** This tree is the campaign runtime (`SKILL.md` + `scripts/` + `tests/` + goal template). Marketplace mirror is **M** (allowlist copy of B). Normative **law source** is home **A** (`…/claude-craft/…/skills/improve-loop` thin SKILL + `references/**`). **Edit A first for law-text changes**, then mirror here, then M (`dual-home.md` / H15–H18). Sole document H1 is this title; `#` lines inside fenced templates are examples, not outline headings.
+> **Home B (runtime monolith).** This tree is the campaign runtime (`SKILL.md` + `scripts/` + `tests/` + goal template). Marketplace mirror is **M** (allowlist copy of B). Normative **law source** is home **A** at in-repo `plugins/claudecraft/law/improve-loop/` (not under `skills/`). **Edit A first for law-text changes**, surgical mirror here, then M (`dual-home.md` / H15–H18). **Product model:** one product, campaign-default (this L1); sibling `improve` skill is a thin continuous host (worktree/parse), not a second driver law. Sole document H1 is this title; `#` lines inside fenced templates are examples, not outline headings.
 
 ## Section map (scan first)
 

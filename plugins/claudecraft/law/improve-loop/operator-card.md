@@ -30,7 +30,7 @@ phase’s law file** before applying its rules.
 | Scope | One git repo root; `IMPROVE_LOOP.md` (+ `## Driver`) + optional code |
 | Commits | **Yes** — orchestrator may commit once per cycle; prefer worktree |
 | Tests | Stated or already recorded; **never invented** |
-| Continuous | Host **goal** or **`improve`** driver; default until = no P0/P1 ×2 green (on disk); max_cycles 10 |
+| Continuous | B L1 campaign (primary) or **`improve`** host / optional goal; default until = no P0/P1 ×2 green (on disk); max_cycles **8** |
 | Automation | Most appropriate safe path by default; **stop only when blocked**; resume from **disk** |
 | Resume | Phase 0: disk only — header Until/Max cycles + Driver mode/until/streak; chat untrusted |
 | Progress | Pulse each cycle → `contracts/progress.md`; prefer `../../tools/improve-progress-format.js` |

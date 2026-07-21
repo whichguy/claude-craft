@@ -21,11 +21,11 @@ pulled in by the phase that cites them.
 | `contracts/executor.md` | Implementer must not commit |
 | `contracts/advisor.md` | Read-only replan advisors |
 | `contracts/planning.md` | Brief, tiers, **PLAN_VALIDATE**, **PLAN_SPEC_SYNC**, R1–R8 (+ R8b–d), PLAN_APPLY A vs B |
-| `contracts/outer-loop.md` | Ranking: host goal → `improve` driver (finite caps) |
+| `contracts/outer-loop.md` | Ranking: B L1 campaign → `improve` host → optional goal (caps 8) |
 | `dual-home.md` | A/B/M shapes, atomic ship checklist (H15–H18), package-parity Proof |
 | `improve-loop-learnings.md` | Banked invariants (incl. H15–H18 dual-home hygiene) |
 
-Continuous multi-cycle: B L1 campaign driver (primary); host **goal** optional; thin alias
+Continuous multi-cycle: B L1 campaign driver (primary); host goal optional; thin alias
 `../skills/improve/SKILL.md`.  
 Worktree: `../../tools/improve-worktree.sh`.  
 Lint: `../../tools/improve-lint.sh` + `improve-lint-discover.js`.

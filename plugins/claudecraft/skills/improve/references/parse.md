@@ -16,7 +16,7 @@ Arguments after the skill invoke are **free-form**. Prefer natural language; fla
 | `worktree` | no | **on** (once and continuous) | opt out: `no worktree`, `--no-worktree` |
 | `keep_worktree` | no | false | `keep worktree`, `debug worktree` |
 | `carry_wip` | no | carry if launch dirty | `clean start`, `include my WIP` |
-| `max_cycles` | no | 10 continuous / 1 once | `max N cycles`, `at most N` |
+| `max_cycles` | no | 8 continuous / 1 once | `max N cycles`, `at most N` |
 | `max_elapsed` | no | unset | `for 45m`, `timebox 1h` |
 | `merge_to_launch` | no | **true** | merge detached tip → source branch; opt out: `no merge`, `open a PR`, `--no-merge-to-launch` |
 | `critique` | no | on at seed | `skip plan review` |
@@ -41,7 +41,7 @@ After fields are resolved:
    - Once mode: `until` is `none` unless user passed one.
 
 3. **`max_cycles`**  
-   - Continuous: **10** if unset. Once: **1** if unset.
+   - Continuous: **8** if unset (aligned with improve-loop B `MAX_CYCLES`). Once: **1** if unset.
 
 4. **Interactive**  
    - Echo the parse card, then **proceed** unless target or tests are still missing (ask once for tests; abort unattended if still missing).  

@@ -2,57 +2,50 @@
 
 # Contract: Outer loop
 
-**improve-loop** is always **exactly one cycle** (or Phase 0 short-circuit / ledger-flush).
+**improve-loop L2** is always **exactly one cycle** (or Phase 0 short-circuit / ledger-flush).
 
-**One cycle is not a full continuous campaign.** Multi-cycle continuity is owned by:
+**Campaign multi-cycle (primary):** improve-loop **B L1** autonomous driver
+(`skills/improve-loop/SKILL.md` § Campaign architecture / Multi-cycle L1) — one invocation
+loops L2 until residual×2 complete, hard stop, or `MAX_CYCLES` (**8**). Does **not** require
+host goal re-drive.
 
-1. **Host goal** (preferred continuous host) — iterates: each turn runs one improve-loop cycle, then `goal.report`; stops on the shared stop predicate in `goal.md` with **finite** host caps (max-turns / budget); or  
-2. **`improve` driver skill** — native S0–S13 in-process loop (worktree, caps, reintegrate) with the same stop semantics when no goal UI is present.
-
-## Ranking
+## Ranking (product model 2026-07-21)
 
 | Priority | Mechanism |
 |---|---|
-| 1 | Host **goal** iterating improve-loop (see `goal.md`) |
-| 2 | **`improve` driver** continuous S8 loop |
+| 1 | **improve-loop B L1** autonomous campaign (script-backed; default `/improve`) |
+| 2 | **`improve` skill** — thin continuous host (parse/worktree/S0–S13) running one L2 cycle per S8 iteration |
+| 3 | Host **goal** — optional observability (`goal.report` / caps); not required for multi-cycle |
 
-Never run continuous improve-loop under an **unlimited** outer quota: dirty-tree stop-and-report cannot self-terminate without a finite cap or a false “done.” Caps live on the host goal and/or `improve` driver (`max_cycles` / elapsed / budget).
+Never run continuous improve under an **unlimited** outer quota. Caps: B `MAX_CYCLES` /
+`IMPROVE_LOOP_MAX_CYCLES`, or `improve` `max_cycles` (default **8**), or host max-turns/budget.
+
+## Stop table (canonical)
+
+**Single home:** `contracts/goal.md` stop predicate table. Outer hosts **cite** it — do not
+restate a second complete table here.
 
 **Default continuous until** (when unset on disk):  
-`no material P0/P1 for 2 consecutive cycles (green tests)` — tracked via ledger
-`consecutive-non-material-cycles` (improve-loop Phase 2); default form auto-completes in
-Phase 3 **rule 3 only** when **zero unchecked P0/P1** + streak ≥ 2 + **current-cycle**
-suite PASS. Carried PASS alone → Confirm (stay active; verification cycle). Phase 3
-**rule 4** (empty P0/P1 backlog → complete) is **suppressed** under this default **and**
-under custom non-`none` until. Persist **Until** + **Max cycles** on the ledger so
-rehydrate does not re-prompt. Canonical table: `goal.md`.
+`no material P0/P1 for 2 consecutive cycles (green tests)` — ledger
+`consecutive-non-material-cycles`; Phase 3 rule 3 when zero open P0/P1 + streak ≥ 2 +
+current-cycle suite PASS. Canonical detail: `goal.md`.
 
-**Until evaluation (both continuous hosts):** After each improve-loop cycle, the **outer
-host** (preferred: host **goal**; else improve S8) must apply `goal.md` stop table
-and/or `improve/references/caps.md` step 4 — same rules:
+**Until evaluation:** after each L2 cycle, the outer host (B L1, improve S8, or goal turn)
+applies `goal.md`. Custom non-empty until is outer-host-only; `none`/once may use Phase 3
+rule 4 empty-backlog path. Under default and custom non-`none` until,
+Phase 3 **rule 4 is suppressed** (streak ≥ 2 only) — see `goal.md`.
 
-| Until on disk | Who evaluates | When met |
-|---|---|---|
-| Default P0/P1×2 form | Phase 3 rule 3 **and** outer host re-check (rule 4 suppressed) | zero open P0/P1 + streak ≥ 2 + **current-cycle** green |
-| Custom non-empty string | **Outer host only** (goal turn or S8) — not Phase 3 | until text vs disk + current-cycle PASS |
-| `none` / absent (once) | Phase 3 rule 4 empty-backlog path | backlog empty + current-cycle green |
-
-Host-goal campaigns **must not** skip custom-until evaluation; ignoring it until max_cycles
-is the same defect class as S8-only evaluation (see quality-review learnings).
-
-**State handoff:** improve S0 parse (or goal seed) → write mode/until/max_cycles to
-header+Driver → each outer turn runs one improve-loop (disk only) → outer host re-reads
-Status/streak/until → on stop, S11–S13 if worktree (improve driver) or equivalent teardown.
+**State handoff:** write mode/until/max_cycles to header+Driver at campaign start → each outer
+turn runs one L2 cycle (disk only) → outer host re-reads Status/streak/until → on stop,
+merge-back/teardown (B L1) or S11–S13 (improve host).
 
 ## Claude Craft notes (adapter)
 
-- Plugin invokes: `/claudecraft:improve-loop` (one cycle), `/claudecraft:improve` (continuous).  
-- Clear target without “until …” → continuous + default until above (parse.md).  
-- Multi-cycle without the driver: bind a **host goal** to the **same** until string on disk;
-  each goal turn rehydrates from disk, runs one improve-loop cycle, then evaluates until
-  (default streak or custom text) per `goal.md`.
+- Plugin: `/claudecraft:improve-loop` (B campaign or one-cycle packaging), `/claudecraft:improve`
+  (worktree continuous host).  
+- Clear target without “until …” → continuous + default until above.
 
 ## Grok / Codex notes (adapter)
 
-- Prefer host goal (`update_goal` / equivalent) or native `improve` driver loop in-process.  
+- Prefer B L1 `/improve` for autonomous campaigns; or host goal + improve worktree host.  
 - Worktree script is plain bash/git — callable from any harness.

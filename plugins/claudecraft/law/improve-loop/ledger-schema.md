@@ -17,7 +17,7 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 **Started:** <date>          **Status:** active | complete | stopped (<reason>)
 **Iteration counter:** N     <!-- sole live N; must match Last cycle **N:** after Phase 2 -->
 **Until:** <string|none>     <!-- continuous default: no material P0/P1 for 2 consecutive cycles (green tests) -->
-**Max cycles:** <n|none>     <!-- continuous default 10 -->
+**Max cycles:** <n|none>     <!-- continuous default 8 (B MAX_CYCLES / improve max_cycles) -->
 **Seed mode:** defect | product | mixed
 **Product residual survey:** pending | done | n/a (defect)
 **Plan tier:** 0 | 0p | 1 | 2

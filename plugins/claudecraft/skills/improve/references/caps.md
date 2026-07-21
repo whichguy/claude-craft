@@ -2,7 +2,7 @@
 
 | Cap | Stops | Default |
 |---|---|---|
-| `max_cycles` | S8 | 10 continuous / 1 once |
+| `max_cycles` | S8 | 8 continuous / 1 once |
 | `max_elapsed` | S8 (wall clock of inner loop, not reintegrate) | unset |
 | token / usd budget | S8 | unset (host may still cap) |
 | improve-loop Status | S8 | complete / stopped (…) |
@@ -48,7 +48,7 @@ ledger until + mode (canonical default string shared with parse/Phase 0), then
 6. Else continue S8 (another improve-loop cycle).
 
 **`max_cycles` vs `cycle_index`:** Driver `cycle_index` starts at 0; before each cycle if
-`cycle_index >= max_cycles` stop; else increment then run (so max_cycles=10 runs 10 cycles).
+`cycle_index >= max_cycles` stop; else increment then run (so max_cycles=8 runs 8 cycles).
 
 ## Non-material streak (disk)
 

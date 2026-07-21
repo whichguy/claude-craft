@@ -7,16 +7,21 @@ description: >-
   one-shot only → improve-loop skill instead.
 ---
 
-# Improve (continuous driver)
+# Improve (continuous host — thin alias)
 
-Multi-cycle driver. **Atomic unit:** improve-loop (one cycle).  
-**This skill owns** parse, worktree, caps, reintegrate, destroy (S0–S13).
+Multi-cycle **host** for improve-loop. **Atomic unit:** one improve-loop cycle (L2).  
+**Campaign-driver law** (when to loop, residual×2 complete, R8 continue) lives on the
+**improve-loop B monolith** L1 (`skills/improve-loop/SKILL.md` § Campaign architecture) —
+this skill does **not** invent a second complete-driver law.
+
+**This skill owns** parse, worktree lifecycle, caps scaffolding, reintegrate, destroy (S0–S13).  
+Default continuous cap: **`max_cycles` 8** (aligned with B `MAX_CYCLES`).
 
 **Automation:** take the most appropriate **safe** path by default; stop only when unable to
 progress. **Resume:** every turn rehydrate from `IMPROVE_LOOP.md` (`## Driver`) +
 `.git/improve-runs/*.json` + git — never from chat alone (see Phase 0 rehydration).
 
-Normative cycle law: `../../law/improve-loop/operator-card.md` + its `references/`.  
+Normative cycle law: `../../law/improve-loop/` (operator-card + phases/contracts).  
 Portable continuous objective: `../../law/improve-loop/contracts/goal.md`.
 
 ## When to use which
@@ -49,7 +54,7 @@ S12 destroy       →  remove worktree when tip_on_launch
 
 Read `references/parse.md`. Extract repo, target, tests, until, mode, worktree, caps.  
 **Defaults:** clear target → **continuous**; continuous until unset (no criteria specified) →  
-`no material P0/P1 for 2 consecutive cycles (green tests)`; max_cycles 10.  
+`no material P0/P1 for 2 consecutive cycles (green tests)`; max_cycles **8**.  
 **No-criteria stop:** completion requires two consecutive non-material green cycles
 (Phase 3 rule 3 / streak ≥ 2). Empty P0/P1 backlog after one cycle is **not** enough —
 rule 4 empty-backlog complete is suppressed under this default.  
@@ -113,11 +118,11 @@ While Status active and under caps (break order in caps.md):
    **or** custom until met per caps.md; or Status complete), break (then S9–S12 — do not skip
    reintegrate while a worktree exists).
 
-**Goal host (preferred multi-cycle host):** if the harness has a goal facility, bind it per
-`../../law/improve-loop/contracts/goal.md` — the goal **iterates** (each turn runs one
-improve-loop cycle) with the same stop predicate; use `goal.report` for pulses; still
-perform S11–S12 yourself. If no goal facility, this native S8 loop **is** the outer loop and
-pulses are user-visible markdown. Do not require a Stop-hook re-invoke plugin.
+**Outer multi-cycle:** prefer **improve-loop B L1** autonomous campaign when the user invokes
+`/improve` on the B skill. This skill’s S8 loop is an alternate continuous host (worktree +
+caps) that still runs **one improve-loop cycle per iteration**. Optional host **goal**: bind
+per `../../law/improve-loop/contracts/goal.md` for `goal.report` pulses; still perform
+S11–S12 yourself. Do not require a Stop-hook re-invoke plugin.
 
 ### S9–S10 — Stop + ledger
 
