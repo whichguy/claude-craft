@@ -235,6 +235,19 @@ Elaborate planning without Spec Kit dependency. Summary of **PLAN_*** contracts:
 | **PLAN_ORIENT** | Tab-switch mid-cycle orientation: long-phase triplet, `(cont)` heartbeat, `· on:` footer |
 | **PLAN_APPLY** | Multi-line contiguous blocks; complete = delete title+clauses; `backlog-blocks.js` |
 | **PLAN_CLASSIFY** | promote / keep P2 / waive + Notes `classify: …` |
+| **PLAN_BACKCHAIN** | After scoped seed (or multi-item replan), optional Backchain enrich for deps/order — soft; never residual×2 gate; **improve-loop only** (not review-suite / planning-suite) |
+
+**PLAN_BACKCHAIN (runtime summary):** When fire conditions hold — cold-start seed **or**
+resume/rewrite with open material P0/P1 **≥ 2** and no greppable `backchain: order …` Note
+yet — and the external **Backchain** skill is available, run step `0-backchain` **before**
+Phase 1 select: sparse seed (no list-order edges) → elaborator → classify each
+discovered/unresolved as `promote|keep P2|waive` → Notes
+`backchain: ran|skip|unavailable · edges=N · discovered=M · unresolved=U` and optional
+`backchain: order S…→S…`. Skip residual-only, validate-fix-only, open &lt; 2, `BACKCHAIN=0` /
+`--no-backchain`, or missing Backchain. Discovered steps **never** auto-enter Backlog without
+promote. Mid-campaign `3-backchain` **when** multi-item material replan candidates exist
+(before open-only strips / surgical apply). Soft-fail only — never blocks residual×2. Law
+detail: A `contracts/planning.md` § PLAN_BACKCHAIN.
 
 **Plan tiers:** T0 (defect residual thin cold-start), T0p (product post-scan empty promote), T2 (promote-class or `--plan-deep`), T1 (mid-campaign replan). Mid-campaign residual×2 may empty open P0/P1 (H11).
 
@@ -782,9 +795,10 @@ When entering a phase (or a Phase 0 short-circuit branch), print **one** short l
 
 **One banner dialect only** (PLAN_SPEC_STATUS). Include `cycle K/MAX` once L1 has a cycle
 count (omit on pure Phase-0 setup before the first L2 cycle starts). Print `iter N` when
-ledger counter exists. Step ids: `0-resume` · `1-execute` · `2-learn` · `3-replan` ·
-`3-apply` · `3-spec-sync` · `3v-prove` · `4-commit` · `5-signal`. `(from <prev-id>)`
-required entering `3-spec-sync`, `3v-prove`, `5-signal`. Examples:
+ledger counter exists. Step ids: `0-resume` · `0-backchain` · `1-execute` · `2-learn` ·
+`3-replan` · `3-backchain` · `3-apply` · `3-spec-sync` · `3v-prove` · `4-commit` ·
+`5-signal`. `(from <prev-id>)` required entering `3-spec-sync`, `3v-prove`, `5-signal`.
+Examples:
 
 ```text
 ▸ improve · Phase 0 · 0-resume · cold-start worktree improve/backchain-skill-…-a1b2c3
@@ -1110,6 +1124,7 @@ Also: `/improve-loop`, `/claudecraft:improve-loop` (plugin namespace). Examples:
 | `--once` / `once` / “single cycle” / “one cycle only” | Cycle mode `once` |
 | `--product` / `--ux` / words `product`, `ux`, `integration`, `roadmap` | `SEED_MODE=product` |
 | `defect only` / `residual only` / `defect-mode` | Force `SEED_MODE=defect` (even for skills) |
+| `--no-backchain` / env `BACKCHAIN=0` | Skip PLAN_BACKCHAIN enrich this invoke (prose order only) |
 
 Cap override: env `IMPROVE_LOOP_MAX_CYCLES` (positive int; default 8). Test command: reuse from
 invocation, goal objective, pointer, or existing ledger. If still missing — **interactive:**
@@ -1633,6 +1648,15 @@ header counter ≥ that N → delete `## Log` → Notes `legacy Log collapsed to
    streak only from the **live ledger** on `--resume` of *this* worktree (step 3).
    Set `N = 1`. Skip 3a–4; go to step 5.
 
+   **`0-backchain` (PLAN_BACKCHAIN — after seed, before Phase 1):** when open material
+   P0/P1 count ≥ 2 and Backchain is available (not residual-only T0 single line; not
+   `BACKCHAIN=0` / `--no-backchain`), enrich the scoped brief+Backlog via the external
+   Backchain skill: adapter (sparse `inputs`, never list-order edges) → elaborator →
+   classify discovered/unresolved (`promote|keep P2|waive`) → write greppable order Notes.
+   Soft-skip if unavailable: Notes `backchain: unavailable — prose order only`. Optional
+   artifacts under `$WORKSPACE/.improve-loop/backchain/` (do not product-land). Does **not**
+   replace residual discipline or auto-expand scope. Banner step id: `0-backchain`.
+
    If mode is **`--resume`** and ledger is absent after terminal land on **this** worktree:
    merge-back-only / stop (true same-campaign recovery).
 
@@ -1795,6 +1819,14 @@ header counter ≥ that N → delete `## Log` → Notes `legacy Log collapsed to
    Pass paths or pointers into agents rather than inlining a large log dump; the digest
    itself is small enough to pass as a compact summary.
 
+   **`0-backchain` multi-path (before Phase 1 select):** also run `0-backchain` **once** this
+   turn when (a) this cycle will enter Phase 1 select (not residual-only / empty-execute);
+   (b) open material P0/P1 ≥ 2; (c) no greppable Notes `backchain: order …` yet **or** the
+   multi-item open set was just rewritten without re-enrich; (d) not skipped (`BACKCHAIN=0`
+   / `--no-backchain` / Notes `backchain: skip` / Backchain unavailable — soft Notes). Resume
+   with multi-item open **and** an existing order Note need not re-run. Same enrich contract
+   as cold-start `0-backchain`. Soft only — never residual×2 gate; never auto-open discoveries.
+
 ### Phase 1 — Execute
 
 **PLAN_ORIENT:** on entry emit orientation triplet; re-banner `(cont)` after substantial
@@ -1811,6 +1843,11 @@ item whose id/title matches `<id>` or the habitat Unknown investigation.
 is not on disk, select the open test-authoring item for `V<k>` first (T0 may skip).
 **Pure-test:** `confirmed` when artifact exists + quarantine-respecting suite green.
 **`validate V<k>`:** may fix product **or** proof.
+
+**PLAN_BACKCHAIN order (soft):** when Last cycle / seed Notes include `backchain: order …`,
+among remaining open P0/P1 prefer an item with no open supplier in that order, else the
+earliest open supplier. Never invent items for order. RUNTIME_CONTRACT investigation and
+R2 still outrank.
 
 If any
 legacy `- [x]` line still appears in Backlog, strip it first (memory is git digest) and do
@@ -2246,6 +2283,14 @@ Apply surgically and natively **in this order** (after strips/guards — PLAN_SP
 Advisors recommend deltas, never whole-file rewrite. Never ask an advisor or fallback
 replanner to rewrite the whole file; that can clobber deterministic counters and
 **## Last cycle** / stop tracking.
+
+**`3-backchain` (PLAN_BACKCHAIN — when fire conditions):** when the candidate open material
+P0/P1 count is ≥ 2 (not residual-only / not validate-fix-only) and Backchain is available
+(not `BACKCHAIN=0` / `--no-backchain` / Notes `backchain: skip`), run the same enrich as
+`0-backchain` on the **candidate** Backlog body **before** open-only strips and surgical
+apply: sparse seed → elaborator → classify discoveries (`promote|keep P2|waive`) → write
+order Notes. Soft-skip if unavailable. Never auto-open discoveries; never residual×2 gate.
+Banner step id: `3-backchain`.
 
 **Open-only + anti-reseed strip (native, before surgical apply).** Before applying:
 

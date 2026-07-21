@@ -120,6 +120,13 @@ Then continue with the numbered steps below.
    `**Product residual survey:** pending|done|n/a (defect)`;
    `**Habitat claimed:** yes|no`; `**T2 challenge:**` when tier 2 (may fill after first replan).
 
+   **`0-backchain` (PLAN_BACKCHAIN — after seed, before Phase 1):** when open material
+   P0/P1 ≥ 2 and Backchain is available (and not skipped — see `contracts/planning.md`
+   PLAN_BACKCHAIN), enrich the just-scoped brief+Backlog: sparse seed → elaborator →
+   classify discovered/unresolved as `promote | keep P2 | waive` → write greppable order
+   Notes. Soft-skip if unavailable. Does not replace residual discipline or auto-expand
+   scope. Banner step id: `0-backchain`.
+
    **PLAN_VALIDATE (HYBRID spine):** after applied work-spec (brief + Backlog), **derive**
    `## Spec validation` from plan anchors when tier is T2 / design-change / `--plan-deep`
    (**required** — primary path). T0 may omit (vacuous 3v pass). Set header
@@ -279,6 +286,16 @@ Then continue with the numbered steps below.
 
    Pass paths or pointers into agents rather than inlining a large log dump; the digest
    itself is small enough to pass as a compact summary.
+
+7b. **`0-backchain` multi-path (PLAN_BACKCHAIN — before Phase 1 select):** in addition to
+   the cold-start seed hook above, run `0-backchain` **once** this turn when **all** hold:
+   (a) this cycle will enter Phase 1 select (not residual-only / empty-execute); (b) open
+   material P0/P1 count ≥ 2; (c) no greppable campaign Notes line `backchain: order …` yet
+   **or** open multi-item set was just rewritten this turn without re-enrich; (d) not skipped
+   (`BACKCHAIN=0` / `--no-backchain` / Notes `backchain: skip` / Backchain unavailable —
+   soft Notes then). Resume with multi-item open **and** an existing order Note need not
+   re-run. Same enrich contract as cold-start seed `0-backchain` / `contracts/planning.md`
+   § PLAN_BACKCHAIN. Soft only — never residual×2 / Status gate; never auto-open discoveries.
 
 8. **Host continuous context (optional).** If this turn is under a host **goal** or the
    **`improve` driver**, note available caps (goal max-turns/budget; improve `max_cycles` /

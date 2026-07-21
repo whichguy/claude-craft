@@ -390,6 +390,18 @@ const improvePlanningUserOnly = [
   ['R9 streak hold without attestation', /honest-empty missing — streak held/],
   ['R9 decompose-not-defer', /decompose-not-defer|Decompose-not-defer/],
   ['R9 weakness bar weak enum', /weak:<out-of-scope|weak:out-of-scope|weakness bar/i],
+  ['PLAN_BACKCHAIN token', /PLAN_BACKCHAIN/],
+  ['PLAN_BACKCHAIN 0-backchain', /0-backchain/],
+  ['PLAN_BACKCHAIN 3-backchain', /3-backchain/],
+  [
+    'PLAN_BACKCHAIN soft not residual',
+    /never blocks residual|not a residual×2|never residual×2 gate|never a residual×2/i,
+  ],
+  [
+    'PLAN_BACKCHAIN no auto-open',
+    /never auto-enter Backlog|Never auto-open|never auto-open discoveries/i,
+  ],
+  ['PLAN_BACKCHAIN opt-out', /--no-backchain|BACKCHAIN=0/],
   ['plan tiers T0 T0p T2', /\bT0p\b|Plan tier|plan tier/i],
   ['product residual survey header', /Product residual survey/i],
   ['product residual criteria trail', /criteria:|Criteria trail/i],

@@ -14,6 +14,12 @@ and that V-row’s Proof artifact is **not on disk**, select the open test-autho
 `V<k>` first (T0 exploratory may skip). Prefer quarantined proof tests so default suite stays
 green (`contracts/planning.md` quarantine).
 
+**PLAN_BACKCHAIN order (soft, after R2 / runtime investigation priority):** when this
+campaign’s ledger Notes include a `backchain: order …` line (from `0-backchain` /
+`3-backchain`), among remaining open P0/P1 prefer an item with no open supplier in that
+order, else the earliest open supplier. Never invent items solely for order. R2 and
+PLAN_RUNTIME_CONTRACT investigation select still outrank.
+
 **Pure-test items:** Outcome `confirmed` when the artifact exists, parses/runs, and the
 **quarantine-respecting** suite is green — deliberate red proof status is expected and
 Notes-only, not `failed` (U-new-3).

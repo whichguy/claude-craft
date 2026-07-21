@@ -36,8 +36,48 @@ Planning-owned pins → section anchors (law lives in those sections, not here):
 | **PLAN_CLASSIFY** | Promote-class (classify table) |
 | **PLAN_CRITERIA** | PLAN_CRITERIA — orchestrator preflight |
 | **PLAN_RUNTIME_CONTRACT** | PLAN_RUNTIME_CONTRACT |
+| **PLAN_BACKCHAIN** | Post-seed dependency enrich (this file § PLAN_BACKCHAIN) |
 
 **Defined elsewhere (not law in this file):** `PLAN_SPEC_STATUS` · `PLAN_ORIENT` · `PLAN_PROGRESS_ALIGN` → `contracts/progress.md` (+ phase files). `PLAN_T2_CHALLENGE` · `PLAN_HABITAT_META` → package B/M runtime monolith (`SKILL.md` Planning contracts / seed / habitat — not in A `references/`). Verify homes with `rg` under `references/` and B `SKILL.md` when editing.
+
+### PLAN_BACKCHAIN (improve-loop only — soft enrich)
+
+**Scope:** improve-loop campaign planning only. Does **not** wire review-suite, planning-suite,
+or ExitPlanMode. Calls the external **Backchain** skill when available; never a residual×2 /
+Status gate.
+
+**When (primary — fire conditions):** after cold-start, or any path that **just** wrote /
+rewrote a multi-item open material Backlog, or resume with open material ≥ 2 and **no**
+greppable campaign `backchain: order …` Note yet — **before** Phase 1 select — step id
+`0-backchain`. Resume with multi-item open **and** an existing order Note need not re-run.
+
+**When (secondary — fire conditions):** Phase 3 material replan after Consolidation produces
+a candidate Backlog with open material ≥ 2, **before** open-only strips and surgical apply —
+step id `3-backchain`. Run when those conditions hold (soft-skip only on skip list below).
+
+**Skip when any:** residual-only / empty-execute; open material P0/P1 count &lt; 2; only open
+work is `validate V*` / write-section; T0 single residual-survey line; env `BACKCHAIN=0` or
+invoke `--no-backchain`; Backchain skill/repo unavailable; Notes `backchain: skip`.
+
+**Contract:**
+1. Live ledger Markdown remains authority (brief + Backlog). Backchain output is **advisory**
+   until each discovered/unresolved item is classified `promote | keep P2 | waive`
+   (PLAN_CLASSIFY). **Never auto-open** discovered steps into Backlog without promote.
+2. Adapter: each open P0/P1 → seed step `S*` with postcondition statement/produces;
+   `inputs` empty unless a dependency is **unambiguously** explicit in clause text.
+   **Never** convert backlog presentation order into seed edges (Backchain elaborator is
+   monotonic — wrong edges cannot be retracted).
+3. Prefer host Backchain install (`~/.claude/skills/backchain` / repo `harness/run-prompt.sh
+   --from-draft`) when present. Soft-fail: Notes
+   `backchain: unavailable — prose order only` and continue.
+4. Project: greppable Notes
+   `backchain: ran|skip|unavailable · edges=N · discovered=M · unresolved=U`
+   plus optional order line `backchain: order S…→S…`. Optional artifacts under
+   `$WORKSPACE/.improve-loop/backchain/` (not product-landed).
+5. Phase 1 selection: after PLAN_RUNTIME_CONTRACT and R2 mechanical, when a backchain order
+   exists this campaign, prefer an open item with no open supplier (or earliest supplier).
+   Do not invent fake P0/P1 for order. R2 / RUNTIME_CONTRACT still outrank order.
+6. soft≠seed applies: Backchain never alone seeds material, never alone blocks residual×2.
 
 ## Invariants
 
@@ -123,7 +163,8 @@ Do **not** add a second `## Work Spec` table. Do **not** freeze V-rows before ap
 5. Write brief + ## Spec validation + header flag when required (T2/design-change; optional T0)
    + Backlog + Deferred + Product residual survey header — forms: PLAN_BRIEF / PLAN_VALIDATE.
    Prefer test-authoring P1s for missing Proof artifacts before product P1s (R2)
-6. Phase 1 if selecting an open item (incl. residual investigation);
+6. 0-backchain when fire conditions (PLAN_BACKCHAIN) — soft; classify discoveries before promote
+7. Phase 1 if selecting an open item (incl. residual investigation);
    residual-only cycle only when open count = 0
 ```
 

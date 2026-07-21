@@ -151,6 +151,17 @@ Apply it surgically and natively: replace only the `## Backlog` body through the
 `## ` heading in `IMPROVE_LOOP.md`. Never ask an advisor or fallback replanner to rewrite
 the whole file; that can clobber deterministic counters and **## Last cycle** and stop counters.
 
+**`3-backchain` (PLAN_BACKCHAIN — when fire conditions, before open-only strips / surgical
+apply):** when the **candidate** open material P0/P1 count is ≥ 2 (not residual-only; not
+validate-fix-only) and Backchain is available (not `BACKCHAIN=0` / `--no-backchain` /
+Notes `backchain: skip`), run the same enrich as `0-backchain` on the **candidate** Backlog
+body **before** open-only strips and surgical apply: sparse seed (no list-order edges) →
+elaborator → classify each discovered/unresolved as `promote | keep P2 | waive` → write
+greppable order Notes (`backchain: ran|skip|unavailable · …` and optional
+`backchain: order …`). Soft-skip if unavailable (`backchain: unavailable — prose order only`).
+Never auto-open discoveries without promote; never a residual×2 / Status gate. Banner step
+id: `3-backchain`. See `contracts/planning.md` § PLAN_BACKCHAIN.
+
 **Disproven-thesis guard (native, before the surgical apply).** Before applying the
 candidate Backlog, the orchestrator — the LLM context running this phase, not a subagent —
 runs these native steps so the loop does not burn cycles re-trying approaches already shown
