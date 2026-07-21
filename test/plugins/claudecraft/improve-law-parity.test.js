@@ -98,6 +98,10 @@ const CANONICAL = [
     id: 'validate-fix-cycle',
     phrase: 'Validate-fix cycle',
   },
+  {
+    id: 'validate-fix-no-in-gate-loop',
+    phrase: 'in-gate fix/re-prove loop',
+  },
 ];
 
 describe('claudecraft improve-loop A↔B law phrase parity', function () {

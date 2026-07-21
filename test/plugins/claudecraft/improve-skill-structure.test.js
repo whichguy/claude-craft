@@ -628,20 +628,6 @@ describe('claudecraft improve skill structure', function () {
     expect(p3v).to.match(/never.*L1 exit reason|never a terminal Status/i);
     expect(p3v).to.match(/validate V</);
     expect(p3v).to.match(/fix target: product/);
-    // Fable-B+: validate-fix lint cycle (next L2 after 3v seed — not in-gate retry)
-    expect(planning).to.match(/Validate-fix cycle/);
-    expect(planning).to.match(/skills\/improve\/references\/throttle\.md|throttle\.md/);
-    expect(p3v).to.match(/Validate-fix cycle/);
-    expect(p3v).to.match(/not.*in-gate fix|not an in-gate/i);
-    expect(skill).to.match(/Validate-fix cycle/);
-    const throttle = fs.readFileSync(
-      path.join(CC, 'skills/improve/references/throttle.md'),
-      'utf8'
-    );
-    expect(throttle).to.match(/Validate-fix cycle exception|Validate-fix cycle/i);
-    expect(throttle).to.match(/Native 5-block surgical|native 5-block surgical/i);
-    expect(throttle).to.match(/full panel every 3rd|defer.*full panel|periodic full-panel/i);
-    expect(throttle).to.match(/Fall-through|fall through/i);
 
     // Unintended-change check-in (Preserve / regression / scope)
     expect(planning).to.match(/Unintended-change check-in/i);
@@ -759,6 +745,82 @@ describe('claudecraft improve skill structure', function () {
     expect(planning).to.match(/\bhabitat\b/);
     expect(planning).to.match(/softCheck|PLAN_SPEC_SOFT/);
     expect(planning).to.match(/never auto-seed|never seeds backlog/i);
+  });
+
+  /**
+   * Fable-B+ Validate-fix cycle — anchors the compromise done-when checklist
+   * (Codex + Fable) so the Spec-linter product model cannot silently regress.
+   */
+  it('Validate-fix cycle: Fable-B+ done-when anchors (eligibility, ownership, no in-gate loop)', function () {
+    const planning = fs.readFileSync(
+      path.join(CC, 'law/improve-loop/contracts/planning.md'),
+      'utf8'
+    );
+    const p3v = fs.readFileSync(
+      path.join(CC, 'law/improve-loop/phase-3v-validate.md'),
+      'utf8'
+    );
+    const skill = fs.readFileSync(path.join(CC, 'skills/improve-loop/SKILL.md'), 'utf8');
+    const throttle = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/throttle.md'),
+      'utf8'
+    );
+
+    // 1. Named cycle + eligibility (starting open queue = only 3v seeds)
+    expect(planning).to.match(/### Validate-fix cycle/);
+    expect(planning).to.match(/at\s+\*\*cycle start\*\*|when \*\*at\s+cycle start\*\*/i);
+    expect(planning).to.match(/validate V<k>:/);
+    expect(planning).to.match(/write-section/);
+    expect(planning).to.match(/product residual survey is not pending|product residual survey/);
+
+    // 2. Ordinary L2 machinery — not an inner prove campaign
+    expect(planning).to.match(/Phases 0–5|full Phases 0/);
+    expect(planning).to.match(/Phase 1 executes/);
+    expect(planning).to.match(/Phase 2 counters/);
+    expect(planning).to.match(/Phase 4 one commit|Phase 4/);
+    expect(planning).to.match(/3v re-proves|re-proves/);
+    expect(planning).to.match(/No same-cycle fix inside the prove gate|same-cycle fix inside/);
+    expect(p3v).to.match(/not an in-gate fix\/re-prove loop|in-gate fix/);
+    expect(skill).to.match(/not an in-gate fix\/re-prove loop|in-gate fix/);
+
+    // 3. A throttle owns cadence exception; planning cites only
+    expect(planning).to.match(/skills\/improve\/references\/throttle\.md/);
+    expect(planning).to.match(/does \*\*not\*\* override A cadence|do not override/);
+    expect(throttle).to.match(/Validate-fix cycle exception/);
+    expect(throttle).to.match(/\*\*Owner:\*\*|Owner:/);
+    expect(throttle).to.match(/Native 5-block surgical replan only|native 5-block surgical/i);
+    expect(throttle).to.match(/full panel every 3rd cycle/);
+    expect(throttle).to.match(/Phase 1 executes the seeded item/);
+    expect(throttle).to.match(/Phase 2 counters/);
+    expect(throttle).to.match(/Phase 4 one commit/);
+    expect(throttle).to.match(/no\*\* same-cycle fix|no same-cycle fix/i);
+
+    // 4. Fall-through when new material appears
+    expect(planning).to.match(/\*\*Fall-through:\*\*|Fall-through/);
+    expect(planning).to.match(/promote-class|non-validation open/);
+    expect(throttle).to.match(/Fall-through \(restore default|Fall-through/);
+    expect(p3v).to.match(/Fall through to ordinary replan|Fall through/);
+    expect(skill).to.match(/Fall through to ordinary replan|Fall through/);
+
+    // 5. B runtime mirror (R8 + advisor throttle)
+    expect(skill).to.match(/Validate-fix cycle/);
+    expect(skill).to.match(/native 5-block surgical|T1 native-only/i);
+    expect(skill).to.match(/skills\/improve\/references\/throttle\.md/);
+    expect(p3v).to.match(/Validate-fix cycle/);
+    expect(p3v).to.match(/skills\/improve\/references\/throttle\.md/);
+
+    // 6. PLAN_SPEC_SYNC still excludes validate-seed lifecycle (anti-thrash)
+    expect(planning).to.match(/Excluded from triggers/);
+    expect(planning).to.match(/validate V<k>[\s\S]{0,80}any lifecycle|any lifecycle[\s\S]{0,40}validate V/i);
+    expect(skill).to.match(/validate V<k> lifecycle|Exclude residual-thin and `validate V/i);
+
+    // 7. R7 sole complete preserved (all-V-pass never complete)
+    expect(planning).to.match(/never “all V pass ⇒ complete” alone|sole Status complete/i);
+    expect(skill).to.match(/never “all V pass ⇒ complete” alone|R7 sole complete/i);
+
+    // 8. Anti-goals still encoded (no soft auto-seed; R8 continue)
+    expect(planning).to.match(/Never auto-seed backlog|never auto-seed/i);
+    expect(p3v).to.match(/must\s+immediately\*\* start the next L2|must immediately start the next L2/i);
   });
 
   it('dirty launch bootstraps worktree carry+drain instead of hard-stop only', function () {
