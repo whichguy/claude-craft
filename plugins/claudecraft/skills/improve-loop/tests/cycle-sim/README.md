@@ -3,6 +3,17 @@
 Isolated under `tests/cycle-sim/` so it does **not** alter campaign scripts,
 law docs, or package required-file lists until you graduate pieces deliberately.
 
+**Boundary (read this first):** cycle-sim pins **decision law** (Phase-2 counters, R9,
+complete-gate, stop-decision) on fixtures. It does **not** replace real testee suite
+diagnostics. For campaign habits on the product repo under `/improve` (Expected effects,
+CLASS, durable carriers, honest-empty hard stop), use:
+
+→ **[`docs/improve-loop-testee-operator-card.md`](../../../../../../docs/improve-loop-testee-operator-card.md)**  
+  (repo root: `docs/improve-loop-testee-operator-card.md`)
+
+Paste that card into the campaign seed Brief; do not treat a green cycle-sim run as
+“testee quality solved.”
+
 ## What this is
 
 A **repeatable, hermetic** simulator of one improve-loop cycle (or a short

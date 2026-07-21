@@ -28,6 +28,11 @@ node tests/cycle-sim/run.js
 
 See `tests/cycle-sim/README.md`.
 
+**Real campaigns (testee truth):** hermetic banks above never substitute for the
+[testee operator card](../../../../../../docs/improve-loop-testee-operator-card.md)
+(`docs/improve-loop-testee-operator-card.md` at repo root) — Expected effects, suite
+delta, CLASS → backlog on the **product** under improve.
+
 ### Behavioral-pin inventory (post planning-doc arc)
 
 | Fable ask | Pin home | Still open |

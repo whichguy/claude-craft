@@ -7,7 +7,7 @@
 `~/.grok/skills/advisors/runs/20260721T160929Z-1774/final.md`  
 **Fable final plan:** session plan 2026-07-21 — adopt as habit; pin law only after retro proves need.
 
-**Related (different layer):** `plugins/claudecraft/skills/improve-loop/tests/cycle-sim/` is an API-free **law-sim** for Phase-2 / R9 / complete-gate / stop-decision. It does **not** replace this card or prove real testee quality.
+**Related (different layer):** `plugins/claudecraft/skills/improve-loop/tests/cycle-sim/` is an API-free **law-sim** for Phase-2 / R9 / complete-gate / stop-decision. It does **not** replace this card or prove real testee quality. See also that directory’s README boundary section and `docs/campaigns/SEED_BRIEF.template.md` for paste-ready campaign seeds.
 
 ---
 
