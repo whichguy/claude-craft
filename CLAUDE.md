@@ -36,7 +36,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | slides-suite     | reveal.js + Google Slides decks |
 | comms            | Slack tagging |
 | form990          | IRS Form 990 (deps: review-bench) |
-| claudecraft      | Autonomous improve campaign (`/improve` / improve-loop): open-only P0/P1 backlog, residual×2 complete, git commit-body learnings digest (Thesis/Outcome/What landed → anti-reseed), multi-model replan, ambient launch dirt, live reasoning trail |
+| claudecraft      | Campaign-default improve (`/improve` = B L1 multi-cycle): residual×2 complete, git learnings digest, multi-model replan; law corpus at `law/improve-loop/`; thin `improve` host (worktree/parse). Optional host goal observability |
 | c-thru           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM (source: git-subdir from whichguy/c-thru; requires install.sh first) |
 
 Cross-plugin dep DAG: `gas-suite → review-suite`, `review-suite → wiki-suite`, `review-bench → review-suite`, `form990 → review-bench`. Declared in each plugin's `plugin.json#dependencies`.
