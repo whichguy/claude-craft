@@ -1959,6 +1959,16 @@ set -e
 assert "absent peer soft-skip exit 0" test "$PAR_ABSENT_EC" -eq 0
 assert "absent peer skipped true" grep -q '"skipped": true' "$TMP/parity-absent-out.txt"
 
+
+# --- scenario harness smokes (testee fixture; not agent campaign) ---
+SCEN_ROOT="$ROOT/tests/scenarios"
+assert "scenario run-scenario.sh exists" test -f "$SCEN_ROOT/run-scenario.sh"
+assert "scenario validate-outcome.js exists" test -f "$SCEN_ROOT/validate-outcome.js"
+bash "$SCEN_ROOT/run-scenario.sh" --scenario greeter-bug --smoke-seed
+assert "scenario greeter-bug smoke-seed" true
+bash "$SCEN_ROOT/run-scenario.sh" --scenario greeter-bug --smoke-fixed
+assert "scenario greeter-bug smoke-fixed" true
+
 echo "---"
 echo "passed=$pass failed=$fail"
 [[ "$fail" -eq 0 ]]

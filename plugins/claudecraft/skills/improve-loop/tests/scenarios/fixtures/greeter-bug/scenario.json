@@ -1,0 +1,28 @@
+{
+  "id": "greeter-bug",
+  "description": "Fix greet() so suite goes red→green; residual×2 with honest-empty; operator-card diagnostics",
+  "max_cycles": 4,
+  "mode": "continuous",
+  "until": "no material P0/P1 for 2 consecutive cycles (green tests)",
+  "test_command": "node --test test/greeter.test.js",
+  "seed_mode": "defect",
+  "operator_card": true,
+  "expected_effects": {
+    "must_now_pass": ["greets by name"],
+    "must_stay_true": ["greets with non-empty name still runs"],
+    "must_not_change": ["no new package.json dependencies"]
+  },
+  "oracle": {
+    "final_status": "complete",
+    "suite_exit": 0,
+    "min_non_material_streak": 2,
+    "open_p0_p1": 0,
+    "require_honest_empty_attests": 2,
+    "src_must_match": "Hello,\\s*\\$\\{name\\}|Hello,\\s*['\"].*name|Hello,\\s*\\+|`Hello,\\s*\\$\\{",
+    "src_file": "src/greeter.js",
+    "src_must_not_equal_literal": "return 'Hello';",
+    "forbidden_path_globs": [],
+    "seed_suite_must_fail": true,
+    "require_class_in_commits_or_ledger": true
+  }
+}

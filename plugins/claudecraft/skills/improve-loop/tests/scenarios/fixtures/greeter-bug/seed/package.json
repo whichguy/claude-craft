@@ -1,0 +1,9 @@
+{
+  "name": "greeter-bug-testee",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Isolated improve-loop scenario fixture — intentional greeter bug",
+  "scripts": {
+    "test": "node --test test/greeter.test.js"
+  }
+}
