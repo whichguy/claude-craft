@@ -628,6 +628,20 @@ describe('claudecraft improve skill structure', function () {
     expect(p3v).to.match(/never.*L1 exit reason|never a terminal Status/i);
     expect(p3v).to.match(/validate V</);
     expect(p3v).to.match(/fix target: product/);
+    // Fable-B+: validate-fix lint cycle (next L2 after 3v seed — not in-gate retry)
+    expect(planning).to.match(/Validate-fix cycle/);
+    expect(planning).to.match(/skills\/improve\/references\/throttle\.md|throttle\.md/);
+    expect(p3v).to.match(/Validate-fix cycle/);
+    expect(p3v).to.match(/not.*in-gate fix|not an in-gate/i);
+    expect(skill).to.match(/Validate-fix cycle/);
+    const throttle = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/throttle.md'),
+      'utf8'
+    );
+    expect(throttle).to.match(/Validate-fix cycle exception|Validate-fix cycle/i);
+    expect(throttle).to.match(/Native 5-block surgical|native 5-block surgical/i);
+    expect(throttle).to.match(/full panel every 3rd|defer.*full panel|periodic full-panel/i);
+    expect(throttle).to.match(/Fall-through|fall through/i);
 
     // Unintended-change check-in (Preserve / regression / scope)
     expect(planning).to.match(/Unintended-change check-in/i);

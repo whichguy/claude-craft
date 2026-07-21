@@ -93,6 +93,11 @@ const CANONICAL = [
     id: 'max-cycles-default-8',
     phrase: 'default **8**',
   },
+  // Fable-B+ validate-fix lint cycle (A definition + B R8 mirror)
+  {
+    id: 'validate-fix-cycle',
+    phrase: 'Validate-fix cycle',
+  },
 ];
 
 describe('claudecraft improve-loop A↔B law phrase parity', function () {

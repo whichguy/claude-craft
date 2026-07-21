@@ -431,6 +431,29 @@ Apply work-spec revisions **before** PLAN_SPEC_SYNC.
 | **A** | Continuous driver `throttle.md` (full panel every **3rd** cycle or stall) — cite, do not override here |
 | **B** | Residual/T0/T0p/T1: **native-only**. Full panel only T2 / `--plan-deep` / stall / disagreement. No periodic K this arc |
 
+### Validate-fix cycle (lint intensity — definition only)
+
+**Validate-fix cycle** — the next ordinary L2 cycle after Phase 3v seeds work, when **at
+cycle start** every open P0/P1 is 3v-seeded (`validate V<k>:` title token **or** write-section
+item for missing Spec), **and** product residual survey is not pending, **and** no other
+material plan divergence is open.
+
+**Not** an inner 3v retry or second campaign: still full Phases 0–5 (Phase 1 executes the
+seeded item; Phase 2 counters; Phase 4 one commit; 3v re-proves). No same-cycle fix inside
+the prove gate.
+
+**Replan intensity (authoritative homes):**
+- **Package A:** continuous driver `skills/improve/references/throttle.md` owns the exception
+  (native 5-block surgical; defer periodic full-panel cadence for that cycle only). This
+  contract does **not** override A cadence — cite throttle.md.
+- **Package B:** already T1 native-only; treat validate-fix as ordinary T1 (no escalation
+  solely because a narrow Proof failed).
+
+**Fall-through:** if the cycle surfaces concrete new material (promote-class gap, non-validation
+open P0/P1, stall/disagreement, product residual required), use ordinary tier/throttle rules.
+Stall / same-error / no-progress / hard-stop semantics unchanged. PLAN_SPEC_SYNC already
+excludes `validate V<k>` lifecycle from sync thrash (see Excluded from triggers above).
+
 Advisor input soft cap: open Backlog + ## Last cycle + compact COMPLETED/DISPROVEN sets + preflight.
 
 ## PLAN_SPEC_SOFT — soft layer (evidence that classifies, never gates)

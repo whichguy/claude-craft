@@ -94,6 +94,13 @@ After seeding, open P0/P1 > 0 → Status rules **cannot** set `complete` this cy
 
 In **autonomous** mode, after Phase 4 lands a cycle that 3v-seeded work, L1 **must
 immediately** start the next L2 cycle (do not ask the user, do not end the turn as done).
+That next L2 may be a **Validate-fix cycle** (lint intensity): ordinary Phases 0–5 with
+Phase 1 executing the seeded item — **not** an in-gate fix/re-prove loop and not a second
+campaign. Replan intensity for that cycle: native 5-block surgical / T1; package A defers
+periodic full-panel cadence per `skills/improve/references/throttle.md` (definition:
+`contracts/planning.md` § Validate-fix cycle). Fall through to ordinary replan if new
+material appears.
+
 Continue until:
 
 - header `**Spec validation:** pass` (or vacuous `n/a`) **and** residual×2 complete, **or**

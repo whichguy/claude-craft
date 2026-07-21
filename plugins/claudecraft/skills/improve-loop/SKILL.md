@@ -2119,7 +2119,9 @@ Notes / open **Next backlog** / **Next deferred**, plus **COMPLETED_SET** and
 Thesis/Outcome. Planning **must** use both the open work queue and git learnings metadata.
 Pass pointers and paths rather than inlining all content; each advisor has repository access.
 **Advisor throttle (B):** Residual / T0 / T0p / T1 steady cycles default to **native-replanner
-only** (same 5-block schema). On **T2** cold-start / `--plan-deep` / stall / disagreement:
+only** (same 5-block schema). **Validate-fix cycle** (only open work is 3v-seeded
+`validate V<k>` / write-section): treat as T1 native-only — no multi-model solely for a
+narrow Proof fail. On **T2** cold-start / `--plan-deep` / stall / disagreement:
 dispatch multi-model **when advisors are configured**; otherwise the **native 5-block is the
 T2 challenge** (PLAN_T2_CHALLENGE — required in Last cycle Notes). Soft input cap: open
 Backlog + Deferred + Campaign brief + ## Next + ## Last cycle + compact COMPLETED/DISPROVEN
@@ -2354,9 +2356,14 @@ multi-model advisors when only native ran.
 
 **R8 — never treat 3v fail as terminal:** Status stays `active` after seeds; in
 **autonomous** mode L1 **immediately** starts the next L2 cycle (do not ask the user, do not
-emit campaign “done”). Exit only when Spec validation pass/n/a **and** residual×2 complete,
-or hard stop. **`--once`:** seed + active + exit (operator re-invokes). Pulse/discovery
-**verbatim:** `Validation fail → seeded V… → continuing cycle K+1`.
+emit campaign “done”). That next L2 may be a **Validate-fix cycle** (lint intensity): ordinary
+Phases 0–5 with Phase 1 on the seeded item — **not** an in-gate fix/re-prove loop. Replan:
+native 5-block surgical / T1 (B already native-only for T1); do not escalate multi-model
+solely because a narrow Proof failed. Fall through to ordinary replan if new material appears.
+Law definition: A `contracts/planning.md` § Validate-fix cycle; package A continuous cadence
+exception: `skills/improve/references/throttle.md`. Exit only when Spec validation pass/n/a
+**and** residual×2 complete, or hard stop. **`--once`:** seed + active + exit (operator
+re-invokes). Pulse/discovery **verbatim:** `Validation fail → seeded V… → continuing cycle K+1`.
 
 Then update **residual streak** then Status *in this exact order*:
 
