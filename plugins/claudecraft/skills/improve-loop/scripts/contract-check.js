@@ -90,6 +90,7 @@ const requiredFiles = [
   'scripts/spec-validate.js',
   'scripts/complete-gate.js',
   'scripts/package-parity.js',
+  'scripts/improve-stop-decision.js',
   'tests/scripts.test.sh',
 ];
 for (const rel of requiredFiles) {
@@ -367,7 +368,10 @@ const improvePlanningUserOnly = [
     'R7 residual sole complete not all-V',
     /residual×2 remains sole|never.*all V pass|all V pass.*never|sole `complete` law/i,
   ],
-  ['WP0 package-parity B↔M only', /B↔M only|compares \*\*B↔M only\*\*|package-parity compares \*\*B↔M only\*\*/i],
+  [
+    'WP0 package-parity B↔M / Live↔Publish only',
+    /B↔M only|Live↔Publish|compares \*\*B↔M only\*\*|package-parity compares \*\*B↔M only\*\*|two-package parity/i,
+  ],
   ['WP0 A carries references law only', /A carries references law only/],
   ['WP1 complete-gate.js', /complete-gate\.js/],
   ['WP1 no Status CLI honesty', /no Status CLI/],

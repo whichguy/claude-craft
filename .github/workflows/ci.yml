@@ -69,6 +69,41 @@ jobs:
       - run: npm test
         name: Mocha test suite
 
+      - name: improve-loop shell suite (scripts.test.sh)
+        run: bash plugins/claudecraft/skills/improve-loop/tests/scripts.test.sh
+
+      - name: improve-loop contract-check (explicit Publish-src, parity self-test)
+        run: |
+          SKILL="plugins/claudecraft/skills/improve-loop"
+          # Pins only against source tree — do not default to Live under $HOME.
+          # Full Live↔Publish peer is optional when Live is absent on the runner.
+          IMPROVE_LOOP_PARITY=0 node "$SKILL/scripts/contract-check.js" \
+            --skill-dir "$PWD/$SKILL" \
+            --mirror "$PWD/$SKILL/SKILL.md"
+          node "$SKILL/scripts/package-parity.js" --self-test
+          # Self-peer must hard-fail (no false green).
+          out=$(node "$SKILL/scripts/package-parity.js" --skill-dir "$PWD/$SKILL" --peer "$PWD/$SKILL" --json 2>/dev/null || true)
+          echo "$out" | grep -q peer_is_self || { echo "expected peer_is_self: $out"; exit 1; }
+          echo "OK peer_is_self hard-fail"
+
+      - name: improve-loop mocha (test:improve-loop)
+        run: npm run test:improve-loop
+
+      - name: claudecraft plugin/marketplace version equality
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          plug = json.load(open("plugins/claudecraft/.claude-plugin/plugin.json"))
+          market = json.load(open(".claude-plugin/marketplace.json"))
+          entry = next(p for p in market["plugins"] if p["name"] == "claudecraft")
+          pv, mv = plug.get("version"), entry.get("version")
+          if not pv or not mv:
+              print("missing version", pv, mv); sys.exit(1)
+          if pv != mv:
+              print(f"version mismatch plugin.json={pv} marketplace={mv}"); sys.exit(1)
+          print(f"ok: claudecraft version {pv}")
+          PY
+
   # Non-blocking harness smoke — runs only when review-plan or ablate-review-plan
   # skill files change. Exercises score-run.sh against a canned fixture; no
   # real sub-agent dispatch (cost-prohibitive in CI). Real cross-model runs go

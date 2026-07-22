@@ -1,32 +1,40 @@
 #!/usr/bin/env node
 /**
- * B↔M improve-loop package parity (stdlib only).
+ * Live↔Publish (B↔M) improve-loop package parity (stdlib only).
  *
  * ## Scope (WP0 — pin this; greppable)
- * package-parity compares **B↔M only** (user skill vs marketplace mirror).
- * **A is out of scope** — A carries references/ law only; scripts live in B and
- * mirror to M. Never inspects claude-craft A tree; never claims A/script sync.
+ * package-parity compares **B↔M only** / Live↔Publish ship sets (user skill vs
+ * marketplace/plugin peer). **A (Law) is out of scope** — law lives under
+ * law/improve-loop/; scripts live on Live and mirror to Publish. Never inspects
+ * the Law tree; never claims A/script sync.
+ *
+ * Authoritative pairs (name both sides; do not rely on role inference alone):
+ *   (a) Live ↔ Publish-src
+ *   (b) Publish-src ↔ Publish-checkout
+ *   (c) Publish-src ↔ Plugin-cache installPath
  *
  * Ship set compared when both peers exist:
  *   SKILL.md, scripts/**, tests/**, references/goal-objective.template.md
  *
- * Marketplace (M) must not carry A-style extra references/* (only goal template).
+ * Marketplace must not carry A-style extra references/* (only goal template).
  *
  * Usage:
- *   node package-parity.js [--skill-dir <path>] [--peer <path>] [--json]
+ *   node package-parity.js [--skill-dir <path>] [--peer <path>] [--json] [--strict]
  *   node package-parity.js --self-test
  *
  * Exit: 0 ok or soft peer_absent skip; 1 usage / hard fail (drift, A-dump,
- *       peer_incomplete partial ship, forced peer_missing). --json prints the
+ *       peer_incomplete, peer_is_self, forced peer_missing). --json prints the
  *       result object then exits with the **same** code (never exit 0 on ok:false).
  *
  * Peer policy:
  *   - peer directory **absent** → soft-skip when softMissingPeer (default CLI)
  *   - peer directory **exists but incomplete** (no scripts/*) → **always hard fail**
- *     (H18 partial ship — SKILL-only marketplace stub must not green)
+ *   - skillDir realpath === peerDir realpath → **always hard fail** (peer_is_self)
+ *   - --strict or IMPROVE_LOOP_PARITY=1 → softMissingPeer false
  *
  * Env:
  *   IMPROVE_LOOP_PARITY=0  — callers (contract-check) may skip parity entirely
+ *   IMPROVE_LOOP_PARITY=1  — CLI hard-fails missing peer (same as --strict)
  *   HOME — default peer discovery
  *
  * Injectable: none (pure fs)
@@ -164,6 +172,14 @@ function extraReferencesErrors(skillDir) {
  * @param {{ skillDir: string, peerDir?: string|null, home?: string, softMissingPeer?: boolean }} opts
  * @returns {{ ok: boolean, skipped?: boolean, reason?: string, errors: string[], role?: string, peer?: string }}
  */
+function realpathOrResolve(p) {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
 function checkParity(opts) {
   const skillDir = path.resolve(opts.skillDir);
   const home = opts.home || process.env.HOME || '';
@@ -192,6 +208,25 @@ function checkParity(opts) {
       return fs.readdirSync(scripts).some((n) => n.endsWith('.js') || n.endsWith('.sh'));
     } catch {
       return false;
+    }
+  }
+
+  // Never treat a tree as its own peer (symlink Live → source is the classic trap).
+  if (peerDir && isDir(skillDir) && isDir(peerDir)) {
+    const skillReal = realpathOrResolve(skillDir);
+    const peerReal = realpathOrResolve(peerDir);
+    if (skillReal === peerReal) {
+      return {
+        ok: false,
+        skipped: false,
+        reason: 'peer_is_self',
+        errors: [
+          ...errors,
+          'peer_is_self: skill-dir and peer resolve to the same path (use an explicit other home)',
+        ],
+        role,
+        peer: peerDir,
+      };
     }
   }
 
@@ -352,6 +387,11 @@ function selfTest() {
     throw new Error('hard peer_missing should fail: ' + JSON.stringify(r));
   }
 
+  r = checkParity({ skillDir: a, peerDir: a, softMissingPeer: false });
+  if (r.ok || r.reason !== 'peer_is_self') {
+    throw new Error('peer_is_self should hard-fail: ' + JSON.stringify(r));
+  }
+
   // cleanup best-effort
   try {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -377,9 +417,13 @@ function main() {
   );
   const peerArg = arg('--peer', null);
   const json = has('--json');
+  const strict =
+    has('--strict') || String(process.env.IMPROVE_LOOP_PARITY || '').trim() === '1';
 
   if (!isDir(skillDir)) {
-    console.error('usage: package-parity.js --skill-dir <path> [--peer <path>] [--json]');
+    console.error(
+      'usage: package-parity.js --skill-dir <path> [--peer <path>] [--json] [--strict]'
+    );
     console.error('skill-dir missing:', skillDir);
     process.exit(1);
   }
@@ -388,7 +432,7 @@ function main() {
     skillDir,
     peerDir: peerArg,
     home,
-    softMissingPeer: true,
+    softMissingPeer: !strict,
   });
 
   if (json) {

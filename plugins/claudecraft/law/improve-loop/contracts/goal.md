@@ -43,7 +43,8 @@ ledger and never blocks reintegrate.
 Phase 3 keeps executing numbered rules that implement it.
 
 **Pure helpers (preferred when Node is available):**
-`plugins/claudecraft/tools/improve-stop-decision.js`
+`plugins/claudecraft/skills/improve-loop/scripts/improve-stop-decision.js`
+(tools path is an executable shim re-exporting the same module)
 
 1. **`classifyUntilKind(untilString, mode)`** — caller-side; maps ledger until text →
    `default|custom|none` using the **canonical** continuous default string

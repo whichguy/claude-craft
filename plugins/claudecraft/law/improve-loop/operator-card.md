@@ -8,7 +8,7 @@ description: >-
   skill (contracts/goal.md) or use the improve driver skill — not a Stop-hook re-invoke plugin.
 ---
 
-# Improve loop — operator card (home A law)
+# Improve loop — operator card (Law home)
 
 **Law-edit path only.** Runtime campaigns load home **B** (`plugins/claudecraft/skills/improve-loop`
 monolith). This card indexes the modular law tree beside it.
@@ -21,7 +21,7 @@ Normative detail lives in sibling files (see `INDEX.md`). **When editing a phase
 phase’s law file** before applying its rules.
 
 > **Home A (law):** `plugins/claudecraft/law/improve-loop/` — never rsync into B/M.
-> **Home B/M (runtime):** monolith + scripts + tests. Law changes start here; surgical mirror to B; then M (`dual-home.md`).
+> **Live / Publish (runtime):** monolith + scripts + tests. Law changes start in Law; surgical mirror to Live; then Publish-src (`dual-home.md`).
 
 ## Operator card
 
@@ -104,6 +104,6 @@ Execute in order. For each step, **Read** the linked file and follow it fully.
 
 ## Related
 
-- Ship / dual-home hygiene (A/B/M, H15–H18): `dual-home.md`
+- Ship / dual-home hygiene (Law / Live / Publish, H15–H18): `dual-home.md`
 - Continuous driver: `../improve/SKILL.md`  
 - Worktree tool: `../../tools/improve-worktree.sh`

@@ -1792,7 +1792,8 @@ assert "phase2-counters self-test" true
 assert "spec-sync-matrix.test.js exists" test -f "$SCRIPTS/spec-sync-matrix.test.js"
 node "$SCRIPTS/spec-sync-matrix.test.js"
 assert "spec-sync-matrix self-test" true
-assert "package-parity documents B↔M only" grep -q 'B↔M only' "$SCRIPTS/package-parity.js"
+assert "package-parity documents B↔M or Live↔Publish" \
+  grep -qE 'B↔M only|Live↔Publish' "$SCRIPTS/package-parity.js"
 assert "SKILL WP0 A references law only" grep -q 'A carries references law only' "$ROOT/SKILL.md"
 assert "SKILL has PLAN_VALIDATE" grep -q 'PLAN_VALIDATE' "$ROOT/SKILL.md"
 assert "SKILL has Spec validation section" grep -q '## Spec validation' "$ROOT/SKILL.md"

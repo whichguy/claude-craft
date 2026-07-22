@@ -17,6 +17,7 @@
     "test:form990": "mocha 'test/plugins/form990/**/*.test.js'",
     "test:plan-red-team": "mocha 'test/plugins/plan-red-team/**/*.test.js'",
     "test:marketplace": "mocha 'test/marketplace/**/*.test.js'",
+    "test:improve-loop": "mocha 'test/plugins/claudecraft/**/*.test.js'",
     "test:knowledge": "mocha 'test/plugins/planning-suite/knowledge.test.js'",
     "test:bench": "mocha 'test/plugins/review-suite/review-fix-bench.test.js' --timeout 10000",
     "test:focus": "mocha 'test/plugins/planning-suite/schedule-plan-tasks-behavior.test.js' 'test/plugins/planning-suite/schedule-plan-tasks-smoke.test.js' 'test/plugins/planning-suite/delivery-agent-description.test.js'",
