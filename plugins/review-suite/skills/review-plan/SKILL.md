@@ -116,16 +116,10 @@ Using the **post-edit verdict** from Apply Improvements (or the original verdict
 
 - If the verdict is `PASS`: write the gate file, then call ExitPlanMode.
 - If the verdict is `NEEDS_UPDATE` or `NOT READY` but all remaining findings are resolvable by the agent: apply further edits, re-evaluate (step 4 above), and loop back to this gate — at most **2 additional iterations total**. Stop immediately if the verdict does not improve after any single iteration; treat remaining findings as requiring user input and surface them via AskUserQuestion.
-- If the verdict is `NOT READY` with blockers that require user input (e.g., missing requirements, undefined external dependencies): do NOT write the gate file and do NOT call ExitPlanMode — surface the unresolved blockers via AskUserQuestion.
+- If the verdict is `NOT READY` with blockers that require user input (e.g., missing requirements, undefined external dependencies): do NOT call ExitPlanMode — surface the unresolved blockers via AskUserQuestion.
 
-Write the gate file by inlining the actual absolute path — do not copy the placeholder literally:
+On a PASS verdict, call the ExitPlanMode tool to present the updated plan to the user for approval.
 
-```
-slug=$(basename "/absolute/path/to/plan.md" .md)
-mkdir -p ~/.claude/plans
-echo "/absolute/path/to/plan.md" > ~/.claude/plans/.review-ready-"$slug"
-```
+**Do not write a `.review-ready-<slug>` gate file.** That sentinel was retired 2026-07-26 along with the two hooks that read it. Whether a plan may exit plan mode is decided solely by `plan-oversight/soft_exit.py`, which keys on plan content hash and gates on whether Material findings were dispositioned — not on whether this skill left a marker file. Writing the sentinel now would create an artifact nothing consumes.
 
-Replace `/absolute/path/to/plan.md` with the real path of the plan file you reviewed. Then call the ExitPlanMode tool to present the updated plan to the user for approval.
-
-On any non-PASS verdict where the agent cannot self-resolve remaining blockers, do not write the gate file — the user must edit and re-invoke, or use the documented escape hatch (`touch ~/.claude/plans/.review-ready-<slug>`).
+This skill's verdict is therefore advisory: it tells the user what it found, and `soft_exit.py` independently enforces the review contract at ExitPlanMode. That separation is deliberate — a self review marking its own homework was never meaningful enforcement.
