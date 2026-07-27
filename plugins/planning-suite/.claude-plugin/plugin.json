@@ -1,6 +1,6 @@
 {
   "name": "planning-suite",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, c-plan, alias/unalias, performance, knowledge, iterative red-team plan review.",
   "author": {
     "name": "whichguy",
@@ -9,6 +9,9 @@
   "homepage": "https://github.com/whichguy/claude-craft",
   "repository": "https://github.com/whichguy/claude-craft",
   "license": "MIT",
-  "keywords": ["claude-code", "planning-suite"],
+  "keywords": [
+    "claude-code",
+    "planning-suite"
+  ],
   "dependencies": []
 }
