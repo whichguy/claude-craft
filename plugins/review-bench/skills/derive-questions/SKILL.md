@@ -19,6 +19,9 @@ argument-hint: "[questions-file] [--iterations N | --duration Xm | --tokens N] [
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit, WebSearch, WebFetch, Skill
 ---
 
+> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/derive-questions/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+
+
 # derive-questions Skill
 
 Iterative research loop that mines real software failure post-mortems → applies 5-whys

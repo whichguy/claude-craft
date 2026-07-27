@@ -99,4 +99,4 @@ Constraints:
 - Do not call ExitPlanMode or touch marker files
 - Write exactly ONE JSON file
 
-Stop after writing the JSON file. Do not loop, do not edit the plan, do not touch `.review-ready`, do not call ExitPlanMode.
+Stop after writing the JSON file. Do not loop, do not edit the plan, do not write any gate or sentinel file, do not call ExitPlanMode.

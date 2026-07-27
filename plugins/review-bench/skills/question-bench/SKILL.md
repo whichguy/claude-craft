@@ -24,6 +24,9 @@ argument-hint: "<plan-file|plans-dir> [--reference <known-good>] [--questions <s
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 ---
 
+> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/question-bench/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+
+
 # question-bench Skill
 
 Experiment-based ablation for review-plan question effectiveness. Measures whether

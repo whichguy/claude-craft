@@ -22,6 +22,9 @@ argument-hint: "<prompt-file> [inputs-dir | inline text] [prompt-b] [free-form o
 allowed-tools: Agent, Task, TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop, TaskOutput, Bash, Read, Glob, Write
 ---
 
+> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/compare-prompts/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+
+
 # compare-prompts Skill
 
 Run two prompt versions against a directory of test inputs, then compare outputs on:

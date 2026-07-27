@@ -14,6 +14,9 @@ argument-hint: "[file-path or function-name]"
 allowed-tools: all
 ---
 
+> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/plan-test/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+
+
 # /test — Test Generation
 
 Generate tests for specified code. Detects the project's test framework automatically
