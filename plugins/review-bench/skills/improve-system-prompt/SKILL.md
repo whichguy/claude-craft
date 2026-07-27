@@ -17,6 +17,9 @@ model: claude-sonnet-4-6
 allowed-tools: Agent, Task, TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop, TaskOutput, Bash, Read, Glob, Write, mcp__gas__exec, mcp__gas__ls, mcp__gas__status
 ---
 
+> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/improve-system-prompt/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+
+
 # improve-system-prompt Skill
 
 Benchmark system prompt variants for Sheets Chat by routing test scenarios through the

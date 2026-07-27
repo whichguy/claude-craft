@@ -13,6 +13,9 @@ description: |
 allowed-tools: all
 ---
 
+> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/architect/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+
+
 # /architect — Architecture & Technology Decisions
 
 Design system architecture, evaluate technology options, and make informed

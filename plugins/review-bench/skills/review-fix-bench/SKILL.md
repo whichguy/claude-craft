@@ -5,6 +5,9 @@ argument-hint: "[--candidate <path>] [--agent <name>] [--judge <path>] [--fixtur
 allowed-tools: Bash, Read, Glob, Grep, TaskCreate, TaskGet, TaskOutput, TaskStop
 ---
 
+> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/review-fix-bench/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+
+
 ## Step 0 — Parse Arguments
 
 Parse the user's invocation:
