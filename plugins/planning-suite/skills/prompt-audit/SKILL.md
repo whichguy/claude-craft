@@ -3,6 +3,9 @@ name: prompt-audit
 description: Audit an agent or skill prompt file for internal inconsistencies (phase numbering, behavioral contracts, terminology, stale references). Produces a Q&A with info-gain scores, a learnings section, and a remediation list. Use before any prompt migration.
 ---
 
+> **Portable SoT:** also published under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/prompt-audit/` (skill-dir + skill-craft-market). Prefer skill-craft for multi-host install; this claude-craft copy remains the suite-local surface.
+
+
 # /prompt-audit
 
 Audit a prompt file for internal inconsistencies. Every finding cites `file:line`.

@@ -3,6 +3,9 @@ name: prompt-refine
 description: Full prompt-improvement workflow — runs prompt-audit to find inconsistencies, presents a remediation plan, then runs prompt-migrate to apply fixes and prompt-align to verify harness consistency. Use for any agent or skill prompt that needs structural repair.
 ---
 
+> **Portable SoT:** also published under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/prompt-refine/` (skill-dir + skill-craft-market). Prefer skill-craft for multi-host install; this claude-craft copy remains the suite-local surface.
+
+
 # /prompt-refine
 
 End-to-end prompt improvement: audit → plan → migrate → align.

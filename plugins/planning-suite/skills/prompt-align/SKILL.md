@@ -3,6 +3,9 @@ name: prompt-align
 description: Compare an agent or skill prompt against its test harness skill for phase-model, skip-condition, and wiring consistency. Reports mismatches and identifies which file is authoritative.
 ---
 
+> **Portable SoT:** also published under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/prompt-align/` (skill-dir + skill-craft-market). Prefer skill-craft for multi-host install; this claude-craft copy remains the suite-local surface.
+
+
 # /prompt-align
 
 Compare an agent/skill prompt against its test harness. Emit a mismatch report.

@@ -3,6 +3,9 @@ name: prompt-migrate
 description: TDD-based prompt migration — given a target agent/skill prompt and a remediation list from prompt-audit, writes failing tests first, then updates the prompt to make them pass, and commits both in a single atomic commit.
 ---
 
+> **Portable SoT:** also published under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/prompt-migrate/` (skill-dir + skill-craft-market). Prefer skill-craft for multi-host install; this claude-craft copy remains the suite-local surface.
+
+
 # /prompt-migrate
 
 Migrate a prompt file using TDD. Never commits failing tests without the corresponding prompt fix in the same commit.

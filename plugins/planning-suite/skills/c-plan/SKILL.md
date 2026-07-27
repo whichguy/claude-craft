@@ -8,6 +8,9 @@ description: |
 allowed-tools: all
 ---
 
+> **Portable SoT:** also published under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/c-plan/` (skill-dir + skill-craft-market). Prefer skill-craft for multi-host install; this claude-craft copy remains the suite-local surface.
+
+
 # Bayesian Clarifier
 
 ## Purpose
