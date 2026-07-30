@@ -68,8 +68,8 @@
     },
     {
       "name": "c-thru",
-      "version": "0.2.1",
-      "description": "Router/proxy for alternative model providers behind Claude Code. Product source: whichguy/c-thru (git-subdir plugins/c-thru). Plugin: proxy hooks + /c-thru:c-thru-status. Full /cplan agent fleet needs CLI install from that repo. Optional planning-suite for plan-scheduler. Prefer one marketplace identity only.",
+      "version": "0.2.3",
+      "description": "Shape C: marketplace plugin bootstraps the c-thru CLI via /c-thru:install-cli; runtime is cthru (fleet inject). Product: whichguy/c-thru (git-subdir plugins/c-thru). Prefer one marketplace identity only. Optional planning-suite for plan-scheduler.",
       "source": {
         "source": "git-subdir",
         "url": "https://github.com/whichguy/c-thru.git",
