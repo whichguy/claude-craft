@@ -37,7 +37,7 @@ Verify with `/plugin list`.
 | `comms`            | Slack tagging |
 | `form990`          | IRS Form 990 preparation orchestrator |
 | `claudecraft`      | Campaign-default improvement driver (`/improve` multi-cycle L1): residual×2 completion, git learnings digest, and multi-model replan. Package has deterministic law and testee-fixture checks; real campaign diagnostics remain testee/operator work. Law: `law/improve-loop/`; optional thin host: `/claudecraft:improve`. |
-| `c-thru`           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM. **Requires `./install.sh` from the c-thru repo first** — plugin adds Claude Code surfaces (commands, skills, hooks); proxy binary and model-map come from the installer. |
+| `c-thru`           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM. Sourced via git-subdir from [whichguy/c-thru](https://github.com/whichguy/c-thru) (`plugins/c-thru`). Plugin: proxy hooks + `/c-thru:c-thru-status`. Full multi-agent `/cplan` fleet needs CLI install in that repo. Prefer one identity only (`c-thru@claude-craft` **or** `c-thru@c-thru`). |
 
 Cross-bundle dependency edges (declared in each `plugin.json`):
 `gas-suite → review-suite`, `review-suite → wiki-suite`,
