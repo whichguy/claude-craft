@@ -1,28 +1,17 @@
 #!/usr/bin/env bash
-# PostToolUse hook for ExitPlanMode: emit an advisory nudge prompting the
-# assistant to invoke /schedule-plan-tasks once the plan has been approved.
-# Stays silent (exit 0) when no plan file is found so we don't block.
+# PostToolUse ExitPlanMode: EXECUTE NOW via companion Python (payload-only path).
+# Opt out: CLAUDE_PLAN_AUTO_EXECUTE=0. Fail-open (exit 0) on any error.
 set -eo pipefail
 trap 'exit 0' ERR
 
-plan_file=$(ls -t "$HOME/.claude/plans"/*.md 2>/dev/null | head -1 || true)
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="${DIR}/exit-plan-mode-schedule-nudge.py"
 
-if [ -z "$plan_file" ] || [ ! -f "$plan_file" ]; then
-  exit 0
+# Pass-through stdin (hook payload) to the Python handler.
+if [[ -x "$PY" ]] || [[ -f "$PY" ]]; then
+  python3 "$PY" || true
+else
+  # Missing companion: stay silent rather than block.
+  true
 fi
-
-mkdir -p "$HOME/.claude/logs" 2>/dev/null || true
-( tail -n 199 "$HOME/.claude/logs/planning-suite-hooks.log" 2>/dev/null;
-  echo "[schedule-nudge] $(date -Iseconds) plan=$plan_file" ) \
-  > "$HOME/.claude/logs/planning-suite-hooks.log.tmp" 2>/dev/null \
-  && mv "$HOME/.claude/logs/planning-suite-hooks.log.tmp" \
-        "$HOME/.claude/logs/planning-suite-hooks.log" 2>/dev/null || true
-
-ctx="The plan at \`$plan_file\` was just approved via ExitPlanMode. If the user wants to execute it, invoke the \`/schedule-plan-tasks\` skill (Branch A). Do not invoke automatically if the user signals they're not ready to execute."
-
-jq -n \
-  --arg msg "Plan approved — /schedule-plan-tasks is available to decompose it." \
-  --arg ctx "$ctx" \
-  '{"systemMessage": $msg, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": $ctx}}'
-
 exit 0

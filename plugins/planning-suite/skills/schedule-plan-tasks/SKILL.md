@@ -3,12 +3,14 @@ name: schedule-plan-tasks
 description: |
   Analyzes an approved plan and decomposes it into a dependency-ordered task graph via a two-phase TaskCreate and TaskUpdate pass. Detects linear DEPENDS ON chains (shared worktree), identifies independent work streams (parallelized), and executes the full worktree-isolated run. Also handles Branch B (learnings from session context).
 
-  **AUTOMATICALLY INVOKE** only when:
-  - The PostToolUse(ExitPlanMode) hook has injected its schedule-tasks nudge in this turn (i.e., the user just approved a plan), AND the user has not signaled they want to defer execution.
+  **AUTOMATICALLY INVOKE** when any of:
+  - The PostToolUse(ExitPlanMode) hook has injected its schedule-tasks / EXECUTE NOW nudge in this turn (user just approved a plan). Treat ExitPlanMode approval as execute intent — do not wait for a second "implement" phrase.
   - /schedule-plan-tasks is invoked explicitly.
-  - The user explicitly says "schedule tasks", "execute the plan", "decompose plan into tasks" — only when a plan exists at ~/.claude/plans/*.md AND ExitPlanMode has already been approved in this session.
+  - The user explicitly says "implement", "schedule tasks", "execute the plan", "decompose plan into tasks" — only when a plan exists at ~/.claude/plans/*.md AND ExitPlanMode has already been approved in this session.
 
-  **DO NOT auto-invoke** while plan mode is active, while review-plan is iterating, or before the user has approved ExitPlanMode.
+  **DO NOT auto-invoke** while plan mode is active, while review-plan is iterating, before the user has approved ExitPlanMode, or when the user has already said to wait / defer / don't implement / not yet.
+
+  **Anti-stall:** After ExitPlanMode approval + schedule-nudge, do NOT emit a "Plan (approved) … Say implement when you want it run" summary and stop. Invoke this skill immediately and start live execution. When the nudge includes `/schedule-plan-tasks --plan '<path>'`, invoke with that exact `--plan` path (do not re-pick newest under ~/.claude/plans).
 
   **References:** JIT-loaded from `${CLAUDE_SKILL_DIR}/references/`
 allowed-tools: Bash, TaskCreate, TaskUpdate, TaskList, Agent, Read, Write, Edit, Glob, Grep
