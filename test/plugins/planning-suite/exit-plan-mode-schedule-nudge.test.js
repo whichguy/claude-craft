@@ -39,8 +39,26 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
     it('emits EXECUTE NOW with --plan when planFilePath is in payload', function () {
         const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-test-'));
         fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
+        const multiBody = [
+            '# Multi-step feature',
+            '',
+            '## Context',
+            'Build a multi-file feature with verification.',
+            '',
+            '## Phase 1',
+            'Create module A and tests.',
+            '',
+            '## Phase 2',
+            'Wire module B to A and add integration tests.',
+            '',
+            '## Phase 3',
+            'Run full suite and open PR.',
+            '',
+            '## Verification',
+            'npm test',
+        ].join('\n');
         const planPath = path.join(tmpHome, '.claude', 'plans', 'fixture.md');
-        fs.writeFileSync(planPath, '# fixture plan\n');
+        fs.writeFileSync(planPath, multiBody);
         // Newer decoy must not win over payload path
         const decoy = path.join(tmpHome, '.claude', 'plans', 'newer-decoy.md');
         fs.writeFileSync(decoy, '# decoy\n');
@@ -61,6 +79,7 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         expect(ctx).to.include(planPath);
         expect(ctx).to.not.include('If the user wants to execute');
         expect(ctx).to.not.include('newer-decoy');
+        expect(ctx).to.not.include('EXECUTE NOW (inline)');
         expect(parsed.systemMessage).to.match(/immediately invoke/i);
 
         const log = fs.readFileSync(
@@ -68,6 +87,7 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
             'utf8'
         );
         expect(log).to.match(/\[schedule-nudge\].*src=payload/);
+        expect(log).to.match(/execute=schedule/);
         expect(log).to.include(planPath);
 
         fs.rmSync(tmpHome, { recursive: true, force: true });
@@ -100,7 +120,15 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
     it('unique content-hash match resolves src=hash', function () {
         const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-hash-'));
         fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
-        const body = '# unique plan body for hash match\nstep 1\n';
+        const body = [
+            '# unique plan body for hash match',
+            'Execute: schedule',
+            '',
+            '## Phase 1',
+            'Do first multi-file change.',
+            '## Phase 2',
+            'Do second multi-file change and verify.',
+        ].join('\n');
         const planPath = path.join(tmpHome, '.claude', 'plans', 'hashed.md');
         fs.writeFileSync(planPath, body);
         const stdin = JSON.stringify({
@@ -118,6 +146,57 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
             'utf8'
         );
         expect(log).to.match(/src=hash/);
+        fs.rmSync(tmpHome, { recursive: true, force: true });
+    });
+
+    it('Execute: inline routes to in-session implement (no schedule-plan-tasks)', function () {
+        const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-inline-'));
+        fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
+        const planPath = path.join(tmpHome, '.claude', 'plans', 'tiny.md');
+        fs.writeFileSync(
+            planPath,
+            '# Rename\nExecute: inline\n\n## Step 1\nRename the package.\n'
+        );
+        const stdin = JSON.stringify({
+            tool_name: 'ExitPlanMode',
+            tool_input: { planFilePath: planPath },
+        });
+        const stdout = runNudge({ home: tmpHome, stdin });
+        const ctx = JSON.parse(stdout).hookSpecificOutput.additionalContext;
+        expect(ctx).to.include('EXECUTE NOW (inline)');
+        expect(ctx).to.include('Do **not** invoke');
+        expect(ctx).to.not.match(/Immediately invoke `\/schedule-plan-tasks --plan/);
+        const log = fs.readFileSync(
+            path.join(tmpHome, '.claude', 'logs', 'planning-suite-hooks.log'),
+            'utf8'
+        );
+        expect(log).to.match(/execute=inline/);
+        fs.rmSync(tmpHome, { recursive: true, force: true });
+    });
+
+    it('Execute: ask waits for explicit go-ahead', function () {
+        const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-ask-'));
+        fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
+        const planPath = path.join(tmpHome, '.claude', 'plans', 'later.md');
+        fs.writeFileSync(
+            planPath,
+            '# Big rewrite\nExecute: ask\n\n## Phase 1\n...\n## Phase 2\n...\n'
+        );
+        const stdin = JSON.stringify({
+            tool_name: 'ExitPlanMode',
+            tool_input: { planFilePath: planPath },
+        });
+        const stdout = runNudge({ home: tmpHome, stdin });
+        const parsed = JSON.parse(stdout);
+        const ctx = parsed.hookSpecificOutput.additionalContext;
+        expect(ctx).to.not.include('EXECUTE NOW');
+        expect(ctx).to.include('Execute: ask');
+        expect(parsed.systemMessage).to.match(/wait for explicit/i);
+        const log = fs.readFileSync(
+            path.join(tmpHome, '.claude', 'logs', 'planning-suite-hooks.log'),
+            'utf8'
+        );
+        expect(log).to.match(/execute=ask/);
         fs.rmSync(tmpHome, { recursive: true, force: true });
     });
 

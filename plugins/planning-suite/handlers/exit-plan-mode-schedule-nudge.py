@@ -3,15 +3,29 @@
 
 Opt out: CLAUDE_PLAN_AUTO_EXECUTE=0|off|false|no
 Never uses mtime newest-plan guessing for EXECUTE NOW (wrong-plan risk).
+
+Execute routing (plan front-matter `Execute:` or heuristics):
+  schedule — invoke /schedule-plan-tasks (default for multi-step)
+  inline   — implement in-session; do not call schedule-plan-tasks
+  ask      — wait for explicit user go-ahead (rare)
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
+
+_EXECUTE_RE = re.compile(r"(?im)^\s*Execute:\s*(schedule|inline|ask)\s*$")
+_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+\S")
+_PHASE_RE = re.compile(r"(?im)^\s*(?:#{1,3}\s*)?(?:phase|step)\s*\d+")
+_TRIVIAL_RE = re.compile(
+    r"(?i)\b(trivial\s*n/?a|execute:\s*inline|single[- ]step|rename only|"
+    r"docs?-only|comment[- ]only)\b"
+)
 
 
 def _auto_execute_enabled() -> bool:
@@ -58,7 +72,48 @@ def resolve_plan_path(payload: dict, home: Path) -> tuple[str | None, str]:
     return None, "none"
 
 
-def append_log(home: Path, src: str, plan_path: str | None, auto: bool) -> None:
+def load_plan_text(payload: dict, plan_path: str | None) -> str:
+    ti = _tool_input(payload)
+    inline = ti.get("plan") or ti.get("plan_content") or ti.get("planContent")
+    if isinstance(inline, str) and inline.strip():
+        return inline
+    if plan_path:
+        try:
+            return Path(plan_path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+    return ""
+
+
+def resolve_execute_mode(plan_text: str) -> tuple[str, str]:
+    """Return (mode, reason) with mode in {schedule, inline, ask}."""
+    if not plan_text.strip():
+        return "schedule", "default-no-body"
+
+    head = "\n".join(plan_text.splitlines()[:30])
+    m = _EXECUTE_RE.search(head)
+    if m:
+        return m.group(1).lower(), "front-matter"
+
+    # Heuristic auto-inline: tiny / trivial plans
+    if _TRIVIAL_RE.search(plan_text[:4000]):
+        return "inline", "heuristic-trivial"
+    lines = [ln for ln in plan_text.splitlines() if ln.strip()]
+    phase_hits = len(_PHASE_RE.findall(plan_text[:6000]))
+    headings = len(_HEADING_RE.findall(plan_text[:6000]))
+    if len(lines) <= 40 and phase_hits <= 1 and headings <= 4:
+        return "inline", "heuristic-small"
+    return "schedule", "default-multi"
+
+
+def append_log(
+    home: Path,
+    src: str,
+    plan_path: str | None,
+    auto: bool,
+    execute: str,
+    execute_src: str,
+) -> None:
     log_dir = home / ".claude" / "logs"
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -66,7 +121,8 @@ def append_log(home: Path, src: str, plan_path: str | None, auto: bool) -> None:
         stamp = datetime.now().astimezone().isoformat(timespec="seconds")
         line = (
             f"[schedule-nudge] {stamp} src={src} "
-            f"plan={plan_path or '-'} auto={1 if auto else 0}"
+            f"plan={plan_path or '-'} auto={1 if auto else 0} "
+            f"execute={execute} execute_src={execute_src}"
         )
         prev: list[str] = []
         if log_path.is_file():
@@ -77,32 +133,66 @@ def append_log(home: Path, src: str, plan_path: str | None, auto: bool) -> None:
         pass
 
 
-def build_output(plan_path: str | None, auto: bool) -> dict | None:
-    if not auto:
-        if not plan_path:
+def build_output(
+    plan_path: str | None,
+    auto: bool,
+    execute: str,
+) -> dict | None:
+    if not auto or execute == "ask":
+        if not plan_path and execute != "ask":
             return None
-        ctx = (
-            f"The plan at `{plan_path}` was approved via ExitPlanMode. "
-            f"Auto-execute is off (CLAUDE_PLAN_AUTO_EXECUTE=0). "
-            f"Invoke `/schedule-plan-tasks --plan '{plan_path}'` when ready."
-        )
+        if execute == "ask":
+            plan_ref = f"at `{plan_path}` " if plan_path else ""
+            ctx = (
+                f"The plan {plan_ref}was approved via ExitPlanMode with "
+                f"`Execute: ask`. Wait for an explicit user go-ahead "
+                f'("implement" / "execute the plan") before starting work. '
+                f"Do not auto-start."
+            )
+            msg = "Plan approved — Execute: ask (wait for explicit go-ahead)."
+        else:
+            ctx = (
+                f"The plan at `{plan_path}` was approved via ExitPlanMode. "
+                f"Auto-execute is off (CLAUDE_PLAN_AUTO_EXECUTE=0). "
+                f"Invoke `/schedule-plan-tasks --plan '{plan_path}'` when ready, "
+                f"or implement inline."
+            )
+            msg = "Plan approved — auto-execute off; start when ready."
         return {
-            "systemMessage": (
-                "Plan approved — auto-execute off; /schedule-plan-tasks available."
-            ),
+            "systemMessage": msg,
             "hookSpecificOutput": {
                 "hookEventName": "PostToolUse",
                 "additionalContext": ctx,
             },
         }
 
+    plan_ref = f"at `{plan_path}` " if plan_path else ""
+
+    if execute == "inline":
+        ctx = (
+            f"EXECUTE NOW (inline): The plan {plan_ref}was just approved via "
+            f"ExitPlanMode. User approval is the execute signal. Begin implementing "
+            f"**in this session now** — first tool call must be edit/bash/write. "
+            f"Do **not** invoke `/schedule-plan-tasks` (this plan is inline/trivial). "
+            f'Do NOT summarize and stop. Do NOT ask the user to say "implement". '
+            f"Only skip if the user already said to wait / defer / don't implement."
+        )
+        msg = "Plan approved — implement inline now (no schedule-plan-tasks)."
+        return {
+            "systemMessage": msg,
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": ctx,
+            },
+        }
+
+    # schedule (default)
     if plan_path:
         inv = f"/schedule-plan-tasks --plan '{plan_path}'"
         bind = (
             f"Immediately invoke `{inv}` (Branch A, live) in this same turn. "
             f"Pass that exact --plan path so the skill does not re-discover a different plan. "
         )
-        plan_ref = f"at `{plan_path}` "
         msg = f"Plan approved — immediately invoke {inv} (execute now)."
     else:
         inv = "/schedule-plan-tasks"
@@ -112,7 +202,6 @@ def build_output(plan_path: str | None, auto: bool) -> dict | None:
             "If the skill is unavailable in this harness, begin implementing now — "
             "first tool call must be edit/bash/write, not a summary. "
         )
-        plan_ref = ""
         msg = (
             "Plan approved — immediately execute "
             "(schedule-plan-tasks if available, else implement)."
@@ -151,8 +240,10 @@ def main() -> int:
         home = Path(os.environ.get("HOME") or Path.home())
         auto = _auto_execute_enabled()
         plan_path, src = resolve_plan_path(payload, home)
-        append_log(home, src, plan_path, auto)
-        out = build_output(plan_path, auto)
+        plan_text = load_plan_text(payload, plan_path)
+        execute, execute_src = resolve_execute_mode(plan_text)
+        append_log(home, src, plan_path, auto, execute, execute_src)
+        out = build_output(plan_path, auto, execute)
         if out:
             print(json.dumps(out, ensure_ascii=False))
     except Exception:

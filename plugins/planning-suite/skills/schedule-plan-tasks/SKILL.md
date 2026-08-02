@@ -10,7 +10,7 @@ description: |
 
   **DO NOT auto-invoke** while plan mode is active, while review-plan is iterating, before the user has approved ExitPlanMode, or when the user has already said to wait / defer / don't implement / not yet.
 
-  **Anti-stall:** After ExitPlanMode approval + schedule-nudge, do NOT emit a "Plan (approved) … Say implement when you want it run" summary and stop. Invoke this skill immediately and start live execution. When the nudge includes `/schedule-plan-tasks --plan '<path>'`, invoke with that exact `--plan` path (do not re-pick newest under ~/.claude/plans).
+  **Anti-stall:** After ExitPlanMode approval + schedule-nudge, do NOT emit a "Plan (approved) … Say implement when you want it run" summary and stop. Invoke this skill immediately and start live execution. When the nudge includes `/schedule-plan-tasks --plan '<path>'`, invoke with that exact `--plan` path (do not re-pick newest under ~/.claude/plans). If the nudge says **EXECUTE NOW (inline)**, do **not** auto-invoke this skill — implement in-session instead.
 
   **References:** JIT-loaded from `${CLAUDE_SKILL_DIR}/references/`
 allowed-tools: Bash, TaskCreate, TaskUpdate, TaskList, Agent, Read, Write, Edit, Glob, Grep
@@ -83,6 +83,18 @@ ledger TaskCreate verb, using the same schemas defined in the Phase 1 creation p
 
 **Plan path detection:** if args contain `--plan <path>`, capture `PlanPath = <path>` (absolute or relative to cwd). Otherwise `PlanPath = nil` (auto-discovery runs in Step 1).
 
+**Start breadcrumb (observability — runs once after mode + plan-path detection, before any Agent/git mutation):** append one line to `$HOME/.claude/logs/planning-suite-hooks.log` (create dir if needed; cap file to last 199 lines + this line, same as the schedule-nudge):
+
+```bash
+mkdir -p "$HOME/.claude/logs"
+LOG="$HOME/.claude/logs/planning-suite-hooks.log"
+LINE="[schedule-plan-tasks] $(date -Iseconds) started mode=${Mode} plan=${PlanPath:--} repo_cwd=$(pwd)"
+{ tail -n 199 "$LOG" 2>/dev/null; echo "$LINE"; } > "${LOG}.tmp" 2>/dev/null && mv "${LOG}.tmp" "$LOG" || true
+echo "$LINE"
+```
+
+Debug recipe: after an ExitPlanMode approval, `rg 'schedule-nudge|schedule-plan-tasks' ~/.claude/logs/planning-suite-hooks.log` — a `src=payload` (or `src=hash`) nudge line with **no** following `[schedule-plan-tasks] started` line means the model ignored the nudge; `execute=inline` means implement in-session (skill must not start).
+
 **`REPO_ROOT` resolution (runs after mode + plan-path detection, before any git/Agent action):**
 
 Resolution order:
@@ -138,13 +150,21 @@ Phase 0 ensures that plans whose work touches an external target system (Apps Sc
 
 The existing pre-flight uncommitted-state capture writes `.preflight-tracked.patch` / `.preflight-untracked.tgz` / `.preflight-staged.patch` into `.worktrees/` and `.shortcut-preflight/`. The capture step runs after Phase 0 (in Phase A git-prep), so Phase 0 guarantees those dirs exist. The `.sandbox-refs.json` itself lives at `$REPO_ROOT/` (not in either subdir) so no mkdir is needed for it. Both bullets are idempotent — re-runs and skipped Phase 0 (Target-System: none) cost nothing.
 
-**Phase 0 step 1 — parse three new optional front-matter fields** from the plan (using the same bare `^Key:\s*(.+)$` scanner over the first 30 lines that already powers `Repo:` capture):
+**Phase 0 step 1 — parse optional front-matter fields** from the plan (using the same bare `^Key:\s*(.+)$` scanner over the first 30 lines that already powers `Repo:` capture):
 
 ```
 Target-System:   <free-form system identifier>  |  none  |  auto
 Source-Ref:      <production identifier the provisioner will derive a sandbox from>
 Sandbox-Ref:     <pre-existing sandbox ID, set by user when they already have one>
+Execute:         schedule | inline | ask
 ```
+
+`Execute:` is consumed primarily by the ExitPlanMode **schedule-nudge** (PostToolUse). Values:
+- `schedule` (default for multi-step) — auto-invoke this skill
+- `inline` — implement in the main session; do **not** auto-invoke this skill
+- `ask` — wait for explicit user go-ahead
+
+If absent, the nudge may still choose `inline` via size/trivial heuristics.
 
 `Target-System` is **free-form** (not a closed enum) so the user can name any system the dynamic-discovery provisioner can recognize. The literal values `none` (skip) and `auto` (fall through to Layer 2) are reserved.
 
