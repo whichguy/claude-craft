@@ -29,7 +29,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 |---|---|
 | gas-suite        | Apps Script review, debug, plan, sidebar, Gmail Cards (deps: review-suite) |
 | wiki-suite       | Project LLM wiki + proactive research (absorbs old wiki-hooks/craft-hooks) |
-| review-suite     | Plan review, code-reviewer, review-fix, security/red-team, memory-* (deps: wiki-suite) |
+| review-suite     | Plan review, code-reviewer, review-fix, security/red-team, memory-* |
 | review-bench     | Prompt/question A/B benchmarking, ablation (deps: review-suite) |
 | planning-suite   | Architect, test, schedule-plan-tasks, node-plan, c-plan, alias/unalias, performance, knowledge, iterative red-team plan review (absorbs plan-red-team) |
 | async-suite      | bg/todo/todo-cleanup + task-persist + feedback-collector (merged hooks) |
@@ -39,7 +39,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | claudecraft      | Campaign-default improve (`/improve` = B L1 multi-cycle): residual×2 complete, git learnings digest, multi-model replan; law corpus at `law/improve-loop/`; thin `improve` host (worktree/parse). Optional host goal observability |
 | c-thru           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM (git-subdir from whichguy/c-thru plugins/c-thru; plugin-only works; full /cplan fleet needs CLI install in that repo) |
 
-Cross-plugin dep DAG: `gas-suite → review-suite`, `review-suite → wiki-suite`, `review-bench → review-suite`, `form990 → review-bench`. Declared in each plugin's `plugin.json#dependencies`.
+Cross-plugin dep DAG: `gas-suite → review-suite`, `review-bench → review-suite`, `form990 → review-bench`. Declared in each plugin's `plugin.json#dependencies`.
 
 ---
 

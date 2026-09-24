@@ -40,8 +40,8 @@ Verify with `/plugin list`.
 | `c-thru`           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM. Sourced via git-subdir from [whichguy/c-thru](https://github.com/whichguy/c-thru) (`plugins/c-thru`). Plugin: proxy hooks + `/c-thru:c-thru-status`. Full multi-agent `/cplan` fleet needs CLI install in that repo. Prefer one identity only (`c-thru@claude-craft` **or** `c-thru@c-thru`). |
 
 Cross-bundle dependency edges (declared in each `plugin.json`):
-`gas-suite → review-suite`, `review-suite → wiki-suite`,
-`review-bench → review-suite`, `form990 → review-bench`.
+`gas-suite → review-suite`, `review-bench → review-suite`,
+`form990 → review-bench`.
 (plan-red-team merged into planning-suite as of v0.2.0)
 
 ## Upgrading from < 1.0 (symlink-based install)
