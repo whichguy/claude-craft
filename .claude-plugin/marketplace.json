@@ -21,7 +21,7 @@
     {
       "name": "review-suite",
       "source": "./plugins/review-suite",
-      "version": "0.2.5",
+      "version": "0.2.6",
       "description": "Plan review, code review (Adversarial Auditor), iterative review-fix loop, security/red-team review, memory audits."
     },
     {
