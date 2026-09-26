@@ -18,13 +18,13 @@ description: |
   - "test review questions", "question impact", "question overlap"
   - "question bench", "bench questions", "ablation"
 
-  NOT for: reviewing a plan (use /review-plan), comparing prompts (use /compare-prompts)
+  NOT for: reviewing a plan (use /review-plan), comparing prompts (use /skill-craft:compare-prompts)
 
 argument-hint: "<plan-file|plans-dir> [--reference <known-good>] [--questions <selector>] [--experiments N|\"subset1 | subset2\"] [--dry-run]"
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 ---
 
-> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/question-bench/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+> **Source of truth:** this claude-craft copy is the only one. skill-craft retired its `question-bench` skill (and skill-craft-market is archived), so edit it here.
 
 
 # question-bench Skill

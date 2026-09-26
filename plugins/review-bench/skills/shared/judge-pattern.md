@@ -1,7 +1,7 @@
 # Position-Blind LLM Judge Pattern
 
 Canonical reference for the position-blind LLM judge pattern used in benchmarking skills
-(`/review-bench:improve-system-prompt`, `/review-bench:optimize-system-prompt --mode ideate`, etc.).
+(`/review-bench:optimize-system-prompt --mode ideate`, `/skill-craft:improve-system-prompt`, etc.).
 
 ---
 
@@ -136,7 +136,7 @@ unified = heuristic_avg   // note [judge N/A] in output table
 
 | Skill | Configs judged | Scenarios judged |
 |-------|---------------|-----------------|
-| `/review-bench:improve-system-prompt` | variant × placement tuples | all --scenarios |
+| `/skill-craft:improve-system-prompt` (skill-craft@whichguy) | variant × placement tuples | all --scenarios |
 | `/review-bench:optimize-system-prompt --mode ideate` | ideas + baseline | standard scenarios only (targeted tests are heuristic-only) |
 
 When adding a new skill that uses this pattern, reference this file in the skill's Step 4

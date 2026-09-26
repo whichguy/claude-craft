@@ -1018,7 +1018,7 @@ ELSE:
     baseline_tokens   = baseline_run_cache.tokens
     baseline_latency  = baseline_run_cache.latency
 
-# Spawn experiment delivery-agents (always fresh — experiment variants change every iteration)
+# Spawn experiment runner tasks (always fresh — experiment variants change every iteration)
 Spawn `run-E{k}-{filename}` tasks in batches of at most MAX_CONCURRENT (len(active_experiments) × M tasks).
 Collect outputs, latency_ms, and token estimates as normal.
 

@@ -64,7 +64,7 @@ The "Sheets Chat" GAS project (scriptId `1Y72rigcMUAwRd7bwl3CR57O6ENo5sKTn0xAl2C
 | `plugins/review-bench/fixtures/inputs/input5-gas-ui-plan.md:6` | fixture text | same |
 | `plugins/review-bench/fixtures/inputs/input3-trivial-plan.md:9` | fixture text | `SHEETS_CHAT: 1Y72…` |
 | `plugins/review-bench/skills/optimize-system-prompt/SKILL.md:32` | doc | Hardcoded ScriptId |
-| `plugins/review-bench/skills/improve-system-prompt/SKILL.md:29` | doc | Hardcoded ScriptId |
+| `plugins/review-bench/skills/improve-system-prompt/SKILL.md:29` *(removed 2026-09-26; skill now lives in skill-craft)* | doc | Hardcoded ScriptId |
 | `plugins/review-bench/skills/ablate-review-plan/RESULTS.md:226` | results notes | Documents the value as "OLD" but it's the same ID |
 
 ### Recommended action
@@ -76,7 +76,7 @@ For `gas-sidebar` and `slides-suite`:
 For `review-bench` fixtures:
 - Replace with a synthetic but well-formed-looking scriptId like `1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`. The bench doesn't make live calls; the value is referenced as a string.
 
-For `review-bench/skills/optimize-system-prompt` and `improve-system-prompt`:
+For `review-bench/skills/optimize-system-prompt` and `improve-system-prompt` (the latter removed from review-bench 2026-09-26; now `/skill-craft:improve-system-prompt`):
 - These two skills **only make sense for the Sheets Chat project**. They're written as if Sheets Chat is the universal target. Same architectural choice as form990: either generalize (point at `<your-system-prompt-file>` configurable target) or remove from marketplace.
 
 ## LOW — checked, no action needed

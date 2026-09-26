@@ -30,7 +30,7 @@ Verify with `/plugin list`.
 | `gas-suite`        | Apps Script review, debugging, planning, sidebar testing, Gmail Cards |
 | `wiki-suite`       | Project LLM wiki: ingest, query, process queue, lint, proactive research |
 | `review-suite`     | Plan review, code review (Adversarial Auditor), iterative review-fix loop |
-| `review-bench`     | Prompt/question A/B benchmarking and ablation tooling (depends on review-suite) |
+| `review-bench`     | Question A/B benchmarking, prompt improvement, and ablation tooling (depends on review-suite) |
 | `planning-suite`   | node-plan, test-prompt-harness, alias/unalias, performance, knowledge, iterative red-team plan review, ExitPlanMode plan gates + execute nudge |
 | `async-suite`      | Background task workflow: `/bg`, `/todo`, task-persist, feedback-collector |
 | `slides-suite`     | reveal.js or Google Slides decks |
@@ -77,8 +77,9 @@ Claude Craft includes a self-building wiki system that captures knowledge from y
 
 A consolidated set of skills for iterating on prompts, system prompts, and evaluator questions.
 
-> **Moved to skill-craft.** `architect`, `c-plan`, `plan-test` (was planning-suite `test`),
-> `prompt-align`, `prompt-audit`, `prompt-migrate` and `prompt-refine` now live only in
+> **Moved to skill-craft.** `compare-prompts`, `improve-system-prompt`, `review-fix-bench`,
+> `architect`, `c-plan`, `plan-test` (was planning-suite `test`), `prompt-align`,
+> `prompt-audit`, `prompt-migrate` and `prompt-refine` now live only in
 > [whichguy/skill-craft](https://github.com/whichguy/skill-craft) — install
 > `skill-craft@whichguy` and invoke them as `/skill-craft:<leaf>`. Plan scheduling
 > (formerly `schedule-plan-tasks` + `delivery-agent`) is `/skill-craft:backchain`
@@ -87,10 +88,8 @@ A consolidated set of skills for iterating on prompts, system prompts, and evalu
 | Skill | Description |
 |-------|-------------|
 | `/improve-prompt` | Research-backed iterative prompt improvement loop with experiment variants, scope-preservation gate, and questions-based judging. Subsumes `/prompt-critique` (via `--mode critique`) and `/prompt-probes` (via `--with-probes`). |
-| `/compare-prompts` | A/B test two prompts with execution-based scoring. Standalone harness. |
 | `/process-feedback` | Ingest the `feedback-collector` plugin's backlog and propose surgical prompt updates (propose-only — never auto-edits SKILL.md). |
 | `/optimize-system-prompt` | Optimize/refine the GAS Sheets Chat system prompt (compression + refinement). Subsumes `/ideate-system-prompt` via `--mode ideate` (autonomous hypothesis generation + benchmarking). |
-| `/improve-system-prompt` | Benchmark pre-coded GAS system prompt variants (V2/V2a/V2b/V2c) against scenarios. Sibling of `/optimize-system-prompt` for projects with predefined variants. |
 | `/improve` / `/improve-loop` | **claudecraft:** campaign-default multi-cycle improve (B L1; `--once` for one cycle). Residual×2 completion; law under `plugins/claudecraft/law/improve-loop/`. Deterministic law and fixture checks do not hermetically test an LLM campaign; use testee diagnostics in an actual campaign. Optional `/claudecraft:improve` thin worktree host. |
 | `/derive-questions` | Mine failures and extract evaluator questions from real runs. |
 | `/optimize-questions` | Token-efficiency optimization for plan-review questions. Uses `/compare-questions` as its internal A/B engine. |
@@ -323,7 +322,7 @@ claude-craft/
 │   ├── gas-suite/         # Apps Script review, debug, plan, sidebar, Gmail Cards
 │   ├── wiki-suite/        # Project LLM wiki + proactive research
 │   ├── review-suite/      # Plan review, code-reviewer, review-fix, security/red-team
-│   ├── review-bench/      # Prompt/question A/B benchmarking, ablation
+│   ├── review-bench/      # Question A/B benchmarking, ablation
 │   ├── planning-suite/    # node-plan, red-team plan review, plan gates
 │   ├── async-suite/       # bg/todo + task-persist + feedback-collector
 │   ├── slides-suite/      # reveal.js + Google Slides decks

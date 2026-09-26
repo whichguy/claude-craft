@@ -10,5 +10,5 @@
   "repository": "https://github.com/whichguy/claude-craft",
   "license": "MIT",
   "keywords": ["claude-code", "form990"],
-  "dependencies": [{"name":"review-bench","version":"^0.2.0"}]
+  "dependencies": [{"name":"review-bench","version":"^0.3.0"}]
 }

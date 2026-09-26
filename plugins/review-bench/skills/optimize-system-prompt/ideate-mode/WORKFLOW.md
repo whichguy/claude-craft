@@ -8,7 +8,7 @@ produce a ranked recommendation.
 
 Complements optimize-system-prompt's default refinement/compression mode: those modes are user-directed (you tell the skill what to change), while ideate mode is generative (the skill proposes ideas autonomously). Both converge on the same A/B benchmarking infrastructure.
 
-Note: still complementary to `/improve-system-prompt` — that skill benchmarks **pre-coded** variants (V2/V2a/V2b/V2c) defined in the GAS project; ideate mode generates *new* hypotheses on demand.
+Note: still complementary to `/skill-craft:improve-system-prompt` (skill-craft@whichguy plugin) — that skill benchmarks **pre-coded** variants (V2/V2a/V2b/V2c) defined in the GAS project; ideate mode generates *new* hypotheses on demand.
 
 ## Project Context
 
@@ -839,7 +839,7 @@ Ranking is computed on **standard scenarios only** (filter `cellResults[]` to
 **Compute `baseline_unified` first** (needed for delta calculation):
 
 Note: unified weights are 0.4 heuristic + 0.6 judge — judge-weighted because novel hypothesis quality
-is better assessed qualitatively. (Compare: /improve-system-prompt uses 0.6 heuristic + 0.4 judge
+is better assessed qualitatively. (Compare: /skill-craft:improve-system-prompt uses 0.6 heuristic + 0.4 judge
 for pre-coded variants where heuristic consistency matters more. Scores across the two skills are
 not directly comparable.)
 
@@ -1057,7 +1057,7 @@ and delta (variant minus baseline, signed) alongside variant composite.
   - Targeted tests show weaknesses: Context window use (5.2)
 
   Next step:
-  → Run /improve-system-prompt --variants V2a,<winner> to full 40-cell benchmark
+  → Run /skill-craft:improve-system-prompt --variants V2a,<winner> to full 40-cell benchmark
   → OR use --save to get the variant text for manual review
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```

@@ -39,7 +39,7 @@ Compare two prompts (agents, templates, or instructions) to determine which prod
 
 ## Input Format
 
-This agent accepts flexible natural language input. The calling agent (compare-prompts command) will prepare arguments, but this agent can parse various formats.
+This agent accepts flexible natural language input. The calling skill or agent will prepare arguments, but this agent can parse various formats.
 
 **Expected Input Components**:
 - **Prompt Files**: Two prompts to compare (or one with git history)

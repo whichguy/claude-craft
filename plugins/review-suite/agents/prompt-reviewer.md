@@ -7,7 +7,7 @@ description: |
 
   **NOT for:**
   - Quick technique check (use /review-bench:improve-prompt --mode critique — faster, produces scorecard)
-  - A/B prompt comparison with execution (use /review-bench:compare-prompts)
+  - A/B prompt comparison with execution (use /skill-craft:compare-prompts, from the skill-craft@whichguy plugin)
   - GAS system prompt optimization (use /review-bench:optimize-system-prompt)
 model: sonnet
 tools: Read, Glob, Grep, Bash, Write, Edit

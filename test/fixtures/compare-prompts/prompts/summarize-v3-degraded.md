@@ -1,2 +1,0 @@
-Summarize. Be brief.
-{{INPUT}}

@@ -27,8 +27,8 @@
     {
       "name": "review-bench",
       "source": "./plugins/review-bench",
-      "version": "0.2.0",
-      "description": "Prompt/question A/B benchmarking and ablation tooling. Depends on review-suite."
+      "version": "0.3.0",
+      "description": "Question A/B benchmarking, prompt improvement and ablation tooling. Depends on review-suite. compare-prompts, improve-system-prompt and review-fix-bench live in skill-craft (/skill-craft:<leaf>)."
     },
     {
       "name": "planning-suite",

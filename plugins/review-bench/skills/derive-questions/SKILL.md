@@ -19,7 +19,7 @@ argument-hint: "[questions-file] [--iterations N | --duration Xm | --tokens N] [
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit, WebSearch, WebFetch, Skill
 ---
 
-> **Portable SoT:** also under [whichguy/skill-craft](https://github.com/whichguy/skill-craft) `skills/derive-questions/` (+ skill-craft-market). Suite-local copy remains for claude-craft plugins.
+> **Source of truth:** this claude-craft copy is the only one. skill-craft retired its `derive-questions` skill (and skill-craft-market is archived), so edit it here.
 
 
 # derive-questions Skill

@@ -30,7 +30,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | gas-suite        | Apps Script review, debug, plan, sidebar, Gmail Cards (deps: review-suite) |
 | wiki-suite       | Project LLM wiki + proactive research (absorbs old wiki-hooks/craft-hooks) |
 | review-suite     | Plan review, code-reviewer, review-fix, security/red-team, memory-* |
-| review-bench     | Prompt/question A/B benchmarking, ablation (deps: review-suite) |
+| review-bench     | Question A/B benchmarking, prompt improvement, ablation (deps: review-suite). compare-prompts, improve-system-prompt and review-fix-bench live in skill-craft (`/skill-craft:<leaf>`) |
 | planning-suite   | node-plan, test-prompt-harness, alias/unalias, performance, knowledge, iterative red-team plan review, ExitPlanMode plan gates + execute nudge (absorbs plan-red-team). Architect, c-plan, plan-test, prompt-align/audit/migrate/refine and plan scheduling (backchain + plan-dispatcher) live in skill-craft (`/skill-craft:<leaf>`) |
 | async-suite      | bg/todo/todo-cleanup + task-persist + feedback-collector (merged hooks) |
 | slides-suite     | reveal.js + Google Slides decks |

@@ -20,7 +20,6 @@ cd "$ROOT"
 # Lean — duplication is the cost; only bundle what's actually consumed.
 bundled_map() {
   cat <<'EOF'
-tools/review-fix-bench.sh                                  tools/review-fix-bench.sh                  review-bench
 tools/shared-templates/skills-shared/judge-pattern.md      skills/shared/judge-pattern.md             review-suite review-bench gas-suite planning-suite
 tools/shared-templates/skills-shared/question-cross-reference.md  skills/shared/question-cross-reference.md  review-suite review-bench gas-suite planning-suite
 tools/shared-templates/skills-shared/self-referential-protection.md  skills/shared/self-referential-protection.md  review-suite review-bench gas-suite planning-suite
