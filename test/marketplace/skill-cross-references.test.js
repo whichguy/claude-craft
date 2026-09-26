@@ -175,6 +175,7 @@ const EXTERNAL_MARKETPLACE_COMMANDS = new Set([
     'cancel-ralph',          // ralph-loop plugin — cancels an active ralph loop
     'review-converge',       // sibling skill outside this marketplace (improvement-loop family)
     'grok-review-converge',  // deprecated alias of review-converge
+    'cplan',                 // c-thru plugin (git-subdir from whichguy/c-thru): its /cplan planner fleet
 ]);
 
 // Internal-only agents/skills that are exempt from the dead-code detector
