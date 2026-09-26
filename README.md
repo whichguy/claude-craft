@@ -36,7 +36,7 @@ Verify with `/plugin list`.
 | `slides-suite`     | reveal.js or Google Slides decks |
 | `comms`            | Slack tagging |
 | `form990`          | IRS Form 990 preparation orchestrator |
-| `claudecraft`      | Campaign-default improvement driver (`/improve` multi-cycle L1): residual×2 completion, git learnings digest, and multi-model replan. Package has deterministic law and testee-fixture checks; real campaign diagnostics remain testee/operator work. Law: `law/improve-loop/`; optional thin host: `/claudecraft:improve`. |
+| `claudecraft`      | Campaign-default improvement driver (`/improve-loop` multi-cycle L1; bare `/improve` is skill-craft's): residual×2 completion, git learnings digest, and multi-model replan. Package has deterministic law and testee-fixture checks; real campaign diagnostics remain testee/operator work. Law: `law/improve-loop/`; optional thin host: `/claudecraft:improve`. |
 | `c-thru`           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM. Sourced via git-subdir from [whichguy/c-thru](https://github.com/whichguy/c-thru) (`plugins/c-thru`). Plugin: proxy hooks + `/c-thru:c-thru-status`. Full multi-agent `/cplan` fleet needs CLI install in that repo. Prefer one identity only (`c-thru@claude-craft` **or** `c-thru@c-thru`). |
 
 Cross-bundle dependency edges (declared in each `plugin.json`):
@@ -83,14 +83,15 @@ A consolidated set of skills for iterating on prompts, system prompts, and evalu
 > [whichguy/skill-craft](https://github.com/whichguy/skill-craft) — install
 > `skill-craft@whichguy` and invoke them as `/skill-craft:<leaf>`. Plan scheduling
 > (formerly `schedule-plan-tasks` + `delivery-agent`) is `/skill-craft:backchain`
-> followed by `/skill-craft:plan-dispatcher`.
+> followed by `/skill-craft:plan-dispatcher`. Bare `/improve` is skill-craft's
+> `improve` skill; claudecraft's campaign driver is `/improve-loop`.
 
 | Skill | Description |
 |-------|-------------|
 | `/improve-prompt` | Research-backed iterative prompt improvement loop with experiment variants, scope-preservation gate, and questions-based judging. Subsumes `/prompt-critique` (via `--mode critique`) and `/prompt-probes` (via `--with-probes`). |
 | `/process-feedback` | Ingest the `feedback-collector` plugin's backlog and propose surgical prompt updates (propose-only — never auto-edits SKILL.md). |
 | `/optimize-system-prompt` | Optimize/refine the GAS Sheets Chat system prompt (compression + refinement). Subsumes `/ideate-system-prompt` via `--mode ideate` (autonomous hypothesis generation + benchmarking). |
-| `/improve` / `/improve-loop` | **claudecraft:** campaign-default multi-cycle improve (B L1; `--once` for one cycle). Residual×2 completion; law under `plugins/claudecraft/law/improve-loop/`. Deterministic law and fixture checks do not hermetically test an LLM campaign; use testee diagnostics in an actual campaign. Optional `/claudecraft:improve` thin worktree host. |
+| `/improve-loop` | **claudecraft:** campaign-default multi-cycle improve (B L1; `--once` for one cycle). Residual×2 completion; law under `plugins/claudecraft/law/improve-loop/`. Deterministic law and fixture checks do not hermetically test an LLM campaign; use testee diagnostics in an actual campaign. Optional `/claudecraft:improve` thin worktree host. |
 | `/derive-questions` | Mine failures and extract evaluator questions from real runs. |
 | `/optimize-questions` | Token-efficiency optimization for plan-review questions. Uses `/compare-questions` as its internal A/B engine. |
 | `/compare-questions` | Pairwise A/B testing of two evaluator questions against plan fixtures. |
@@ -328,7 +329,7 @@ claude-craft/
 │   ├── slides-suite/      # reveal.js + Google Slides decks
 │   ├── comms/             # Slack tagging
 │   ├── form990/           # IRS Form 990
-│   └── claudecraft/       # /improve campaign + law/improve-loop + tools
+│   └── claudecraft/       # /improve-loop campaign + law/improve-loop + tools
 │   # Note: c-thru is a marketplace git-subdir (not plugins/c-thru/); model-router → whichguy/c-thru
 ├── hooks/                 # Hook system
 │   └── scripts/           # Hook scripts (.sh) → ~/.claude/hooks/

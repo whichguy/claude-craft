@@ -119,7 +119,7 @@ While Status active and under caps (break order in caps.md):
    reintegrate while a worktree exists).
 
 **Outer multi-cycle:** prefer **improve-loop B L1** autonomous campaign when the user invokes
-`/improve` on the B skill. This skill’s S8 loop is an alternate continuous host (worktree +
+`/improve-loop` on the B skill. This skill’s S8 loop is an alternate continuous host (worktree +
 caps) that still runs **one improve-loop cycle per iteration**. Optional host **goal**: bind
 per `../../law/improve-loop/contracts/goal.md` for `goal.report` pulses; still perform
 S11–S12 yourself. Do not require a Stop-hook re-invoke plugin.

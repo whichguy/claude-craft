@@ -26,7 +26,7 @@ real agent path (separate, non-hermetic)
 `--smoke-all` runs only fixture seed and golden checks. `--all` on the scripted
 runner applies known fixture edits and writes deterministic fixture commits before
 calling the oracle. Neither command invokes an LLM or proves that an autonomous
-multi-cycle `/improve` campaign will make good decisions.
+multi-cycle `/improve-loop` campaign will make good decisions.
 
 For real-campaign diagnostic habits—Expected effects, acceptance and preservation
 probes, CLASS, durable carriers, and honest-empty discipline—use the

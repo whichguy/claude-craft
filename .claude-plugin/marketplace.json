@@ -15,7 +15,7 @@
     {
       "name": "wiki-suite",
       "source": "./plugins/wiki-suite",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "description": "Project LLM wiki: ingest, query, process queue, lint, plus proactive research hook."
     },
     {
@@ -63,8 +63,8 @@
     {
       "name": "claudecraft",
       "source": "./plugins/claudecraft",
-      "version": "0.2.1",
-      "description": "Campaign-default improve (/improve multi-cycle): residual\u00d72 complete, git learnings digest, multi-model replan. Law corpus at law/improve-loop/; optional thin improve continuous host."
+      "version": "0.2.2",
+      "description": "Campaign-default improve (/improve-loop multi-cycle; bare /improve belongs to skill-craft): residual\u00d72 complete, git learnings digest, multi-model replan. Law corpus at law/improve-loop/; optional thin /claudecraft:improve continuous host."
     },
     {
       "name": "c-thru",

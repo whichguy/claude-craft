@@ -21,7 +21,7 @@ softCheckSpecBundle()
 expected warning-code comparison
 ```
 
-The case bank does not invoke an LLM or execute an `/improve` campaign. It also does
+The case bank does not invoke an LLM or execute an `/improve-loop` campaign. It also does
 not replace the scenario harness: scenarios now exist under `tests/scenarios/`, but
 they test a different boundary.
 

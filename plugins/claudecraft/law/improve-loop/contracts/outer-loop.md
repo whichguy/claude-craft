@@ -13,7 +13,7 @@ host goal re-drive.
 
 | Priority | Mechanism |
 |---|---|
-| 1 | **improve-loop B L1** autonomous campaign (script-backed; default `/improve`) |
+| 1 | **improve-loop B L1** autonomous campaign (script-backed; default `/improve-loop`) |
 | 2 | **`improve` skill** — thin continuous host (parse/worktree/S0–S13) running one L2 cycle per S8 iteration |
 | 3 | Host **goal** — optional observability (`goal.report` / caps); not required for multi-cycle |
 
@@ -47,5 +47,5 @@ merge-back/teardown (B L1) or S11–S13 (improve host).
 
 ## Grok / Codex notes (adapter)
 
-- Prefer B L1 `/improve` for autonomous campaigns; or host goal + improve worktree host.  
+- Prefer B L1 `/improve-loop` for autonomous campaigns; or host goal + improve worktree host.  
 - Worktree script is plain bash/git — callable from any harness.

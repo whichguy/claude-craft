@@ -5,9 +5,10 @@ description: >-
   default is autonomous multi-cycle in a single invoke (execute, test, learn, multi-model
   replan, commit, loop). Use --once for a single gated cycle; use --product / product / ux /
   integration / roadmap for product/UX seed mode (limitations + deferred P2 + operator surfaces,
-  not residual-empty-only). Invoke for "/improve <target>", "/improve --once <target>",
-  "/improve --product <target>", "/claudecraft:improve-loop <target>", "/improve-loop <target>",
-  "improve this project iteratively", or "run a tested improvement cycle".
+  not residual-empty-only). Invoke for "/improve-loop <target>", "/improve-loop --once <target>",
+  "/improve-loop --product <target>", "/claudecraft:improve-loop <target>", "improve this
+  project iteratively", or "run a tested improvement cycle". Not for bare "/improve" or
+  "improve these changes": those belong to the separate skill-craft improve skill.
 ---
 
 # Improve loop
@@ -37,12 +38,12 @@ description: >-
 | Layer | Owns | Does not own |
 |---|---|---|
 | **L0 `/goal` (host, optional)** | Session visibility; max-turns/budget if operator opens goal | Multi-cycle engine (not required for autonomy) |
-| **L1 Entry (`/improve`)** | Resolve target; **campaign driver** (default: loop L2 until terminal/cap/block); end report | Phase internals of a single cycle |
+| **L1 Entry (`/improve-loop`)** | Resolve target; **campaign driver** (default: loop L2 until terminal/cap/block); end report | Phase internals of a single cycle |
 | **L2 Cycle kernel (Phases 0–5)** | One gated cycle: execute → test → learn → replan → commit → signal | Multi-cycle iteration (L1 owns the loop) |
 | **L3 Scripts** (`scripts/`) | Shell probe, worktree enter, resolve-target-repo, pointer RMW, ledger-status, merge-back | Advisor judgment, thesis prose |
 
 ```text
-/improve <target>                    # default: autonomous campaign
+/improve-loop <target>                    # default: autonomous campaign
   → L1 resolve TARGET/REPO/CMD + mode (autonomous | once)
   → loop (autonomous) or once:
       L3 shell-probe + worktree-enter  → WORKSPACE
@@ -68,7 +69,7 @@ streak **2**. See [P0/P1 residual discipline](#p0p1-residual-discipline-default)
 **Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver. **Do not** stop
 after the first `active` cycle waiting for the user when mode is autonomous.
 
-**Workspace rule (non-negotiable):** For the duration of **one `/improve` invoke**, all
+**Workspace rule (non-negotiable):** For the duration of **one `/improve-loop` invoke**, all
 campaign edits live in **one ephemeral worktree** on `improve/<slug>` under
 `LAUNCH/.worktrees/`. Launch is read-only mid-run. Merge-back once at end (terminal land).
 
@@ -300,7 +301,7 @@ Continuous-host default until (cite A `goal.md` / `outer-loop.md`):
 `no material P0/P1 for 2 consecutive cycles (green tests)` — same residual×2 law; Phase 3
 rule 4 empty-backlog complete is suppressed under this default.
 
-Applies to **every** `/improve` target (code, skill, docs). Goal: plan improvements from
+Applies to **every** `/improve-loop` target (code, skill, docs). Goal: plan improvements from
 evidence, do material work, and only sign off after a second independent residual pass.
 
 ### Backlog = open work only (pure eval context — non-negotiable)
@@ -649,7 +650,7 @@ When open defect-style P0/P1 hit **0** after replan and `SEED_MODE` ∈ {`produc
 Some **host local sessions** (e.g. Grok Build ≥0.2.102) **keep the current directory across**
 `run_terminal_command` calls. Two hazards:
 
-1. **Wrong-repo stickiness:** session opens in repo A (host cwd) while `/improve`
+1. **Wrong-repo stickiness:** session opens in repo A (host cwd) while `/improve-loop`
    targets skill/repo B elsewhere — relative `make`/`git`/`test` silently hit A.
 2. **Dead worktree stickiness:** sticky CWD under a later-deleted `.worktrees/<slug>` → bare
    ENOENT on every spawn while file tools still work.
@@ -658,7 +659,7 @@ Some **host local sessions** (e.g. Grok Build ≥0.2.102) **keep the current dir
 
 | Path | Role | Outer sticky CWD? |
 |---|---|---|
-| `ORIGINAL_CWD` | Where the host session was when `/improve` started (save at L1 entry) | Only **after** campaign exit (homecoming) |
+| `ORIGINAL_CWD` | Where the host session was when `/improve-loop` started (save at L1 entry) | Only **after** campaign exit (homecoming) |
 | `TARGET_REPO` / `LAUNCH` | Destination git root for the improve target | **Yes — for the whole campaign** after resolve |
 | `WORKSPACE` | Disposable campaign worktree under `LAUNCH/.worktrees/` | **Never** as outer sticky |
 | `SKILL_DIR` | improve-loop package (may be under `~/.claude/skills/…`) | Never required as sticky; always absolute |
@@ -992,7 +993,7 @@ prefer bullets over essays; 3–7 discovery bullets max.
 
 **Next** (PLAN_ORIENT — **one resolved branch only**, not a menu of every possibility)
 - <e.g. continuing cycle K+1/MAX · next open: P1:validate-V2>
-- <or once-active → re-invoke `/improve` without `--once`>
+- <or once-active → re-invoke `/improve-loop` without `--once`>
 - <or terminal → campaign report · merge-back>
 - <or blocked → concrete operator action>
 ```
@@ -1106,16 +1107,17 @@ When Result is `blocked` or `stopped`, **Next** must be a concrete operator acti
 ## Invocation
 
 ```
-/improve <target, described in plain language>
-/improve --once <target>
-/improve --product <target>
-/improve --product --once <target>
+/improve-loop <target, described in plain language>
+/improve-loop --once <target>
+/improve-loop --product <target>
+/improve-loop --product --once <target>
 ```
 
-Also: `/improve-loop`, `/claudecraft:improve-loop` (plugin namespace). Examples:
-`/improve "error handling in scripts/ingest.py, tests via pytest"` (autonomous, defect seed);
-`/improve --product "resumable-script skillhub UX"` (autonomous, product seed);
-`/improve --once "…"` (single L2 cycle).
+Also: `/claudecraft:improve-loop` (plugin namespace). Bare `/improve` is **not** this
+skill's trigger — it belongs to skill-craft's `improve` skill (`/skill-craft:improve`). Examples:
+`/improve-loop "error handling in scripts/ingest.py, tests via pytest"` (autonomous, defect seed);
+`/improve-loop --product "resumable-script skillhub UX"` (autonomous, product seed);
+`/improve-loop --once "…"` (single L2 cycle).
 
 **Flags:**
 
@@ -1195,7 +1197,7 @@ instead of migrate (see Phase 0 step 1a.3). Default for Status `active` is **mig
 
 | Skill | Unit | Material unit | Complete when |
 |---|---|---|---|
-| **improve-loop** (`/improve`) | L2 cycle | Open **P0/P1** backlog items | **2 consecutive** cycles with zero open P0/P1 + green suite |
+| **improve-loop** (`/improve-loop`) | L2 cycle | Open **P0/P1** backlog items | **2 consecutive** cycles with zero open P0/P1 + green suite |
 | **review-converge** (`/review-converge`; legacy `/grok-review-converge`) | Review round | Reviewer **material** findings (vs minor) | **2 consecutive clean rounds** (zero material findings) |
 
 Shared family rules (both skills):
@@ -1250,11 +1252,11 @@ Fail fast in Phase 0. Do not half-run a cycle.
   ledger; without git there is no Phase 4. `git worktree` must work (refuse if
   `git worktree list` fails).
 - **Paths** (resolved in Phase 0 step 1a):
-  - `ORIGINAL_CWD` — host sticky path at `/improve` entry (L1); restored on L1 exit.
+  - `ORIGINAL_CWD` — host sticky path at `/improve-loop` entry (L1); restored on L1 exit.
   - `TARGET_REPO` / `LAUNCH` — destination checkout; **outer sticky CWD for the campaign**
     (may differ from host session). Prefer product-relative commands from here.
   - `WORKSPACE` — the **single** campaign worktree (`$LAUNCH/.worktrees/<slug>`). **This is
-    where the entire `/improve` campaign tree lives** (ledger, code, tests, commits). Access
+    where the entire `/improve-loop` campaign tree lives** (ledger, code, tests, commits). Access
     via absolute paths + `git -C` / **subshells** only — never outer sticky into WORKSPACE.
   - `RUN_STATE` — `$WORKSPACE/.improve-loop/state.json` (gitignored; never staged). Per-run
     control lives **inside** the campaign worktree. Resume discovers via scan of
@@ -1393,12 +1395,12 @@ mid-cycle or between cycles; chat is not a store. **`IMPROVE_LOOP.md` must be wr
 WORKSPACE on cold-start (template below) and updated through Phase 2–4 so open queue,
 counters, Next, and Last cycle survive compaction and support `--resume` for **this** pointer. Terminal
 cycles archive the full file into the commit body and **remove** it from the tree — it must
-**not** be required on product `main` to start a later `/improve`.
+**not** be required on product `main` to start a later `/improve-loop`.
 
 **Not durable across invokes / not the long-term store:**
 
 - Worktree run state (`.improve-loop/state.json`) — **run lock for this invoke only**;
-  discarded with the worktree on entry of the next `/improve` (default) and cleared on exit.
+  discarded with the worktree on entry of the next `/improve-loop` (default) and cleared on exit.
 - `IMPROVE_LOOP.md` after terminal land — gone from tree; history lives in the terminal
   archive block + iteration commit bodies. Next cold-start creates a **new** file.
 
@@ -1603,7 +1605,7 @@ header counter ≥ that N → delete `## Log` → Notes `legacy Log collapsed to
    invoke's `--target`, L3 **does not** exit 10 for carried WIP alone — it runs discard-stale
    (restore WIP to launch, then force-remove worktree) then cold-starts, with notes
    `discard-stale-different-target:<old>→<new>` — **unless** reintegrate-protected (exit 11).
-   Catalog skill-by-skill `/improve` must recover or pass `--force-drop-reintegrate` when
+   Catalog skill-by-skill `/improve-loop` must recover or pass `--force-drop-reintegrate` when
    a prior skill left reintegrate_blocked with unmerged improve commits.
 
    If `mode == merge-back-only`: run Phase 5 merge-back only (L3 `merge-back.js`); stop.
@@ -1700,7 +1702,7 @@ header counter ≥ that N → delete `## Log` → Notes `legacy Log collapsed to
      here (merge-back classifies launch separately).
    - Status terminal **and landed**: do not start a new cycle. If the resume file still
      exists, run **leftover-ledger archive** (below), then Phase 5. Do not seed a fresh
-     ledger. (Modern terminal archive already removed the file; next `/improve` cold-starts
+     ledger. (Modern terminal archive already removed the file; next `/improve-loop` cold-starts
      via step 2.)
 
      **Leftover-ledger archive** (terminal + landed + file still present): one commit,
@@ -2765,7 +2767,7 @@ Phase 0 ran. **Reporting (illustrative — see Status reporting):**
 
 ## Multi-cycle: L1 campaign driver (not host re-drive)
 
-Default `/improve` = **autonomous L1 loop** of L2 cycles until terminal+landed, blocked, or
+Default `/improve-loop` = **autonomous L1 loop** of L2 cycles until terminal+landed, blocked, or
 `MAX_CYCLES`. Host `/goal` is optional (template at `references/goal-objective.template.md`
 for operators who want session-level visibility/caps). Primary multi-cycle does **not**
 depend on “goal continues next turn.”
@@ -2778,7 +2780,7 @@ may still document ralph as optional legacy.
 - Skill: `IMPROVE_LOOP_MAX_CYCLES` (default 8) + ledger stop counters.
 - Host (optional outer wall): max-turns / max-budget / Esc when unattended.
 
-Merge-back left blocked → next `/improve` (or resume autonomous) runs merge-back-only.
+Merge-back left blocked → next `/improve-loop` (or resume autonomous) runs merge-back-only.
 
 **Verify package contracts:**
 

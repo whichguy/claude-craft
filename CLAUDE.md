@@ -36,7 +36,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | slides-suite     | reveal.js + Google Slides decks |
 | comms            | Slack tagging |
 | form990          | IRS Form 990 (deps: review-bench) |
-| claudecraft      | Campaign-default improve (`/improve` = B L1 multi-cycle): residual×2 complete, git learnings digest, multi-model replan; law corpus at `law/improve-loop/`; thin `improve` host (worktree/parse). Optional host goal observability |
+| claudecraft      | Campaign-default improve (`/improve-loop` or `/claudecraft:improve-loop` = B L1 multi-cycle; bare `/improve` belongs to skill-craft): residual×2 complete, git learnings digest, multi-model replan; law corpus at `law/improve-loop/`; thin `improve` host (worktree/parse). Optional host goal observability |
 | c-thru           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM (git-subdir from whichguy/c-thru plugins/c-thru; plugin-only works; full /cplan fleet needs CLI install in that repo) |
 
 Cross-plugin dep DAG: `gas-suite → review-suite`, `review-bench → review-suite`, `form990 → review-bench`. Declared in each plugin's `plugin.json#dependencies`.

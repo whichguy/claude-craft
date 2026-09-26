@@ -1,10 +1,10 @@
 # Improve-loop optional host `/goal` body
 
-**Primary multi-cycle is the skill’s L1 campaign driver** (default `/improve` loops L2 until
+**Primary multi-cycle is the skill’s L1 campaign driver** (default `/improve-loop` loops L2 until
 terminal/cap/block and emits a Campaign report). Host `/goal` is **optional** — for session
 visibility, pause/Esc, or outer max-turns/budget. Do not treat host re-drive as required.
 
-Fill placeholders only if you open a host goal alongside `/improve`:
+Fill placeholders only if you open a host goal alongside `/improve-loop`:
 
 ```
 Improve-loop campaign for target: <TARGET>

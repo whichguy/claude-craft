@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-09-26 — skills consolidated into skill-craft (planning-suite 0.3.0, review-bench 0.3.0, claudecraft 0.2.2)
+
+skill-craft ([whichguy/skill-craft](https://github.com/whichguy/skill-craft), plugin
+`skill-craft@whichguy`) is now the single source of truth for the skills below; claude-craft no
+longer ships its duplicate copies.
+
+### Removed capabilities
+
+- **planning-suite** — `architect`, `c-plan`, `prompt-align`, `prompt-audit`, `prompt-migrate`,
+  `prompt-refine`, `test`. Migration: `/skill-craft:<leaf>` (`test` is `/skill-craft:plan-test`).
+- **planning-suite plan scheduling** — `schedule-plan-tasks`, `delivery-agent`, their test
+  harnesses and `lib/`. Migration: `/skill-craft:backchain` to produce a dependency graph, then
+  `/skill-craft:plan-dispatcher` to execute it. The ExitPlanMode nudge routes `Execute: schedule`
+  there; plans without an `Execute:` line now default to inline implementation.
+- **review-bench** — `compare-prompts` (+ `compare-prompts-judge`), `improve-system-prompt`,
+  `review-fix-bench` (+ its bundled `tools/review-fix-bench.sh` copy). Migration:
+  `/skill-craft:<leaf>`. The repo-root `tools/review-fix-bench.sh` and `npm run bench:*` remain.
+- **claudecraft** — `improve-loop` no longer claims the bare `/improve <target>` trigger, which
+  belongs to skill-craft's `improve` skill. Use `/improve-loop` or `/claudecraft:improve-loop`.
+
+### Still present (not regressed)
+
+- `question-bench` and `derive-questions` stay in review-bench; skill-craft retired its copies,
+  so these are now the only source.
+- `node-plan`, `test-prompt-harness` and every other planning-suite agent remain.
+
 ## 2026-05-09 — review-plan: micro-noclose-strict promotion (22fd345)
 
 `plugins/review-suite/skills/review-plan/SKILL.md` was reduced from 4070 lines of orchestration to a 34-line single-pass directive (`micro-noclose-strict`), validated by 50 paired sub-agent runs across 5 fixtures. The trade-off was an explicit reduction of skill scope; capabilities below are removed by design.
