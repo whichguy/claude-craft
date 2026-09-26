@@ -203,7 +203,6 @@ const USER_FACING_NO_REFS_OK = new Set([
     'improve',
     'improve-loop',
     'slack-tag',
-    'test-delivery-agent',  // harness invoked via /test-delivery-agent, not dispatched
     'test-slides',
     'validate-questions',
     // Agents invoked directly by user / Task() but not from other skills' SKILL.md

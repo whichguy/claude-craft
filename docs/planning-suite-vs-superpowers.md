@@ -17,6 +17,18 @@
 - ✅ `merge-worktree` agent — deleted (`requirements-generator` now uses raw `git merge --squash`)
 - ✅ `create-worktree` agent — deleted (`requirements-generator` now uses raw `git worktree add`)
 
+**Update 2026-09-26 (planning-suite 0.3.0) — moved to skill-craft.** skill-craft
+([whichguy/skill-craft](https://github.com/whichguy/skill-craft), plugin `skill-craft@whichguy`) is
+now the single source of truth for these items, and planning-suite no longer ships them:
+- `architect` → `/skill-craft:architect`; `test` → `/skill-craft:plan-test`
+- `c-plan`, `prompt-align`, `prompt-audit`, `prompt-migrate`, `prompt-refine` → `/skill-craft:<same leaf>`
+- `schedule-plan-tasks` + `delivery-agent` (and the `test-schedule-plan-tasks` /
+  `test-delivery-agent` harnesses) → removed; plan scheduling is `/skill-craft:backchain`
+  (dependency graph) followed by `/skill-craft:plan-dispatcher` (execution). The ExitPlanMode
+  nudge routes `Execute: schedule` there.
+
+Rows below that name these items are the original audit record, marked *(moved)*.
+
 ---
 
 ## CUT (4) — all executed
@@ -36,10 +48,10 @@ These have meaningful overlap with superpowers but retain distinct slice worth k
 
 | Item | Type | Overlapping Superpower | Unique Slice to Keep |
 |------|------|------------------------|----------------------|
-| architect | skill | superpowers:brainstorming (design exploration) | Inline tech comparison + agent dispatch. Superpowers brainstorms intent; architect pre-builds comparison tables and dispatches system-architect agent directly—faster for "X vs Y" decisions. Keep the fast-path inline comparison logic. |
+| architect *(moved)* | skill | superpowers:brainstorming (design exploration) | Inline tech comparison + agent dispatch. Superpowers brainstorms intent; architect pre-builds comparison tables and dispatches system-architect agent directly—faster for "X vs Y" decisions. Keep the fast-path inline comparison logic. |
 | node-plan | skill | superpowers:writing-plans (general plan review) | Node.js/TypeScript-specific 38-question framework with dual-perspective (TS/API + Node runtime) evaluators. Superpowers' generic writing-plans doesn't target this language+runtime. Keep the domain-specific rigor. |
-| schedule-plan-tasks | skill | superpowers:executing-plans (orchestration) + superpowers:using-git-worktrees | Orchestrates parallel tasks across isolated worktrees with self-merge cascade, task-graph wiring, and recovery. Superpowers executes plans linearly; this adds worktree isolation + task API + cascade autonomy. Keep the task-graph wiring and cascade engine. |
-| test | skill | superpowers:test-driven-development (test generation) | Detects test framework automatically and matches project patterns. Superpowers is test-first mindset; this generates tests post-implementation and auto-detects existing test infrastructure. Keep framework detection + pattern matching. |
+| schedule-plan-tasks *(moved)* | skill | superpowers:executing-plans (orchestration) + superpowers:using-git-worktrees | Orchestrates parallel tasks across isolated worktrees with self-merge cascade, task-graph wiring, and recovery. Superpowers executes plans linearly; this adds worktree isolation + task API + cascade autonomy. Keep the task-graph wiring and cascade engine. |
+| test *(moved)* | skill | superpowers:test-driven-development (test generation) | Detects test framework automatically and matches project patterns. Superpowers is test-first mindset; this generates tests post-implementation and auto-detects existing test infrastructure. Keep framework detection + pattern matching. |
 | environment-analyst | agent | superpowers:brainstorming (environment discovery) | Continuous IDEAL-STI stream for environment/integration mapping. Superpowers brainstorms broadly; this is a specialized discovery agent for integration-point analysis and workflow impact. Keep as specialized discovery stream. |
 | qa-analyst | agent | superpowers:test-driven-development (test spec generation) | Generates comprehensive test plans + executes with architecture-spec compliance. Superpowers is TDD-first; this is test-after with architecture reference. Keep the comprehensive test-plan generation and spec alignment. |
 | system-architect | agent | superpowers:brainstorming (architecture exploration) | Implements LEVEL 1-4 progressive-complexity decision framework with "justify every escalation" rule. Superpowers explores; this decides with evidence gates. Keep the progressive-complexity framework. |
@@ -52,7 +64,7 @@ No meaningful superpowers overlap or genuinely distinct strategic value.
 
 | Item | Type | Rationale |
 |------|------|-----------|
-| delivery-agent | agent | Executes a single task from an orchestrated plan with worktree isolation, self-merge cascade, sub-task spawning, and 3-attempt retry logic. No superpowers equivalent—this is plan-execution + task lifecycle + cascade autonomy. |
+| delivery-agent *(removed)* | agent | Executes a single task from an orchestrated plan with worktree isolation, self-merge cascade, sub-task spawning, and 3-attempt retry logic. No superpowers equivalent—this is plan-execution + task lifecycle + cascade autonomy. |
 | deployment-orchestrator | agent | Manages deployments through an infrastructure-specific pipeline (references docs/architecture-specification.md). Superpowers has no deployment agent; this is infrastructure-aware with validation gates and feature classification. |
 | file-output-executor | agent | Writes large output (50k+) directly to file to avoid conversation truncation. Utility agent not addressed by superpowers. |
 | knowledge-aggregator | agent | Captures patterns and learnings from IDEAL-STI artifacts or generic project wiki. Superpowers has no knowledge-capture agent; this bridges sessions and surfaces reusable insights. |
@@ -75,8 +87,8 @@ Needs deeper investigation before deciding.
 
 | Item | Type | Questions | Next Steps |
 |------|------|-----------|-----------|
-| test-delivery-agent | skill (test harness) | Is this a skill or test infrastructure for delivery-agent? Does it have production use or is it only for testing schedule-plan-tasks? | Read the SKILL.md file to confirm scope. If infrastructure-only, consider removing from public bundle. |
-| test-schedule-plan-tasks | skill (test harness) | Same as test-delivery-agent—is this a testable skill or internal test infrastructure? | Read the SKILL.md file. If test-only, mark as internal and exclude from feature parity. |
+| test-delivery-agent *(removed)* | skill (test harness) | Is this a skill or test infrastructure for delivery-agent? Does it have production use or is it only for testing schedule-plan-tasks? | Read the SKILL.md file to confirm scope. If infrastructure-only, consider removing from public bundle. |
+| test-schedule-plan-tasks *(removed)* | skill (test harness) | Same as test-delivery-agent—is this a testable skill or internal test infrastructure? | Read the SKILL.md file. If test-only, mark as internal and exclude from feature parity. |
 
 ---
 

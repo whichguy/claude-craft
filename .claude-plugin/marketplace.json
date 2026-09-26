@@ -33,8 +33,8 @@
     {
       "name": "planning-suite",
       "source": "./plugins/planning-suite",
-      "version": "0.2.8",
-      "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, c-plan (bayesian clarifier for ambiguous prompts), alias/unalias, performance, knowledge, iterative red-team plan review, prompt-audit/migrate/align/refine."
+      "version": "0.3.0",
+      "description": "node-plan, test-prompt-harness, alias/unalias, performance, knowledge, iterative red-team plan review, and ExitPlanMode plan gates with an execute nudge (Execute: schedule routes to /skill-craft:backchain + /skill-craft:plan-dispatcher). Architect, c-plan, plan-test and prompt-align/audit/migrate/refine live in skill-craft (/skill-craft:<leaf>)."
     },
     {
       "name": "async-suite",

@@ -20,10 +20,8 @@
     "test:improve-loop": "mocha 'test/plugins/claudecraft/**/*.test.js'",
     "test:knowledge": "mocha 'test/plugins/planning-suite/knowledge.test.js'",
     "test:bench": "mocha 'test/plugins/review-suite/review-fix-bench.test.js' --timeout 10000",
-    "test:focus": "mocha 'test/plugins/planning-suite/schedule-plan-tasks-behavior.test.js' 'test/plugins/planning-suite/schedule-plan-tasks-smoke.test.js' 'test/plugins/planning-suite/delivery-agent-description.test.js'",
     "test:security": "mocha 'test/marketplace/security.test.js'",
     "test:llm-bench": "RUN_LLM_BENCH=1 mocha 'test/plugins/planning-suite/llm-bench/llm-bench.test.js' --timeout 600000",
-    "dry-run-plan": "node tools/dry-run-plan.js",
     "bench:run": "bash tools/review-fix-bench.sh --run",
     "bench:compare": "bash tools/review-fix-bench.sh --compare",
     "security:scan": "./tools/security-scan.sh . secrets false"

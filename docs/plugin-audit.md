@@ -11,7 +11,7 @@ Scope: 12 in-repo bundles vs official + community Claude Code plugin ecosystem.
 | **wiki-suite** | context7 (file-context only) | medium | **KEEP** (niche) | context7 ≠ LLM wiki + proactive research; ingest/query/process/lint is unique. |
 | **review-suite** | official `code-review` | high | **SLIM** | Defer simple PR-comment flows to official; keep Adversarial Auditor + iterative review-fix loop + memory audits. |
 | **review-bench** | none | — | **KEEP** (niche) | No A/B prompt or question-ablation tooling in official ecosystem. |
-| **planning-suite** | `feature-dev`, `superpowers` (official) | high | **SLIM** | Adopt superpowers as base; keep architect + schedule-plan-tasks + node-plan as extensions. |
+| **planning-suite** | `feature-dev`, `superpowers` (official) | high | **SLIM** | Adopt superpowers as base; keep architect + schedule-plan-tasks + node-plan as extensions. *(2026-09-26: architect and schedule-plan-tasks moved to skill-craft — `/skill-craft:architect`, `/skill-craft:backchain` + `/skill-craft:plan-dispatcher`; node-plan stays.)* |
 | **async-suite** | native Claude Code hooks | medium | **SLIM** | Native hooks subsume some bg/todo helpers; keep task-persist + feedback-collector + harvest. |
 | **slides-suite** | `frontend-design` (UI only) | medium | **KEEP reveal.js + GAS deck**; defer HTML-only slides to frontend-design |
 | **comms** | official `slack`, `github`, `discord` plugins | medium | **REPLACE if parity** | Audit /slack-tag vs official Slack plugin; deprecate if equivalent. |
@@ -22,7 +22,7 @@ Scope: 12 in-repo bundles vs official + community Claude Code plugin ecosystem.
 
 ## Action Summary
 
-1. **Slim planning-suite** — adopt official `superpowers` / `feature-dev` as base; keep `architect`, `schedule-plan-tasks`, `node-plan` as extensions. Highest payoff.
+1. **Slim planning-suite** — adopt official `superpowers` / `feature-dev` as base; keep `architect`, `schedule-plan-tasks`, `node-plan` as extensions. Highest payoff. *(2026-09-26: `architect` and `schedule-plan-tasks` moved to skill-craft; see `docs/planning-suite-vs-superpowers.md`.)*
 2. **Slim review-suite** — defer PR-comment orchestration to official `code-review`; keep Adversarial Auditor + review-fix loop + memory audits.
 3. **Audit comms** — compare /slack-tag vs official Slack plugin; replace if parity.
 4. **Decide local-classifier** — confirm whether actively used. If not, deprecate.

@@ -4,10 +4,15 @@
 Opt out: CLAUDE_PLAN_AUTO_EXECUTE=0|off|false|no
 Never uses mtime newest-plan guessing for EXECUTE NOW (wrong-plan risk).
 
-Execute routing (plan front-matter `Execute:` or heuristics):
-  schedule — invoke /schedule-plan-tasks (default for multi-step)
-  inline   — implement in-session; do not call schedule-plan-tasks
+Execute routing (plan front-matter `Execute:` within the first 30 lines):
+  inline   — implement in-session now (the default when `Execute:` is absent)
+  schedule — run /skill-craft:backchain on the approved plan to produce a
+             dependency graph, then /skill-craft:plan-dispatcher to execute
+             that graph (skill-craft@whichguy plugin)
   ask      — wait for explicit user go-ahead (rare)
+
+The former /schedule-plan-tasks target was removed from planning-suite
+(0.3.0); skill-craft is the single source of truth for plan scheduling.
 """
 from __future__ import annotations
 
@@ -20,12 +25,9 @@ from datetime import datetime
 from pathlib import Path
 
 _EXECUTE_RE = re.compile(r"(?im)^\s*Execute:\s*(schedule|inline|ask)\s*$")
-_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+\S")
-_PHASE_RE = re.compile(r"(?im)^\s*(?:#{1,3}\s*)?(?:phase|step)\s*\d+")
-_TRIVIAL_RE = re.compile(
-    r"(?i)\b(trivial\s*n/?a|execute:\s*inline|single[- ]step|rename only|"
-    r"docs?-only|comment[- ]only)\b"
-)
+
+BACKCHAIN = "/skill-craft:backchain"
+DISPATCHER = "/skill-craft:plan-dispatcher"
 
 
 def _auto_execute_enabled() -> bool:
@@ -86,24 +88,28 @@ def load_plan_text(payload: dict, plan_path: str | None) -> str:
 
 
 def resolve_execute_mode(plan_text: str) -> tuple[str, str]:
-    """Return (mode, reason) with mode in {schedule, inline, ask}."""
+    """Return (mode, reason) with mode in {schedule, inline, ask}.
+
+    Only an explicit `Execute:` line in the first 30 lines changes the mode;
+    everything else implements inline in the current session.
+    """
     if not plan_text.strip():
-        return "schedule", "default-no-body"
+        return "inline", "default-no-body"
 
     head = "\n".join(plan_text.splitlines()[:30])
     m = _EXECUTE_RE.search(head)
     if m:
         return m.group(1).lower(), "front-matter"
+    return "inline", "default"
 
-    # Heuristic auto-inline: tiny / trivial plans
-    if _TRIVIAL_RE.search(plan_text[:4000]):
-        return "inline", "heuristic-trivial"
-    lines = [ln for ln in plan_text.splitlines() if ln.strip()]
-    phase_hits = len(_PHASE_RE.findall(plan_text[:6000]))
-    headings = len(_HEADING_RE.findall(plan_text[:6000]))
-    if len(lines) <= 40 and phase_hits <= 1 and headings <= 4:
-        return "inline", "heuristic-small"
-    return "schedule", "default-multi"
+
+def schedule_steps(plan_path: str | None) -> str:
+    """The two-step skill-craft route for `Execute: schedule`."""
+    target = f"the approved plan at `{plan_path}`" if plan_path else "the plan you just approved"
+    return (
+        f"Run `{BACKCHAIN}` on {target} to produce a dependency graph, then run "
+        f"`{DISPATCHER}` to execute that graph. "
+    )
 
 
 def append_log(
@@ -154,8 +160,11 @@ def build_output(
             ctx = (
                 f"The plan at `{plan_path}` was approved via ExitPlanMode. "
                 f"Auto-execute is off (CLAUDE_PLAN_AUTO_EXECUTE=0). "
-                f"Invoke `/schedule-plan-tasks --plan '{plan_path}'` when ready, "
-                f"or implement inline."
+                + (
+                    schedule_steps(plan_path) + "Do this when the user is ready."
+                    if execute == "schedule"
+                    else "Implement it inline in this session when the user is ready."
+                )
             )
             msg = "Plan approved — auto-execute off; start when ready."
         return {
@@ -173,11 +182,11 @@ def build_output(
             f"EXECUTE NOW (inline): The plan {plan_ref}was just approved via "
             f"ExitPlanMode. User approval is the execute signal. Begin implementing "
             f"**in this session now** — first tool call must be edit/bash/write. "
-            f"Do **not** invoke `/schedule-plan-tasks` (this plan is inline/trivial). "
+            f"Do **not** hand it to a scheduler or worker fan-out (this plan is inline). "
             f'Do NOT summarize and stop. Do NOT ask the user to say "implement". '
             f"Only skip if the user already said to wait / defer / don't implement."
         )
-        msg = "Plan approved — implement inline now (no schedule-plan-tasks)."
+        msg = "Plan approved — implement inline now."
         return {
             "systemMessage": msg,
             "hookSpecificOutput": {
@@ -186,35 +195,24 @@ def build_output(
             },
         }
 
-    # schedule (default)
-    if plan_path:
-        inv = f"/schedule-plan-tasks --plan '{plan_path}'"
-        bind = (
-            f"Immediately invoke `{inv}` (Branch A, live) in this same turn. "
-            f"Pass that exact --plan path so the skill does not re-discover a different plan. "
-        )
-        msg = f"Plan approved — immediately invoke {inv} (execute now)."
-    else:
-        inv = "/schedule-plan-tasks"
-        bind = (
-            "Immediately invoke `/schedule-plan-tasks` (Branch A, live) for the plan "
-            "you just approved in this turn (no path was in the ExitPlanMode payload). "
-            "If the skill is unavailable in this harness, begin implementing now — "
-            "first tool call must be edit/bash/write, not a summary. "
-        )
-        msg = (
-            "Plan approved — immediately execute "
-            "(schedule-plan-tasks if available, else implement)."
-        )
-
+    # schedule (explicit `Execute: schedule` only)
+    msg = (
+        f"Plan approved — Execute: schedule: run {BACKCHAIN}, then {DISPATCHER} "
+        "(execute now)."
+    )
     ctx = (
-        f"EXECUTE NOW: The plan {plan_ref}was just approved via ExitPlanMode. "
-        f"User approval of ExitPlanMode is the execute signal — not a request to wait. "
-        f"{bind}"
-        f'Do NOT summarize the plan and stop. Do NOT ask the user to say "implement" '
+        f"EXECUTE NOW (schedule): The plan {plan_ref}was just approved via ExitPlanMode "
+        f"with `Execute: schedule`. User approval of ExitPlanMode is the execute signal — "
+        f"not a request to wait. In this same turn: {schedule_steps(plan_path)}"
+        + (
+            "Pass that exact plan path so neither skill re-discovers a different plan. "
+            if plan_path
+            else ""
+        )
+        + f'Do NOT summarize the plan and stop. Do NOT ask the user to say "implement" '
         f'or "execute". Only skip if the user already said to wait / defer / don\'t '
-        f"implement / not yet. If `/schedule-plan-tasks` is not available, begin "
-        f"implementing inline (first tool = edit/bash)."
+        f"implement / not yet. If the skill-craft plugin (skill-craft@whichguy) is not "
+        f"installed, begin implementing inline (first tool = edit/bash)."
     )
     return {
         "systemMessage": msg,

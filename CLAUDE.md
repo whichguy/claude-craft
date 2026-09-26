@@ -31,7 +31,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | wiki-suite       | Project LLM wiki + proactive research (absorbs old wiki-hooks/craft-hooks) |
 | review-suite     | Plan review, code-reviewer, review-fix, security/red-team, memory-* |
 | review-bench     | Prompt/question A/B benchmarking, ablation (deps: review-suite) |
-| planning-suite   | Architect, test, schedule-plan-tasks, node-plan, c-plan, alias/unalias, performance, knowledge, iterative red-team plan review (absorbs plan-red-team) |
+| planning-suite   | node-plan, test-prompt-harness, alias/unalias, performance, knowledge, iterative red-team plan review, ExitPlanMode plan gates + execute nudge (absorbs plan-red-team). Architect, c-plan, plan-test, prompt-align/audit/migrate/refine and plan scheduling (backchain + plan-dispatcher) live in skill-craft (`/skill-craft:<leaf>`) |
 | async-suite      | bg/todo/todo-cleanup + task-persist + feedback-collector (merged hooks) |
 | slides-suite     | reveal.js + Google Slides decks |
 | comms            | Slack tagging |
@@ -74,7 +74,7 @@ When an audit recommends deleting code that "looks superseded" or "looks dead":
 3. The audit MUST include a "premise verified live: yes/no" line. "no" means the recommendation is provisional and execution must re-verify before deleting.
 
 ### Dev-only top-level dirs
-`lib/` is referenced by `tools/dry-run-plan.js` and is dev-only (not shipped in plugins).
+`lib/` and `tools/dry-run-plan.js` were removed with schedule-plan-tasks (planning-suite 0.3.0); plan scheduling now lives in skill-craft.
 
 ---
 

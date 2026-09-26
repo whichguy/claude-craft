@@ -31,7 +31,7 @@ Verify with `/plugin list`.
 | `wiki-suite`       | Project LLM wiki: ingest, query, process queue, lint, proactive research |
 | `review-suite`     | Plan review, code review (Adversarial Auditor), iterative review-fix loop |
 | `review-bench`     | Prompt/question A/B benchmarking and ablation tooling (depends on review-suite) |
-| `planning-suite`   | Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge, iterative red-team plan review |
+| `planning-suite`   | node-plan, test-prompt-harness, alias/unalias, performance, knowledge, iterative red-team plan review, ExitPlanMode plan gates + execute nudge |
 | `async-suite`      | Background task workflow: `/bg`, `/todo`, task-persist, feedback-collector |
 | `slides-suite`     | reveal.js or Google Slides decks |
 | `comms`            | Slack tagging |
@@ -76,6 +76,13 @@ Claude Craft includes a self-building wiki system that captures knowledge from y
 ### Prompt Improvement Skills
 
 A consolidated set of skills for iterating on prompts, system prompts, and evaluator questions.
+
+> **Moved to skill-craft.** `architect`, `c-plan`, `plan-test` (was planning-suite `test`),
+> `prompt-align`, `prompt-audit`, `prompt-migrate` and `prompt-refine` now live only in
+> [whichguy/skill-craft](https://github.com/whichguy/skill-craft) — install
+> `skill-craft@whichguy` and invoke them as `/skill-craft:<leaf>`. Plan scheduling
+> (formerly `schedule-plan-tasks` + `delivery-agent`) is `/skill-craft:backchain`
+> followed by `/skill-craft:plan-dispatcher`.
 
 | Skill | Description |
 |-------|-------------|
@@ -317,7 +324,7 @@ claude-craft/
 │   ├── wiki-suite/        # Project LLM wiki + proactive research
 │   ├── review-suite/      # Plan review, code-reviewer, review-fix, security/red-team
 │   ├── review-bench/      # Prompt/question A/B benchmarking, ablation
-│   ├── planning-suite/    # Architect, test, schedule, red-team plan review
+│   ├── planning-suite/    # node-plan, red-team plan review, plan gates
 │   ├── async-suite/       # bg/todo + task-persist + feedback-collector
 │   ├── slides-suite/      # reveal.js + Google Slides decks
 │   ├── comms/             # Slack tagging

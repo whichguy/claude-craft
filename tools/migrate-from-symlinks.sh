@@ -205,7 +205,7 @@ Next: install via the marketplace.
        /plugin install wiki-suite@claude-craft        # project LLM wiki
        /plugin install review-suite@claude-craft      # plan + code review
        /plugin install review-bench@claude-craft      # prompt research bench
-       /plugin install planning-suite@claude-craft    # architect/refactor/test
+       /plugin install planning-suite@claude-craft    # node-plan/red-team/knowledge
        /plugin install async-suite@claude-craft       # background workflow
        /plugin install slides-suite@claude-craft      # reveal.js / Google Slides
        /plugin install comms@claude-craft             # Slack tagging

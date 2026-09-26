@@ -36,7 +36,7 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         expect(src).to.include('exit-plan-mode-schedule-nudge.py');
     });
 
-    it('emits EXECUTE NOW with --plan when planFilePath is in payload', function () {
+    it('defaults to inline for a multi-step plan without Execute: (payload path, no decoy)', function () {
         const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-test-'));
         fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
         const multiBody = [
@@ -73,21 +73,21 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         const parsed = JSON.parse(stdout);
         expect(parsed.hookSpecificOutput.hookEventName).to.equal('PostToolUse');
         const ctx = parsed.hookSpecificOutput.additionalContext;
-        expect(ctx).to.include('EXECUTE NOW');
+        expect(ctx).to.include('EXECUTE NOW (inline)');
         expect(ctx).to.include('approved via ExitPlanMode');
-        expect(ctx).to.match(/schedule-plan-tasks --plan '/);
         expect(ctx).to.include(planPath);
         expect(ctx).to.not.include('If the user wants to execute');
         expect(ctx).to.not.include('newer-decoy');
-        expect(ctx).to.not.include('EXECUTE NOW (inline)');
-        expect(parsed.systemMessage).to.match(/immediately invoke/i);
+        expect(ctx).to.not.include('schedule-plan-tasks');
+        expect(ctx).to.not.include('/skill-craft:backchain');
+        expect(parsed.systemMessage).to.match(/implement inline now/i);
 
         const log = fs.readFileSync(
             path.join(tmpHome, '.claude', 'logs', 'planning-suite-hooks.log'),
             'utf8'
         );
         expect(log).to.match(/\[schedule-nudge\].*src=payload/);
-        expect(log).to.match(/execute=schedule/);
+        expect(log).to.match(/execute=inline execute_src=default/);
         expect(log).to.include(planPath);
 
         fs.rmSync(tmpHome, { recursive: true, force: true });
@@ -108,7 +108,7 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         const ctx = parsed.hookSpecificOutput.additionalContext;
         expect(ctx).to.include('EXECUTE NOW');
         expect(ctx).to.not.include('stale.md');
-        expect(ctx).to.not.match(/schedule-plan-tasks --plan '/);
+        expect(ctx).to.include('EXECUTE NOW (inline)');
         const log = fs.readFileSync(
             path.join(tmpHome, '.claude', 'logs', 'planning-suite-hooks.log'),
             'utf8'
@@ -117,7 +117,7 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         fs.rmSync(tmpHome, { recursive: true, force: true });
     });
 
-    it('unique content-hash match resolves src=hash', function () {
+    it('Execute: schedule routes to /skill-craft:backchain then /skill-craft:plan-dispatcher (src=hash)', function () {
         const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-hash-'));
         fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
         const body = [
@@ -140,16 +140,23 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         expect(ctx).to.include('EXECUTE NOW');
         // macOS may resolve /var → /private/var; match basename + --plan form
         expect(ctx).to.include('hashed.md');
-        expect(ctx).to.match(/schedule-plan-tasks --plan '/);
+        expect(ctx).to.include('EXECUTE NOW (schedule)');
+        expect(ctx).to.match(/`\/skill-craft:backchain` on the approved plan at `[^`]*hashed\.md`/);
+        expect(ctx.indexOf('/skill-craft:backchain')).to.be.lessThan(
+            ctx.indexOf('/skill-craft:plan-dispatcher')
+        );
+        expect(ctx).to.include('dependency graph');
+        expect(ctx).to.not.include('schedule-plan-tasks');
         const log = fs.readFileSync(
             path.join(tmpHome, '.claude', 'logs', 'planning-suite-hooks.log'),
             'utf8'
         );
         expect(log).to.match(/src=hash/);
+        expect(log).to.match(/execute=schedule execute_src=front-matter/);
         fs.rmSync(tmpHome, { recursive: true, force: true });
     });
 
-    it('Execute: inline routes to in-session implement (no schedule-plan-tasks)', function () {
+    it('Execute: inline routes to in-session implement (no scheduler)', function () {
         const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-inline-'));
         fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
         const planPath = path.join(tmpHome, '.claude', 'plans', 'tiny.md');
@@ -164,8 +171,9 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         const stdout = runNudge({ home: tmpHome, stdin });
         const ctx = JSON.parse(stdout).hookSpecificOutput.additionalContext;
         expect(ctx).to.include('EXECUTE NOW (inline)');
-        expect(ctx).to.include('Do **not** invoke');
-        expect(ctx).to.not.match(/Immediately invoke `\/schedule-plan-tasks --plan/);
+        expect(ctx).to.include('Do **not** hand it to a scheduler');
+        expect(ctx).to.not.include('/skill-craft:backchain');
+        expect(ctx).to.not.include('schedule-plan-tasks');
         const log = fs.readFileSync(
             path.join(tmpHome, '.claude', 'logs', 'planning-suite-hooks.log'),
             'utf8'
@@ -219,6 +227,28 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         expect(ctx).to.not.include('EXECUTE NOW');
         expect(ctx).to.include('Auto-execute is off');
         expect(ctx).to.include(planPath);
+        expect(ctx).to.include('inline');
+        expect(ctx).to.not.include('schedule-plan-tasks');
+        fs.rmSync(tmpHome, { recursive: true, force: true });
+    });
+
+    it('CLAUDE_PLAN_AUTO_EXECUTE=0 with Execute: schedule names the skill-craft route', function () {
+        const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-off-sched-'));
+        fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
+        const planPath = path.join(tmpHome, '.claude', 'plans', 'p.md');
+        fs.writeFileSync(planPath, '# Plan\nExecute: schedule\n\n## Phase 1\n...\n');
+        const stdout = runNudge({
+            home: tmpHome,
+            stdin: JSON.stringify({
+                tool_name: 'ExitPlanMode',
+                tool_input: { planFilePath: planPath },
+            }),
+            env: { CLAUDE_PLAN_AUTO_EXECUTE: '0' },
+        });
+        const ctx = JSON.parse(stdout).hookSpecificOutput.additionalContext;
+        expect(ctx).to.not.include('EXECUTE NOW');
+        expect(ctx).to.include('/skill-craft:backchain');
+        expect(ctx).to.include('/skill-craft:plan-dispatcher');
         fs.rmSync(tmpHome, { recursive: true, force: true });
     });
 
