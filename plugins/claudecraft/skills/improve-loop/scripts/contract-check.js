@@ -68,7 +68,10 @@ function exists(p) {
 
 const user = read(userSkill);
 const mirror = read(mirrorSkill);
-const converge = read(convergeSkill);
+// The review-converge composition checks are optional: a runner without the
+// sibling skill installed (CI) skips them instead of failing the package check.
+const converge = exists(convergeSkill) ? read(convergeSkill) : '';
+if (!converge) console.log(`SKIP: review-converge composition (not installed at ${convergeSkill})`);
 
 // --- package layout (L3) ---
 // Every script that tests or SKILL call by path must appear here (H15 atomic ship).
