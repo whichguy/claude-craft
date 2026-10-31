@@ -37,9 +37,9 @@ STATIC_CHECKS="marketplace-lint namespacing-lint marketplace-smoke handler-sync 
 SHARDS="core claudecraft shell"
 
 # ───────────────────────── environment isolation ─────────────────────────
-# Tests must behave the same on a laptop and on a runner. Two real leaks bit us:
-# CLAUDE_PLAN_WORKTREE_GATE=0 in a developer shell silently disabled the gate
-# under test (14 false failures), and handler tests write under ~/.claude.
+# Tests must behave the same on a laptop and on a runner. A real leak bit us:
+# CLAUDE_PLAN_WORKTREE_GATE=0 in a developer shell silently disabled the gate under test
+# (14 false failures). A throwaway HOME also means no test can touch the real ~/.claude.
 CI_TMP=""
 cleanup() { [ -n "$CI_TMP" ] && rm -rf "$CI_TMP"; }
 trap cleanup EXIT

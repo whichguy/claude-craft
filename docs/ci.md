@@ -59,8 +59,8 @@ every shard.
 
 `ci.sh` runs under a throwaway `HOME` with a fixed git identity and **ignores `CLAUDE_PLAN_*` and
 `CODEX_*`** from the caller's shell, printing which it dropped. Two real leaks motivated this:
-`CLAUDE_PLAN_WORKTREE_GATE=0` in a developer shell turned 14 gate tests red while CI stayed green,
-and handler tests write under `~/.claude`.
+`CLAUDE_PLAN_WORKTREE_GATE=0` in a developer shell turned 14 gate tests red while CI stayed green.
+The throwaway `HOME` also guarantees no test can touch your real `~/.claude`.
 
 ## Design decisions
 
@@ -70,9 +70,10 @@ and handler tests write under `~/.claude`.
   `test/marketplace/ci-workflows.test.js` fails if a job is added without being added to `needs`.
 - **Concurrency never cancels `main`.** PR runs are superseded by newer pushes to the same PR;
   each push to `main` has its own group, so every commit gets a verdict. (The old group cancelled
-  main runs: 4 of the last 100 main pushes never got one.)
+  main runs: 4 of the 75 `main` pushes in the last 100 runs never got one.)
 - **Pinned runners gate; floating runners canary.** `ubuntu-latest` is migrating to Ubuntu 26.04
-  between 2026-10-19 and 2026-11-19, so a floating label can change OS between two runs.
+  between 2026-10-19 and 2026-11-19, so a floating label can change OS between two runs (a canary run on
+  2026-10-31 already landed on 26.04).
   Required legs use `ubuntu-24.04` / `macos-26`; `scheduled.yml` runs `ubuntu-latest`,
   `ubuntu-26.04` and `macos-latest` so drift is seen a week early without blocking anyone.
 - **macOS and a Node floor are in the matrix.** The scripts here are bash/BSD-vs-GNU sensitive and the
