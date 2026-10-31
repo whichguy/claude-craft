@@ -39,6 +39,7 @@ here="$(cd "$(dirname "$0")/.." && pwd -P)"
   [ -e "$here/forgot.txt" ] && echo "forgot=present" || echo "forgot=absent"
   echo "gitvars=$(env | grep -E '^GIT_(DIR|WORK_TREE|INDEX_FILE|COMMON_DIR|PREFIX|OBJECT_DIRECTORY)=' | cut -d= -f1 | sort | tr '\\n' ' ')"
 } > "$out.facts"
+mkdir -p "$here/test-results/ci" && echo "log from the scratch checkout" > "$here/test-results/ci/core.log"
 # behave like a test that builds a throwaway repo: if git env leaked in, this lands in the REAL repo
 t=$(mktemp -d); ( cd "$t" && git init -q && echo x > f && git add -A && git -c user.name=fx -c user.email=fx@example.com commit -q -m FIXTURE-FROM-TEST ) >/dev/null 2>&1
 exit "\${STUB_RC:-0}"
@@ -57,7 +58,7 @@ function setup() {
     fs.writeFileSync(path.join(dir, 'tools', 'ci.sh'), STUB, { mode: 0o755 });
     fs.mkdirSync(path.join(dir, 'node_modules', '.bin'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'node_modules', '.bin', 'mocha'), '', { mode: 0o755 });
-    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\nci-args.txt*\n');
+    fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\nci-args.txt*\ntest-results/\n'); // like the real repo
     fs.writeFileSync(path.join(dir, 'marker.txt'), 'committed\n');
     fs.mkdirSync(path.join(dir, '.githooks'));
     fs.copyFileSync(path.join(REPO_ROOT, '.githooks', 'pre-push'), path.join(dir, '.githooks', 'pre-push'));
@@ -120,6 +121,15 @@ describe('.githooks/pre-push', function () {
         expect(r.status).to.not.equal(0);
         expect(r.out).to.match(/PUSH BLOCKED/);
         expect(remoteHead(remote, 'main')).to.equal(before);
+    });
+
+    it('keeps the logs of a failed run (the scratch checkout that produced them is deleted)', function () {
+        const { dir } = setup();
+        commit(dir, 'a.txt', 'first');
+        const r = run('git', ['push', '-q', '-u', 'origin', 'main'], dir, { STUB_RC: '1' });
+        expect(r.status).to.not.equal(0);
+        expect(r.out).to.match(/logs: test-results\/prepush/);
+        expect(read(path.join(dir, 'test-results', 'prepush', 'core.log'))).to.equal('log from the scratch checkout');
     });
 
     it('SKIP_PREPUSH=1 skips CI entirely', function () {

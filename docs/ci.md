@@ -8,7 +8,7 @@ the decisions (run history, timings, experiments) is in [ci-journal.md](ci-journ
 | Layer | When | What | Blocks |
 |---|---|---|---|
 | `.githooks/pre-commit` | `git commit` | secret scan of the **staged** content; marketplace + namespacing lints when `plugins/` is staged | the commit (bypass: `--no-verify`) |
-| `.githooks/pre-push` | `git push` of the checked-out commit | `tools/ci.sh pre-push` on a **clean checkout of the pushed commit**: static checks + the test shards the diff touches (a speed heuristic; CI is the authority) | the push (bypass: `SKIP_PREPUSH=1`) |
+| `.githooks/pre-push` | `git push` of the checked-out commit | `tools/ci.sh pre-push` on a **clean checkout of the pushed commit**: static checks + the test shards the diff touches (a speed heuristic; CI is the authority) | the push (bypass: `SKIP_PREPUSH=1`); logs of a failed run are kept in `test-results/prepush` |
 | `ci.yml` | push to `main`, every PR, manual | workflow lint, static ×2 OS, tests ×4 legs, **CI gate** | merge, once `CI gate` is a required check |
 | `scheduled.yml` | Mondays 05:23 UTC, manual | hermes drift (strict), canary on floating runner labels with freshly resolved deps | nothing; a red run is the alert |
 | Dependabot | weekly | SHA-pinned actions, npm dev-dependencies (7-day cooldown) | nothing; opens PRs |

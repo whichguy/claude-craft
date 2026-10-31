@@ -74,6 +74,13 @@ else
 fi
 RC=$?
 
+# The scratch checkout is deleted on exit; keep the logs where a failure can be investigated.
+if [ "$RUN_DIR" != "$REPO_ROOT" ] && [ -d "$RUN_DIR/test-results/ci" ]; then
+    rm -rf "${REPO_ROOT:?}/test-results/prepush"
+    mkdir -p "$REPO_ROOT/test-results" && cp -R "$RUN_DIR/test-results/ci" "$REPO_ROOT/test-results/prepush"
+    [ "$RC" -ne 0 ] && echo -e "${YELLOW}logs: test-results/prepush${NC}"
+fi
+
 if [ "$RC" -ne 0 ]; then
     echo -e "${RED}🚨 PUSH BLOCKED: local CI failed. Fix it, or SKIP_PREPUSH=1 git push to override.${NC}"
     exit 1
