@@ -163,6 +163,23 @@ describe('npm install reproducibility', function () {
         expect(root.dependencies || {}).to.deep.equal(pkg.dependencies || {});
     });
 
+    it('has no npm test:* script that points at tests which do not exist (they imply coverage that is not there)', function () {
+        const hasTests = (dir) => fs.existsSync(dir) && fs.readdirSync(dir, { withFileTypes: true })
+            .some((e) => (e.isDirectory() ? hasTests(path.join(dir, e.name)) : e.name.endsWith('.test.js')));
+        const dead = [];
+        Object.entries(pkg.scripts).filter(([k, v]) => /^test/.test(k) && /\bmocha\b/.test(v)).forEach(([k, v]) => {
+            (v.match(/'[^']+\.test\.js'/g) || []).map((q) => q.slice(1, -1))
+                .filter((spec) => !v.includes(`--ignore '${spec}'`))
+                .forEach((spec) => {
+                    const ok = spec.includes('*')
+                        ? hasTests(path.join(REPO_ROOT, spec.split('*')[0]))
+                        : fs.existsSync(path.join(REPO_ROOT, spec));
+                    if (!ok) dead.push(`${k} → ${spec}`);
+                });
+        });
+        expect(dead, 'remove these scripts or add the tests they promise').to.deep.equal([]);
+    });
+
     it('splits mocha into core + claudecraft shards that together cover every test exactly once', function () {
         expect(pkg.scripts['test:core']).to.include("--ignore 'test/plugins/claudecraft/**'");
         expect(pkg.scripts['test:improve-loop']).to.include("'test/plugins/claudecraft/**/*.test.js'");
