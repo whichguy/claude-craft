@@ -1,0 +1,36 @@
+# Keeps the SHA-pinned actions and the (now committed) lockfile current. Grouped so a
+# week's updates arrive as one PR per ecosystem instead of one per package. The 7-day
+# cooldown means a release is only proposed once it has survived a week in the wild
+# (compromised releases are typically yanked within days). Security updates ignore it.
+#
+# Not covered by Dependabot, bumped by hand when touching .github/workflows/ci.yml:
+#   - the actionlint image digest (docker:// reference)
+#   - the zizmor version input
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: 'chore(ci)'
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      dev-dependencies:
+        dependency-type: development
+    commit-message:
+      prefix: 'chore(deps)'
