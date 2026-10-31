@@ -171,8 +171,12 @@ describe('Wiki Hooks', function () {
     describe('wiki-stop.sh concurrency', function () {
 
         it('should serialize concurrent stop hooks via mkdir lock', async function () {
-            const sidA = 'concurrent-aaaa-1111';
-            const sidB = 'concurrent-bbbb-2222';
+            // The hook keys sessions by their first 8 characters and dedups SESSION_END on that
+            // key. These two used to share the prefix "concurre", so the test only passed when the
+            // processes happened to race past the dedup grep together: ~10% failures on a loaded
+            // machine (2/20 under CPU stress), and a hidden dependence on machine speed.
+            const sidA = 'aaaaaaaa-concurrent-1111';
+            const sidB = 'bbbbbbbb-concurrent-2222';
 
             fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${sidA.substring(0, 8)}-start`), '');
             fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${sidB.substring(0, 8)}-start`), '');

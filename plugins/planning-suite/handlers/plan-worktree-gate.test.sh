@@ -2,6 +2,10 @@
 # Regression suite for plan-worktree-gate.py. Run: ./plan-worktree-gate.test.sh
 # All cases avoid live codex calls by using a stub or a PATH without codex.
 set -u
+# Hermetic: CLAUDE_PLAN_* switch gate behaviour on/off. A developer shell that exports one
+# (e.g. CLAUDE_PLAN_WORKTREE_GATE=0) must not change this suite's outcome — it turns 14
+# cases red on a laptop while CI (clean env) stays green.
+for v in $(compgen -e | grep '^CLAUDE_PLAN'); do unset "$v"; done
 G="$(cd "$(dirname "$0")" && pwd)/plan-worktree-gate.py"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 fails=0

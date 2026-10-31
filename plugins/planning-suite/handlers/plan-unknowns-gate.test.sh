@@ -2,6 +2,10 @@
 # Regression suite for plan-unknowns-gate.py. Run: ./plan-unknowns-gate.test.sh
 # All cases avoid live codex calls (PATH-stripped where a deny is expected).
 set -u
+# Hermetic: CLAUDE_PLAN_* switch gate behaviour on/off. A developer shell that exports one
+# (e.g. CLAUDE_PLAN_WORKTREE_GATE=0) must not change this suite's outcome — it once turned 14
+# of this family's cases red on a laptop while CI (clean env) stayed green.
+for v in $(compgen -e | grep '^CLAUDE_PLAN'); do unset "$v"; done
 G="$(cd "$(dirname "$0")" && pwd)/plan-unknowns-gate.py"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 fails=0
