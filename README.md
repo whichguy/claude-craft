@@ -567,7 +567,7 @@ const ids = registry.list();
 
 1. Fork this repository
 2. Add your prompts, commands, agents, or workflows
-3. Run `npm run ci` (the same checks CI runs; ~75 s) and `tools/install-hooks.sh` once per clone
+3. Run `npm run ci` (the same checks CI runs; about a minute) and `tools/install-hooks.sh` once per clone
 4. Submit a pull request — bump the plugin's version in `plugin.json` and `marketplace.json` if you changed what it ships
 
 ---

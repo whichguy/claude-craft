@@ -23,7 +23,7 @@ between laptop and runner. Every check runs to completion (one failure never hid
 checks run concurrently, and each prints a table; on GitHub the table also lands in the job summary.
 
 ```
-npm run ci                       static, then tests   (≈75 s on a laptop)
+npm run ci                       static, then tests   (≈1 min on a laptop)
 tools/ci.sh static               checks only          (≈17 s)
 tools/ci.sh test                 test shards only
 tools/ci.sh run secrets core     just these

@@ -321,6 +321,17 @@ describe('tools/ci.sh', function () {
         expect(r.out).to.match(/0 passed, 0 failed, 1 skipped/);
     });
 
+    it('CI_SHARDS restricts which test shards run', function () {
+        const dir = makeRepo({ 'src/a.js': '1\n' });
+        commitAll(dir);
+        const r = run('tools/ci.sh', ['test'], dir, { CI_SHARDS: 'core' }); // no node_modules here → core fails fast
+        expect(r.status).to.equal(1);
+        expect(r.out).to.match(/^core\s+FAIL/m);
+        expect(r.out).to.not.match(/^claudecraft\s/m);
+        expect(r.out).to.not.match(/^shell\s/m);
+        expect(r.out).to.match(/0 passed, 1 failed/);
+    });
+
     it('rejects an unknown check name before launching any of the others', function () {
         const dir = makeRepo({ 'src/a.js': '1\n' });
         commitAll(dir);

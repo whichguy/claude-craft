@@ -15,6 +15,7 @@
 # Env:
 #   CI_BASE=<ref>    diff base for changed-file checks (secrets, version bump, pre-push)
 #   CI_SKIP="a b"    checks/shards to skip, reported as SKIP (e.g. a tool the machine lacks)
+#   CI_SHARDS="a b"  run only these test shards (the workflow splits shards across VMs on 3-core macOS)
 #   CI_OUT=<dir>     log directory (default: test-results/ci, gitignored)
 #   CI_KEEP_HOME=1   do not isolate HOME (default: a throwaway HOME + git identity)
 #   CI_VERBOSE=1     print passing checks' logs too (always grouped on GitHub Actions)
@@ -291,7 +292,7 @@ run_set() {  # run_set <kind> <title> <names...>: launch all, wait, report
 # shellcheck disable=SC2086
 phase_static() { run_set check "static checks" $STATIC_CHECKS; }
 # shellcheck disable=SC2086
-phase_test()   { run_set shard "test shards" ${SHARD_OVERRIDE:-$SHARDS}; }
+phase_test()   { run_set shard "test shards" ${CI_SHARDS:-${SHARD_OVERRIDE:-$SHARDS}}; }
 
 # Which shards can this diff possibly affect? CI always runs all of them; this
 # keeps the local pre-push gate fast without letting a broken push through.

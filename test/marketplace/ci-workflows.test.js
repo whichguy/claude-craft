@@ -111,6 +111,23 @@ describe('.github/workflows policy', function () {
             expect(Math.min(...nodes)).to.equal(floor);
         });
 
+        it('runs every test shard on every OS (a shard dropped from one OS would silently lose coverage there)', function () {
+            const ciSh = fs.readFileSync(path.join(REPO_ROOT, 'tools', 'ci.sh'), 'utf8');
+            const all = ciSh.match(/^SHARDS="([^"]+)"/m)[1].split(/\s+/).sort();
+            const byOs = {};
+            wf.jobs.test.strategy.matrix.include.forEach((leg) => {
+                byOs[leg.os] = byOs[leg.os] || new Set();
+                leg.shards.split(/\s+/).forEach((s) => byOs[leg.os].add(s));
+            });
+            Object.keys(byOs).forEach((os) => expect([...byOs[os]].sort(), `shards run on ${os}`).to.deep.equal(all));
+        });
+
+        it('gives every upload-artifact a name that is unique per matrix leg (duplicates fail the upload)', function () {
+            steps(wf).filter((s) => /^actions\/upload-artifact@/.test(s.step.uses || '')).forEach((s) => {
+                if (s.job === 'test') expect(s.step.with.name).to.include('strategy.job-index');
+            });
+        });
+
         it('runs tools/ci.sh, so local and remote checks cannot drift', function () {
             const runs = steps(wf).map((s) => s.step.run || '').join('\n');
             expect(runs).to.match(/tools\/ci\.sh static/);
