@@ -108,11 +108,19 @@ and handler tests write under `~/.claude`.
 
 ## Not done (needs a decision from the repo owner)
 
-- **Branch protection / ruleset on `main`.** Nothing enforces CI today: 75 of the last 100 runs were
-  direct pushes to `main`, and 52% of completed `main` runs were red. Requiring `CI gate` would stop
-  that but also stops direct pushes (a PR becomes mandatory). A softer option is a ruleset with the
-  owner as a bypass actor. Enable with `gh api -X PUT repos/whichguy/claude-craft/branches/main/protection`
-  (required check `CI gate`) once the workflow has run on `main` at least once.
+- **Branch protection on `main`.** Nothing enforces CI today: 72 of the last 100 runs were direct commits
+  to `main` (3 more were PR merges, 25 were PR runs), and 52% of completed `main` runs were red. `CI gate` is the one name to require. This variant
+  gates PR merges but lets the owner (an admin) still push directly, which is the least disruptive start;
+  set `enforce_admins` to `true` to make direct pushes impossible too:
+
+  ```bash
+  gh api -X PUT repos/whichguy/claude-craft/branches/main/protection --input - <<'EOF'
+  { "required_status_checks": { "strict": false, "contexts": ["CI gate"] },
+    "enforce_admins": false, "required_pull_request_reviews": null, "restrictions": null }
+  EOF
+  ```
+
+  Even without it, `tools/install-hooks.sh` plus the pre-push hook catch most red pushes before they leave the laptop.
 - **Repo settings:** Dependabot security updates are off, and "require actions pinned to a full commit SHA"
   (`sha_pinning_required`) is off. Both are one-click settings once the pins are in.
 - **Shellcheck warnings:** 35 pre-existing warning-level findings in shipped scripts; only errors block.

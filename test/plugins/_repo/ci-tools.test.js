@@ -85,6 +85,29 @@ describe('tools/scan-secrets.sh (shared secret-scan policy)', function () {
         expect(r.out).to.match(/warn:\s+docs\/notes\.md/);
     });
 
+    it('does not treat every path containing "test" or "example" as a test file (that made the gate bypassable by name)', function () {
+        const dir = makeRepo({
+            'plugins/x/handlers/latest-session.js': `const k = "${FAKE_KEY}";\n`,
+            'src/contest.js': `const k = "${FAKE_KEY}";\n`,
+            'src/counterexample.js': `const k = "${FAKE_KEY}";\n`,
+        });
+        ['plugins/x/handlers/latest-session.js', 'src/contest.js', 'src/counterexample.js'].forEach((f) => {
+            const r = run('tools/scan-secrets.sh', [f], dir);
+            expect(r.status, f + '\n' + r.out).to.equal(1);
+        });
+    });
+
+    it('still treats real test, fixture, doc and example paths as lenient', function () {
+        const paths = ['test/a.js', 'src/tests/a.js', 'src/a.test.js', 'src/a.spec.ts', 'src/a_test.go', 'src/test_a.py',
+            'test_a.py', 'fixtures/a.js', 'src/fixtures/a.js', 'docs/a.sh', 'examples/a.js', '.env.example', 'README.md', 'notes.txt'];
+        const files = {};
+        paths.forEach((p) => { files[p] = `x = "${FAKE_KEY}"\n`; });
+        const dir = makeRepo(files);
+        const r = run('tools/scan-secrets.sh', paths, dir);
+        expect(r.status, r.out).to.equal(0);
+        expect(r.out).to.match(new RegExp(`${paths.length} files, 0 blocking, ${paths.length} warning`));
+    });
+
     it('passes clean files and silently skips paths that no longer exist', function () {
         const dir = makeRepo({ 'src/ok.js': 'module.exports = 1;\n' });
         const r = run('tools/scan-secrets.sh', ['src/ok.js', 'src/deleted.js'], dir);
@@ -127,6 +150,20 @@ describe('.githooks/pre-commit (secret gate must actually gate)', function () {
         git(dir, 'add', 'src/leak.js');
         write(dir, { 'src/leak.js': 'const k = process.env.KEY;\n' }); // clean, but unstaged
         const r = git(dir, 'commit', '-m', 'leak');
+        expect(r.status, r.out).to.not.equal(0);
+        expect(r.out).to.match(/COMMIT BLOCKED/);
+    });
+
+    it('scans a file that is renamed and edited in the same commit (git reports it as R, not A or M)', function () {
+        const dir = hookRepo();
+        write(dir, { 'src/old.js': Array.from({ length: 30 }, (_, i) => `const line${i} = ${i};`).join('\n') + '\n' });
+        git(dir, 'add', 'src/old.js');
+        expect(git(dir, 'commit', '-m', 'add').status).to.equal(0);
+        git(dir, 'mv', 'src/old.js', 'src/new.js');
+        fs.appendFileSync(path.join(dir, 'src', 'new.js'), `const k = "${FAKE_KEY}";\n`);
+        git(dir, 'add', 'src/new.js');
+        expect(git(dir, 'status', '--short').out).to.match(/^R/m); // precondition: this really is a rename
+        const r = git(dir, 'commit', '-m', 'rename + secret');
         expect(r.status, r.out).to.not.equal(0);
         expect(r.out).to.match(/COMMIT BLOCKED/);
     });
