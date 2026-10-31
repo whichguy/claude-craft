@@ -1,7 +1,13 @@
 #!/bin/bash
 
-# Pre-commit hook for secret detection
-# Prevents committing files with hardcoded secrets
+# Pre-commit hook: secret detection + marketplace lints.
+#
+# The secret-scan POLICY lives in tools/scan-secrets.sh and is shared with CI
+# (tools/ci.sh): code files block the commit, tests/docs only warn. This hook used
+# to call the engine (tools/simple-secrets-scan.sh) with `false`, which is
+# "report-only, always exit 0" — so it printed "passed" and could never block.
+# It now scans the STAGED content (the index), not the working tree, because the
+# two differ under `git add -p`.
 
 # Colors
 RED='\033[0;31m'
@@ -14,7 +20,7 @@ echo -e "${BLUE}🛡️  Running pre-commit secret scan...${NC}"
 
 # Get the repository root
 REPO_ROOT=$(git rev-parse --show-toplevel)
-SECURITY_SCANNER="$REPO_ROOT/tools/simple-secrets-scan.sh"
+SECURITY_SCANNER="$REPO_ROOT/tools/scan-secrets.sh"
 
 # Check if security scanner exists
 if [ ! -x "$SECURITY_SCANNER" ]; then
@@ -33,36 +39,27 @@ fi
 echo -e "${BLUE}📁 Files staged for commit:${NC}"
 echo "$STAGED_FILES" | sed 's/^/  /'
 
-# Track if any secrets are found
-SECRETS_FOUND=false
-CRITICAL_FILES=""
+# Materialise the staged blobs under their repo-relative paths so the scanner's
+# path-based policy (code vs test/docs) sees exactly what would be committed.
+SCAN_DIR=$(mktemp -d)
+trap 'rm -rf "$SCAN_DIR"' EXIT
+mkdir -p "$SCAN_DIR/tree"
+git diff --cached -z --name-only --diff-filter=ACM > "$SCAN_DIR/list"
+while IFS= read -r -d '' file; do
+    mkdir -p "$SCAN_DIR/tree/$(dirname "$file")"
+    git show ":$file" > "$SCAN_DIR/tree/$file" 2>/dev/null
+done < "$SCAN_DIR/list"
 
-# Scan each staged file for secrets
-while IFS= read -r file; do
-    if [ -f "$file" ]; then
-        # Skip certain file types that commonly have examples
-        case "$file" in
-            */test/* | */tests/* | */examples/* | */docs/* | *test* | *example* | *.md | *.txt)
-                # Still scan but be less strict for documentation/test files
-                if ! "$SECURITY_SCANNER" "$file" false >/dev/null 2>&1; then
-                    echo -e "${YELLOW}⚠️  Potential secrets in documentation/test file: $file${NC}"
-                    echo -e "${YELLOW}   → If these are examples, consider using placeholder values${NC}"
-                fi
-                ;;
-            *)
-                # Strict scanning for code files
-                echo -e "${BLUE}🔍 Scanning: $file${NC}"
-                if ! "$SECURITY_SCANNER" "$file" false; then
-                    SECRETS_FOUND=true
-                    CRITICAL_FILES="$CRITICAL_FILES\n  $file"
-                    echo -e "${RED}❌ Secrets detected in: $file${NC}"
-                fi
-                ;;
-        esac
-    fi
-done <<< "$STAGED_FILES"
+SCAN_OUTPUT=$( cd "$SCAN_DIR/tree" && xargs -0 "$SECURITY_SCANNER" < "$SCAN_DIR/list" 2>&1 )
+SCAN_RC=$?
 
-if [ "$SECRETS_FOUND" = "true" ]; then
+# Test/doc files only warn (they legitimately hold fake keys).
+echo "$SCAN_OUTPUT" | grep '^warn:' | while IFS= read -r line; do
+    echo -e "${YELLOW}⚠️  ${line#warn:    }${NC}"
+done
+
+if [ "$SCAN_RC" -ne 0 ]; then
+    CRITICAL_FILES=$(echo "$SCAN_OUTPUT" | sed -n 's/^BLOCKED: \([^ ]*\) .*/\1/p' | sed 's/^/\\n  /' | tr -d '\n')
     echo -e "${RED}🚨 COMMIT BLOCKED: Secrets detected in staged files!${NC}"
     echo -e "${RED}Critical files:${CRITICAL_FILES}${NC}"
     echo ""
@@ -75,10 +72,10 @@ if [ "$SECRETS_FOUND" = "true" ]; then
     echo -e "${YELLOW}🔧 Quick commands:${NC}"
     echo -e "${YELLOW}   git reset HEAD <file>     # Unstage file${NC}"
     echo -e "${YELLOW}   git stash                 # Stash changes${NC}"
-    
+
     # Log the prevented commit
     echo "$(date '+%Y-%m-%d %H:%M:%S') - PRE-COMMIT: Blocked commit with secrets in: $CRITICAL_FILES" >> ~/.git-security.log
-    
+
     exit 1
 else
     echo -e "${GREEN}✅ Pre-commit secret scan passed - no secrets detected${NC}"

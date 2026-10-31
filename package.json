@@ -4,6 +4,10 @@
   "description": "A comprehensive development toolkit for Claude Code",
   "scripts": {
     "test": "mocha 'test/**/*.test.js'",
+    "test:core": "mocha 'test/**/*.test.js' --ignore 'test/plugins/claudecraft/**' --parallel",
+    "ci": "tools/ci.sh all",
+    "ci:static": "tools/ci.sh static",
+    "ci:test": "tools/ci.sh test",
     "test:watch": "mocha 'test/**/*.test.js' --watch",
     "test:coverage": "nyc mocha 'test/**/*.test.js'",
     "test:planning-suite": "mocha 'test/plugins/planning-suite/**/*.test.js'",
@@ -36,6 +40,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "devDependencies": {
     "chai": "^4.3.10",
     "js-yaml": "^4.1.0",
