@@ -53,7 +53,7 @@ jobs:
         include:
           - { os: ubuntu-latest, node: 26 } # floating label: shows what the runner will be tomorrow
           - { os: ubuntu-26.04, node: 24 } # next Ubuntu LTS image, before `ubuntu-latest` lands on it
-          - { os: macos-latest, node: 26 }
+          - { os: macos-latest, node: 26 } # same image as the gating macos-26 leg today, so this mostly adds fresh deps until the label moves
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

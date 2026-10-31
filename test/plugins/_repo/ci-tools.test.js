@@ -108,6 +108,28 @@ describe('tools/scan-secrets.sh (shared secret-scan policy)', function () {
         expect(r.out).to.match(new RegExp(`${paths.length} files, 0 blocking, ${paths.length} warning`));
     });
 
+    it('keeps markdown under plugins/ strict: skills, agents and commands ARE the product', function () {
+        const dir = makeRepo({
+            'plugins/p/skills/s/SKILL.md': `use ${FAKE_KEY}\n`,
+            'plugins/p/agents/a.md': `use ${FAKE_KEY}\n`,
+            'docs/guide.md': `use ${FAKE_KEY}\n`,
+            'README.md': `use ${FAKE_KEY}\n`,
+            'plugins/p/tests/notes.md': `use ${FAKE_KEY}\n`,
+        });
+        ['plugins/p/skills/s/SKILL.md', 'plugins/p/agents/a.md'].forEach((f) => {
+            const r = run('tools/scan-secrets.sh', [f], dir);
+            expect(r.status, f + '\n' + r.out).to.equal(1);
+        });
+        const ok = run('tools/scan-secrets.sh', ['docs/guide.md', 'README.md', 'plugins/p/tests/notes.md'], dir);
+        expect(ok.status, ok.out).to.equal(0); // docs, the README and a plugin's own tests may hold fakes
+    });
+
+    it('detects Google API keys that contain a hyphen (the engine used the range \\\\-_, which excludes "-")', function () {
+        const key = 'AIza' + 'Sy-' + 'A'.repeat(32); // AIza + 35 chars, one of them "-"
+        const dir = makeRepo({ 'src/g.js': `const k = "${key}";\n` });
+        expect(run('tools/scan-secrets.sh', ['src/g.js'], dir).status).to.equal(1);
+    });
+
     it('passes clean files and silently skips paths that no longer exist', function () {
         const dir = makeRepo({ 'src/ok.js': 'module.exports = 1;\n' });
         const r = run('tools/scan-secrets.sh', ['src/ok.js', 'src/deleted.js'], dir);
@@ -164,6 +186,21 @@ describe('.githooks/pre-commit (secret gate must actually gate)', function () {
         git(dir, 'add', 'src/new.js');
         expect(git(dir, 'status', '--short').out).to.match(/^R/m); // precondition: this really is a rename
         const r = git(dir, 'commit', '-m', 'rename + secret');
+        expect(r.status, r.out).to.not.equal(0);
+        expect(r.out).to.match(/COMMIT BLOCKED/);
+    });
+
+    it('scans a file whose type changed (a symlink replaced by a regular file is T, neither A nor M)', function () {
+        const dir = hookRepo();
+        write(dir, { 'src/real.js': 'module.exports = 1;\n' });
+        fs.symlinkSync('real.js', path.join(dir, 'src', 'link.js'));
+        git(dir, 'add', '-A');
+        expect(git(dir, 'commit', '-m', 'add a symlink').status).to.equal(0);
+        fs.rmSync(path.join(dir, 'src', 'link.js'));
+        fs.writeFileSync(path.join(dir, 'src', 'link.js'), `const k = "${FAKE_KEY}";\n`);
+        git(dir, 'add', 'src/link.js');
+        expect(git(dir, 'status', '--short').out).to.match(/^T/m); // precondition: this really is a type change
+        const r = git(dir, 'commit', '-m', 'typechange + secret');
         expect(r.status, r.out).to.not.equal(0);
         expect(r.out).to.match(/COMMIT BLOCKED/);
     });
@@ -296,6 +333,19 @@ describe('tools/check-hermes-drift.sh (staleness vs the upstream manifest)', fun
         expect(drift(dir, env, ['--strict']).status).to.equal(1);
     });
 
+    it('ci.sh fails closed to strict when the base cannot be resolved (force-push: `before` is gone)', function () {
+        const dir = repo();
+        const base = commitAll(dir, 'base');
+        write(dir, { 'docs/unrelated.md': 'x\n' });
+        commitAll(dir, 'unrelated');
+        const drifted = upstream(dir, 'bbb  plan-review-cleanup.py\n');
+        // known base, handlers untouched → advisory
+        expect(run('tools/ci.sh', ['run', 'hermes-drift'], dir, Object.assign({ CI_BASE: base }, drifted)).status).to.equal(0);
+        // a base that was given but does not exist here → unknown → strict
+        const r = run('tools/ci.sh', ['run', 'hermes-drift'], dir, Object.assign({ CI_BASE: 'deadbeef'.repeat(5) }, drifted));
+        expect(r.status, r.out).to.equal(1);
+    });
+
     it('ci.sh makes drift blocking only when the change touches the handlers', function () {
         const dir = repo();
         const base = commitAll(dir, 'base');
@@ -367,6 +417,125 @@ describe('tools/ci.sh', function () {
         expect(r.out).to.not.match(/^claudecraft\s/m);
         expect(r.out).to.not.match(/^shell\s/m);
         expect(r.out).to.match(/0 passed, 1 failed/);
+        expect(r.out).to.match(/CI_SHARDS='core' restricts the test shards/); // never silent: an exported CI_SHARDS must be visible
+    });
+
+    it('never inherits repository-local GIT_* variables (git exports GIT_DIR to hooks run from a linked worktree)', function () {
+        const clean = makeRepo({ 'src/a.js': '1\n' });
+        commitAll(clean);
+        const other = makeRepo({ 'x/__pycache__/a.pyc': 'x' }); // a DIFFERENT repo that would FAIL tracked-artifacts
+        commitAll(other);
+        const r = run('tools/ci.sh', ['run', 'tracked-artifacts'], clean, { GIT_DIR: path.join(other, '.git') });
+        expect(r.status, 'ci.sh looked at the repo named by the inherited GIT_DIR\n' + r.out).to.equal(0);
+    });
+
+    it('treats a shard that exits 77 as a FAILURE (mocha exits with its failure count; 77 is not a skip)', function () {
+        const dir = makeRepo({ 'src/a.js': '1\n' });
+        fs.mkdirSync(path.join(dir, 'node_modules', '.bin'), { recursive: true });
+        fs.writeFileSync(path.join(dir, 'node_modules', '.bin', 'mocha'), '', { mode: 0o755 });
+        fs.mkdirSync(path.join(dir, 'fakebin'));
+        fs.writeFileSync(path.join(dir, 'fakebin', 'npm'), '#!/bin/sh\nexit 77\n', { mode: 0o755 });
+        const r = run('tools/ci.sh', ['test'], dir, { CI_SHARDS: 'core', PATH: path.join(dir, 'fakebin') + path.delimiter + process.env.PATH });
+        expect(r.status, r.out).to.equal(1);
+        expect(r.out).to.match(/^core\s+FAIL/m);
+        expect(r.out).to.not.match(/^core\s+SKIP/m);
+    });
+
+    it('scans every commit in the range, not only the net diff (a key added then removed is still in the pushed history)', function () {
+        const dir = makeRepo({ 'src/a.js': 'module.exports = 1;\n' });
+        const base = commitAll(dir, 'base');
+        write(dir, { 'src/leak.js': `const k = "${FAKE_KEY}";\n` });
+        commitAll(dir, 'oops, committed a key');
+        fs.rmSync(path.join(dir, 'src', 'leak.js'));
+        commitAll(dir, 'removed it again');
+        expect(git(dir, 'diff', '--name-only', base, 'HEAD').out.trim(), 'precondition: the net diff is empty').to.equal('');
+        const r = run('tools/ci.sh', ['run', 'secrets'], dir, { CI_BASE: base });
+        expect(r.status, r.out).to.equal(1);
+        expect(r.out).to.match(/added in commit/);
+    });
+
+    it('fails closed when CI_BASE cannot be resolved: scans everything instead of guessing "the last commit"', function () {
+        const dir = makeRepo({ 'src/old.js': `const k = "${FAKE_KEY}";\n` });
+        commitAll(dir, 'old leak');
+        write(dir, { 'src/new.js': '1\n' });
+        commitAll(dir, 'clean');
+        expect(run('tools/ci.sh', ['run', 'secrets'], dir).status, 'no CI_BASE: last commit only').to.equal(0);
+        const r = run('tools/ci.sh', ['run', 'secrets'], dir, { CI_BASE: 'deadbeef'.repeat(5) });
+        expect(r.status, r.out).to.equal(1);
+        expect(r.out).to.match(/no usable base/);
+    });
+
+    describe('python-syntax floor', function () {
+        const real39 = (() => {
+            if (process.platform === 'darwin' && spawnSync('xcode-select', ['-p']).status !== 0) return false;
+            const r = spawnSync('/usr/bin/python3', ['-c', 'import sys; print("%d.%d" % sys.version_info[:2])'], { encoding: 'utf8' });
+            return r.status === 0 && r.stdout.trim() === '3.9';
+        })();
+        // ast.parse(feature_version=(3,9)) on a newer interpreter ACCEPTS PEP 701 nested same-quote f-strings
+        (real39 ? it : it.skip)('rejects what a real Python 3.9 rejects but a newer interpreter\'s feature_version accepts', function () {
+            const dir = makeRepo({ 'plugins/p/handlers/h.py': 'd = {"k": 1}\nprint(f"{d["k"]}")\n' });
+            commitAll(dir);
+            const r = run('tools/ci.sh', ['run', 'python-syntax'], dir);
+            expect(r.status, r.out).to.equal(1);
+            expect(r.out).to.match(/using a real Python 3\.9/);
+        });
+    });
+
+    describe('pre-push phase', function () {
+        const staticChecks = () => run('tools/ci.sh', ['list'], makeRepo()).out.match(/static checks:\s*(.*)/)[1];
+        const prepush = (dir, base, env) => run('tools/ci.sh', ['pre-push', '--base', base], dir, Object.assign({ CI_SKIP: staticChecks() }, env));
+        const shardsOf = (out) => (out.match(/pre-push: static checks \+ shards \[([^\]]*)\]/) || [])[1];
+        const lay = (files) => {
+            const dir = makeRepo(files);
+            return { dir, base: commitAll(dir, 'base') };
+        };
+
+        it('still runs the static checks without node_modules, and says plainly that the tests were not run', function () {
+            const { dir, base } = lay({ 'docs/a.md': 'a\n' });
+            write(dir, { 'docs/a.md': 'b\n' });
+            commitAll(dir, 'edit');
+            const r = prepush(dir, base);
+            expect(r.status, r.out).to.equal(0);
+            expect(r.out).to.match(/static checks/i);
+            expect(r.out).to.match(/node_modules missing, so test shards \[core\] were not run/);
+        });
+
+        it('selects only core for an unrelated change', function () {
+            const { dir, base } = lay({ 'docs/a.md': 'a\n' });
+            write(dir, { 'docs/a.md': 'b\n' });
+            commitAll(dir, 'edit');
+            expect(shardsOf(prepush(dir, base).out)).to.equal('core');
+        });
+
+        it('counts a DELETION under claudecraft (diff-filter ACMR hid it)', function () {
+            const { dir, base } = lay({ 'plugins/claudecraft/skills/x/SKILL.md': 'x\n', 'docs/a.md': 'a\n' });
+            fs.rmSync(path.join(dir, 'plugins', 'claudecraft', 'skills', 'x', 'SKILL.md'));
+            commitAll(dir, 'delete');
+            expect(shardsOf(prepush(dir, base).out)).to.equal('core claudecraft shell');
+        });
+
+        it('counts the SOURCE of a rename (only the destination used to be reported)', function () {
+            const { dir, base } = lay({ 'plugins/planning-suite/handlers/a.py': 'x = 1\n' });
+            fs.mkdirSync(path.join(dir, 'plugins', 'planning-suite', 'elsewhere'));
+            git(dir, 'mv', 'plugins/planning-suite/handlers/a.py', 'plugins/planning-suite/elsewhere/a.py');
+            commitAll(dir, 'move out of handlers');
+            expect(shardsOf(prepush(dir, base).out)).to.match(/\bshell\b/);
+        });
+
+        it('runs everything when shared test infrastructure changes', function () {
+            const { dir, base } = lay({ '.mocharc.json': '{}\n' });
+            write(dir, { '.mocharc.json': '{"timeout": 1}\n' });
+            commitAll(dir, 'config');
+            expect(shardsOf(prepush(dir, base).out)).to.equal('core claudecraft shell');
+        });
+    });
+
+    it('keeps the last run\'s logs in test-results/ci (each run works in a private directory meanwhile)', function () {
+        const dir = makeRepo({ 'src/a.js': '1\n' });
+        commitAll(dir);
+        const r = run('tools/ci.sh', ['run', 'tracked-artifacts'], dir);
+        expect(r.status, r.out).to.equal(0);
+        expect(fs.existsSync(path.join(dir, 'test-results', 'ci', 'tracked-artifacts.log'))).to.equal(true);
     });
 
     it('rejects an unknown check name before launching any of the others', function () {

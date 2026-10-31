@@ -477,7 +477,7 @@ Git does not install hooks on clone: run `tools/install-hooks.sh` once per clone
   - Logs security events to `~/.git-security.log`
 
 - **Pre-commit Secret Detection**: Before every `git commit`:
-  - Blocks commits that stage hardcoded API keys in code files (it scans the staged content, not the working tree; test and doc files only warn). CI repeats the scan, so skipping the hook with `--no-verify` is still caught
+  - Blocks commits that stage hardcoded API keys in code files and in plugin markdown (it scans the staged content, not the working tree, including renamed and type-changed files; test, fixture and doc files only warn). CI repeats the scan on every commit a push or PR adds, so skipping the hook with `--no-verify` shows up as a red run (GitHub push protection is the server-side backstop)
   - Detects Anthropic, OpenAI, AWS, GitHub tokens
   - Provides specific remediation suggestions
   - Allows emergency bypass with `--no-verify`

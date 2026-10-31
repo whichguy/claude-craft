@@ -8,7 +8,7 @@ the decisions (run history, timings, experiments) is in [ci-journal.md](ci-journ
 | Layer | When | What | Blocks |
 |---|---|---|---|
 | `.githooks/pre-commit` | `git commit` | secret scan of the **staged** content; marketplace + namespacing lints when `plugins/` is staged | the commit (bypass: `--no-verify`) |
-| `.githooks/pre-push` | `git push` of the checked-out branch | `tools/ci.sh pre-push`: static checks + only the test shards the diff touches | the push (bypass: `SKIP_PREPUSH=1`) |
+| `.githooks/pre-push` | `git push` of the checked-out commit | `tools/ci.sh pre-push` on a **clean checkout of the pushed commit**: static checks + the test shards the diff touches (a speed heuristic; CI is the authority) | the push (bypass: `SKIP_PREPUSH=1`) |
 | `ci.yml` | push to `main`, every PR, manual | workflow lint, static ×2 OS, tests ×4 legs, **CI gate** | merge, once `CI gate` is a required check |
 | `scheduled.yml` | Mondays 05:23 UTC, manual | hermes drift (strict), canary on floating runner labels with freshly resolved deps | nothing; a red run is the alert |
 | Dependabot | weekly | SHA-pinned actions, npm dev-dependencies (7-day cooldown) | nothing; opens PRs |
@@ -19,8 +19,9 @@ Hooks are not installed by `git clone`. Run `tools/install-hooks.sh` once per cl
 ## One definition of "CI passes": `tools/ci.sh`
 
 `ci.yml`, the pre-push hook and `npm run ci` all call this script, so the checks cannot drift
-between laptop and runner. Every check runs to completion (one failure never hides another),
-checks run concurrently, and each prints a table; on GitHub the table also lands in the job summary.
+between laptop and runner. Within a phase every check runs to completion (one failure never hides
+another) and they run concurrently; `all` and the pre-push hook skip the test shards when the static
+phase already failed. Each phase prints a table; on GitHub it also lands in the job summary.
 
 ```
 npm run ci                       static, then tests   (≈1 min on a laptop)
@@ -40,9 +41,9 @@ tools/ci.sh pre-push --base REF  what the hook runs
 | `improve-loop-contract` | improve-loop contract / package-parity regressions |
 | `harness-smoke` | `score-run.sh` regressions (canned fixture) |
 | `shellcheck` | syntax-level errors in shipped shell; warnings are counted, not blocking (35 pre-existing) |
-| `python-syntax` | shipped Python using syntax newer than 3.9, which is what macOS still ships |
+| `python-syntax` | shipped Python using syntax newer than 3.9, which is what macOS still ships. Uses a **real** 3.9 where the machine has one (the macOS legs); elsewhere `ast`'s `feature_version`, which is best-effort and accepts some newer syntax |
 | `tracked-artifacts` | `.pyc`, `__pycache__`, `.nyc_output`, `node_modules`, `.DS_Store` committed |
-| `secrets` | secret-like patterns in code files changed by this push/PR (`tools/scan-secrets.sh`) |
+| `secrets` | secret-like patterns in code files in **every commit** this push/PR adds (not just the net diff: a key committed then removed is still in the pushed history). `plugins/` markdown counts as code; tests, fixtures and docs only warn |
 
 | Test shard | Contents | Why separate |
 |---|---|---|
@@ -57,9 +58,15 @@ every shard.
 
 ### Environment isolation (why results do not depend on whose machine it is)
 
-`ci.sh` runs under a throwaway `HOME` with a fixed git identity and **ignores `CLAUDE_PLAN_*` and
-`CODEX_*`** from the caller's shell, printing which it dropped. Two real leaks motivated this:
-`CLAUDE_PLAN_WORKTREE_GATE=0` in a developer shell turned 14 gate tests red while CI stayed green.
+`ci.sh` runs under a throwaway `HOME` with a fixed git identity, **ignores `CLAUDE_PLAN_*` and `CODEX_*`**
+from the caller's shell (printing which it dropped), and **never inherits repository-local `GIT_*`
+variables**. Two real leaks motivated this:
+
+- `CLAUDE_PLAN_WORKTREE_GATE=0` in a developer shell turned 14 gate tests red while CI stayed green.
+- git exports `GIT_DIR` to hooks, and from a *linked worktree* it points at the shared repo. Without
+  the strip, a pre-push from a worktree let a test that builds a throwaway repo commit onto the
+  developer's pushed branch (reproduced; journal F25).
+
 The throwaway `HOME` also guarantees no test can touch your real `~/.claude`.
 
 ## Design decisions
@@ -96,8 +103,10 @@ The throwaway `HOME` also guarantees no test can touch your real `~/.claude`.
 ## Maintaining it
 
 - **Add a check:** write `check_<name>` (dashes become underscores) in `tools/ci.sh`, add it to
-  `STATIC_CHECKS`, and add a behavioural test in `test/plugins/_repo/ci-tools.test.js`. Exit `77`
-  means "not applicable here".
+  `STATIC_CHECKS`, and add a behavioural test in `test/plugins/_repo/ci-tools.test.js`. A check that is
+  not applicable here calls `ci_skip "reason"` and returns 0; it is reported as SKIP. Never signal a skip
+  with an exit code: tools exit with arbitrary numbers (mocha exits with its failure count, so exactly 77
+  failing tests once read as a skip).
 - **Add a test file:** anything under `test/**` is picked up. Test files **outside** `test/` are not;
   wire them into a shard in `tools/ci.sh` (that is how three suites went unrun).
 - **Add a matrix leg:** edit `ci.yml`; the gate needs no change. Keep the label pinned.
@@ -121,7 +130,8 @@ The throwaway `HOME` also guarantees no test can touch your real `~/.claude`.
   EOF
   ```
 
-  Even without it, `tools/install-hooks.sh` plus the pre-push hook catch most red pushes before they leave the laptop.
+  Even without it, `tools/install-hooks.sh` plus the pre-push hook catch many red pushes before they leave
+  the laptop (it runs on a clean checkout of exactly what you push; CI stays the authority).
 - **Repo settings:** Dependabot security updates are off, and "require actions pinned to a full commit SHA"
   (`sha_pinning_required`) is off. Both are one-click settings once the pins are in.
 - **Shellcheck warnings:** 35 pre-existing warning-level findings in shipped scripts; only errors block.

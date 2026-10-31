@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
@@ -70,7 +70,7 @@ describe('.github/workflows policy', function () {
 
             it('never interpolates event/input data into a shell script (injection)', function () {
                 steps(wf).filter((s) => s.step.run).forEach((s) => {
-                    const exprs = s.step.run.match(/\$\{\{[^}]*\}\}/g) || [];
+                    const exprs = s.step.run.match(/\$\{\{[\s\S]*?\}\}/g) || [];
                     exprs.forEach((e) => expect(e, `${name}: ${s.job} run: block`).to.not.match(/github\.event|github\.head_ref|inputs\./));
                 });
             });
@@ -88,9 +88,24 @@ describe('.github/workflows policy', function () {
             expect(String(gate.if)).to.match(/always\(\)/);
         });
 
-        it('never cancels in-progress runs on main (every commit gets a verdict)', function () {
-            expect(wf.concurrency['cancel-in-progress']).to.not.equal(true);
-            expect(String(wf.concurrency['cancel-in-progress'])).to.match(/pull_request/);
+        it('cancels superseded PR runs but never runs on main (every commit gets a verdict)', function () {
+            // exact, so an inverted condition ('!= pull_request') or a literal true cannot slip through
+            expect(wf.concurrency['cancel-in-progress']).to.equal("${{ github.event_name == 'pull_request' }}");
+            expect(wf.concurrency.group, 'PRs: one group per PR').to.include('github.event.pull_request.number');
+            expect(wf.concurrency.group, 'pushes: one group per commit, so none supersedes another').to.include('github.sha');
+        });
+
+        it('has a gate that fails unless EVERY needed job succeeded (runs the real jq expression)', function () {
+            if (spawnSync('jq', ['--version']).status !== 0) this.skip();
+            const step = wf.jobs.gate.steps.find((x) => x.run && /jq -e/.test(x.run));
+            const expr = step.run.match(/jq -e '([^']+)'/)[1];
+            const passes = (results) => spawnSync('jq', ['-e', expr], {
+                input: JSON.stringify(Object.fromEntries(results.map((r, i) => ['job' + i, { result: r, outputs: {} }]))),
+            }).status === 0;
+            expect(passes(['success', 'success'])).to.equal(true);
+            ['failure', 'cancelled', 'skipped'].forEach((bad) => {
+                expect(passes(['success', bad]), `a ${bad} job must fail the gate`).to.equal(false);
+            });
         });
 
         it('uses pinned runner labels for every gating job', function () {
@@ -180,8 +195,27 @@ describe('npm install reproducibility', function () {
         expect(dead, 'remove these scripts or add the tests they promise').to.deep.equal([]);
     });
 
-    it('splits mocha into core + claudecraft shards that together cover every test exactly once', function () {
-        expect(pkg.scripts['test:core']).to.include("--ignore 'test/plugins/claudecraft/**'");
-        expect(pkg.scripts['test:improve-loop']).to.include("'test/plugins/claudecraft/**/*.test.js'");
+    it('runs the CI shards with --forbid-only (a stray it.only would skip other files and still exit 0)', function () {
+        expect(pkg.scripts['test:core']).to.include('--forbid-only');
+        expect(pkg.scripts['test:improve-loop']).to.include('--forbid-only');
+    });
+
+    it('splits mocha into core + claudecraft shards that together cover every test file exactly once', function () {
+        // evaluate the REAL globs from package.json against the files on disk
+        const toRe = (g) => new RegExp('^' + g
+            .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*\*\//g, '\u0001').replace(/\*\*/g, '\u0002').replace(/\*/g, '[^/]*')
+            .replace(/\u0001/g, '(?:.*/)?').replace(/\u0002/g, '.*') + '$');
+        const walk = (dir) => fs.readdirSync(path.join(REPO_ROOT, dir), { withFileTypes: true }).flatMap((e) => {
+            const rel = dir + '/' + e.name;
+            return e.isDirectory() ? (e.name === 'node_modules' ? [] : walk(rel)) : [rel];
+        });
+        const arg = (script, flag) => (pkg.scripts[script].match(new RegExp(flag + " '([^']+)'")) || [])[1];
+        const all = walk('test').filter((f) => toRe(pkg.scripts.test.match(/mocha '([^']+)'/)[1]).test(f));
+        const core = all.filter((f) => toRe(pkg.scripts['test:core'].match(/mocha '([^']+)'/)[1]).test(f) && !toRe(arg('test:core', '--ignore')).test(f));
+        const claudecraft = all.filter((f) => toRe(pkg.scripts['test:improve-loop'].match(/mocha '([^']+)'/)[1]).test(f));
+        expect(all.length, 'found the test files').to.be.greaterThan(20);
+        expect(core.filter((f) => claudecraft.includes(f)), 'a file is in both shards').to.deep.equal([]);
+        expect(core.concat(claudecraft).sort(), 'a file is in neither shard').to.deep.equal(all.slice().sort());
     });
 });

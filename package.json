@@ -4,7 +4,7 @@
   "description": "A comprehensive development toolkit for Claude Code",
   "scripts": {
     "test": "mocha 'test/**/*.test.js'",
-    "test:core": "mocha 'test/**/*.test.js' --ignore 'test/plugins/claudecraft/**' --parallel",
+    "test:core": "mocha 'test/**/*.test.js' --ignore 'test/plugins/claudecraft/**' --parallel --forbid-only",
     "ci": "tools/ci.sh all",
     "ci:static": "tools/ci.sh static",
     "ci:test": "tools/ci.sh test",
@@ -16,7 +16,7 @@
     "test:wiki-suite": "mocha 'test/plugins/wiki-suite/**/*.test.js'",
     "test:async-suite": "mocha 'test/plugins/async-suite/**/*.test.js'",
     "test:marketplace": "mocha 'test/marketplace/**/*.test.js'",
-    "test:improve-loop": "mocha 'test/plugins/claudecraft/**/*.test.js'",
+    "test:improve-loop": "mocha 'test/plugins/claudecraft/**/*.test.js' --forbid-only",
     "test:knowledge": "mocha 'test/plugins/planning-suite/knowledge.test.js'",
     "test:bench": "mocha 'test/plugins/review-suite/review-fix-bench.test.js' --timeout 10000",
     "test:security": "mocha 'test/marketplace/security.test.js'",

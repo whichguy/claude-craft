@@ -3,8 +3,8 @@
 #
 #   code files                                  → blocking: a hit makes this script exit 1
 #   tests, fixtures, docs, examples             → warn only: they legitimately hold fake keys
-#     (test/ tests/ fixtures/ docs/ examples/ directories, *.test.* *.spec.* *_test.* test_* files,
-#      *.example, *.md, *.txt)                    (sanitizer tests, scanner fixtures)
+#     (test/ tests/ fixtures/ examples/ directories, *.test.* *.spec.* *_test.* test_* files,
+#      *.example; docs/, *.md, *.txt OUTSIDE plugins/)     (sanitizer tests, scanner fixtures)
 # Matching is by path SEGMENT, not substring: the first version treated any path containing "test"
 # as a test file, so latest-session.sh or contest.js were exempt from the gate.
 #
@@ -29,8 +29,16 @@ for f in "$@"; do
   scanned=$((scanned + 1))
   "$ENGINE" "$f" true >/dev/null 2>&1 && continue   # clean
   case "$f" in
-    test/*|*/test/*|tests/*|*/tests/*|fixtures/*|*/fixtures/*|example/*|*/example/*|examples/*|*/examples/*|docs/*|*/docs/*|\
-    *.test.*|*.spec.*|*_test.*|test_*|*/test_*|*.example|*.md|*.txt)
+    test/*|*/test/*|tests/*|*/tests/*|fixtures/*|*/fixtures/*|example/*|*/example/*|examples/*|*/examples/*|\
+    *.test.*|*.spec.*|*_test.*|test_*|*/test_*|*.example) lenient=1 ;;
+    # Skills, agents and commands ARE the shipped product here and they are markdown, so anything
+    # under plugins/ stays strict even when it is .md/.txt/docs.
+    plugins/*) lenient=0 ;;
+    docs/*|*/docs/*|*.md|*.txt) lenient=1 ;;
+    *) lenient=0 ;;
+  esac
+  case "$lenient" in
+    1)
       warned=$((warned + 1))
       if gh_actions; then echo "::warning file=$f::secret-like pattern in a test/doc file (allowed; use obviously fake values)"
       else echo "warn:    $f (secret-like pattern in a test/doc file — fine if it is a fake)"; fi ;;
