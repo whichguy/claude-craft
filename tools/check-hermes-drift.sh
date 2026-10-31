@@ -33,7 +33,10 @@ annotate() {  # annotate <error|warning> <message>
 THEIRS="$(mktemp)"
 trap 'rm -f "$THEIRS"' EXIT
 
-if ! curl -fsS --retry 3 --retry-delay 2 --max-time 20 "$URL" -o "$THEIRS"; then
+# Advisory runs sit in the pre-push path, so they fail fast (worst case ~10 s); the weekly strict run can afford to retry.
+if [ "$strict" -eq 1 ]; then tries=3; budget=20; else tries=1; budget=5; fi
+
+if ! curl -fsS --retry "$tries" --retry-delay 2 --max-time "$budget" "$URL" -o "$THEIRS"; then
   if [ "$strict" -eq 1 ]; then
     annotate error "could not fetch the hermes manifest ($URL), so the staleness check could not run"
     exit 1
