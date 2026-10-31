@@ -9,7 +9,7 @@ the decisions (run history, timings, experiments) is in [ci-journal.md](ci-journ
 |---|---|---|---|
 | `.githooks/pre-commit` | `git commit` | secret scan of the **staged** content; marketplace + namespacing lints when `plugins/` is staged | the commit (bypass: `--no-verify`) |
 | `.githooks/pre-push` | `git push` of the checked-out branch | `tools/ci.sh pre-push`: static checks + only the test shards the diff touches | the push (bypass: `SKIP_PREPUSH=1`) |
-| `ci.yml` | push to `main`, every PR, manual | workflow lint, static ×2 OS, tests ×3 legs, **CI gate** | merge, once `CI gate` is a required check |
+| `ci.yml` | push to `main`, every PR, manual | workflow lint, static ×2 OS, tests ×4 legs, **CI gate** | merge, once `CI gate` is a required check |
 | `scheduled.yml` | Mondays 05:23 UTC, manual | hermes drift (strict), canary on floating runner labels with freshly resolved deps | nothing; a red run is the alert |
 | Dependabot | weekly | SHA-pinned actions, npm dev-dependencies (7-day cooldown) | nothing; opens PRs |
 
@@ -50,8 +50,10 @@ tools/ci.sh pre-push --base REF  what the hook runs
 | `claudecraft` | mocha `test/plugins/claudecraft` + `improve-lint.test.js` | one file (`improve-worktree`) is ~50 s of git-worktree work |
 | `shell` | `improve-loop/tests/scripts.test.sh`, the two plan-gate `*.test.sh` suites | not mocha, so `npm test` never ran them |
 
-The shards run concurrently inside **one** job per matrix leg: three jobs would each repeat checkout,
-Node setup and install for no gain in wall time.
+On Linux the shards run concurrently inside **one** job per leg: separate jobs would each repeat checkout,
+Node setup and install for no gain in wall time. Hosted macOS VMs have only 3 cores, so there the heavy
+`claudecraft` shard gets its own leg (`CI_SHARDS`, see `ci.yml`); a test enforces that every OS still runs
+every shard.
 
 ### Environment isolation (why results do not depend on whose machine it is)
 
@@ -74,7 +76,9 @@ and handler tests write under `~/.claude`.
   Required legs use `ubuntu-24.04` / `macos-26`; `scheduled.yml` runs `ubuntu-latest`,
   `ubuntu-26.04` and `macos-latest` so drift is seen a week early without blocking anyone.
 - **macOS and a Node floor are in the matrix.** The scripts here are bash/BSD-vs-GNU sensitive and the
-  maintainer is on macOS; Node 22 is the oldest LTS (`engines`), 26 the newest. Node 20 is EOL.
+  maintainer is on macOS; Node 22 is the oldest LTS (`engines`), 26 the newest. Node 20 is EOL. This earned
+  its keep on day one: the first remote run found a test that only passes where `tr` is multibyte-aware
+  (journal F22), which no amount of macOS-only testing would have shown.
 - **Reproducible installs.** `package-lock.json` is tracked (it was git-ignored, which forced a
   floating `npm install`), CI uses `npm ci --ignore-scripts`, and a test fails if the lockfile and
   `package.json` disagree. The scheduled canary deliberately ignores the lockfile.
@@ -112,3 +116,5 @@ and handler tests write under `~/.claude`.
 - **Repo settings:** Dependabot security updates are off, and "require actions pinned to a full commit SHA"
   (`sha_pinning_required`) is off. Both are one-click settings once the pins are in.
 - **Shellcheck warnings:** 35 pre-existing warning-level findings in shipped scripts; only errors block.
+- **Non-ASCII plan-name slugs differ between the Python gate and a Linux shell** (journal F22). The
+  `slug-unicode` test skips itself where `tr` is byte-oriented; fixing the gap itself belongs upstream in hermes.

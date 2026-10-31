@@ -57,6 +57,20 @@ environment, then changed things and re-measured. Local machine: macOS 27, Node 
 | E7 | Are the new checks live? | mutation tests (below) | live |
 | E8 | Would the new tests have caught the old behaviour? | old `pre-commit` swapped back in; old `ci.yml` swapped back in | old hook: the two blocking tests fail (secret committed). Old `ci.yml`: 8 of 22 policy tests fail |
 | E9 | Is the rebuilt pipeline stable? | `tools/ci.sh all` ×5 back-to-back, bash 3.2 | 5/5 pass; 56–70 s (one 103 s run overlapped other work) vs ≈187 s serial before |
+| E10 | Does it work on GitHub's runners? | PR #241, `pull_request` runs of the rebuilt `ci.yml` | run 1 (`aa21f29`): 5 of 7 jobs green, **both Linux test legs red** on `slug-unicode` (F22), 92 s wall. Run 2 (`1b94035`, after the fix): 8/8 green, 160 s wall, macOS test leg 151 s. Run 3 (`6d95cb6`, macOS shards split): **8/8 green, 98 s wall**; slowest leg is macOS `claudecraft` at 90 s; Linux legs 40-64 s |
+| E11 | Does `scheduled.yml` work? Cron and `workflow_dispatch` only run from the default branch, so: a throwaway branch with a temporary `push` trigger (deleted afterwards) | 2 runs | run 1: hermes drift ✓, macOS canary ✓, both Linux canaries and the flake hunt ✗ on the same F22. Run 2 (fix cherry-picked): **all ✓** — canaries on `ubuntu-latest` (resolved to **ubuntu-26.04**), `ubuntu-26.04`, `macos-latest` (macos-26-arm64) with the lockfile ignored and Node 26; flake hunt "0 of 2 runs failed" |
+| E12 | Are runner tools what I assumed? | image inventories + the jobs themselves | ShellCheck: in the Ubuntu toolset, **absent on macOS** → `CI_SKIP` on macOS legs. `sha256sum`: present on macos-26 (F21). Bash 3.2.57, Python 3.15, jq 1.8 on macos-26 |
+
+### Timing (GitHub-hosted, wall clock from run creation)
+
+| | Jobs | Wall | Slowest job |
+|---|---|---|---|
+| Before: `lint-and-test` (`88fad7d`, run 36266011182) | 1 serial job, Linux only | 167 s | 163 s |
+| After, run 3 (`6d95cb6`, run 41246528478) | 7 jobs on Linux **and** macOS, plus the gate | 98 s | 90 s (macOS `claudecraft` shard) |
+| After, Linux legs only | | ≈ 40-64 s | |
+
+Run 2 shows the cost of leaving three shards on a 3-core macOS VM (151 s for that leg), which is why
+`claudecraft` has its own macOS leg. macOS runner speed varies run to run (the same leg took 81 s and 151 s).
 
 ### Changes (what, why, effect)
 
@@ -64,8 +78,8 @@ environment, then changed things and re-measured. Local machine: macOS 27, Node 
 2. **Test hermeticity** — `wiki-hooks` concurrency ids; `CLAUDE_PLAN_*` scrub in both plan-gate suites (F7, F9).
 3. **`tools/ci.sh`** — one definition of CI for the workflow, the pre-push hook and `npm run ci`; checks and test shards run concurrently in a throwaway HOME (F1, F5, F6). New checks: lockfile/version lockstep, version-bump advisory, shellcheck (errors), Python 3.9 syntax floor, tracked-artifact guard, changed-file secret scan, hermes drift (path-aware).
 4. **Secret gate fixed** — `tools/scan-secrets.sh` owns the code-vs-test policy and calls the engine in blocking mode; the hook scans the staged blobs (F3).
-5. **Workflows rebuilt** — parallel jobs, OS × Node matrix with pinned runners, a single `CI gate`, SHA-pinned actions, per-job least privilege, non-cancelling `main`, `npm ci`, artifacts on failure, workflow lint (actionlint + zizmor), weekly scheduled drift/canary, on-demand flake hunt, Dependabot with cooldown (F2 partly, F10–F14, F16).
-6. **Policy as tests** — `test/marketplace/ci-workflows.test.js` and `test/plugins/_repo/ci-tools.test.js` (30 + 22 tests) so these decisions fail loudly if reverted.
+5. **Workflows rebuilt** — parallel jobs, OS × Node matrix with pinned runners (macOS shards split across two VMs after run 2), a single `CI gate`, SHA-pinned actions, per-job least privilege, non-cancelling `main`, `npm ci`, artifacts on failure, workflow lint (actionlint + zizmor), weekly scheduled drift/canary, on-demand flake hunt, Dependabot with cooldown (F2 partly, F10–F14, F16).
+6. **Policy as tests** — `test/marketplace/ci-workflows.test.js` (24), `test/plugins/_repo/ci-tools.test.js` (31) and `test/plugins/_repo/pre-push-hook.test.js` (9, against a real bare remote) so these decisions fail loudly if reverted.
 
 ### Not changed (needs the repo owner)
 
