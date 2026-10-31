@@ -1,0 +1,13 @@
+# Flake and stress experiments, 2026-10-31 (macOS 27, Node 26.12.1, bash 3.2.57, 18 cores)
+
+## E-stress: wiki-stop 'serialize concurrent stop hooks' under CPU load (18 busy-loop burners)
+BEFORE fix (two session ids sharing first 8 chars): 2/20 runs FAILED
+AFTER  fix (distinct 8-char prefixes):               0/40 runs FAILED
+
+## E-flake: tools/ci.sh all, 5 consecutive full runs (static -> 3 concurrent test shards)
+run 1 shell=3.2.57 rc=0 wall=70s failing=[]
+run 2 shell=3.2.57 rc=0 wall=103s failing=[]
+run 3 shell=3.2.57 rc=0 wall=62s failing=[]
+run 4 shell=3.2.57 rc=0 wall=58s failing=[]
+run 5 shell=3.2.57 rc=0 wall=56s failing=[]
+(run 2 was slowed by concurrent editing/linting on the same machine; no failures in any run)

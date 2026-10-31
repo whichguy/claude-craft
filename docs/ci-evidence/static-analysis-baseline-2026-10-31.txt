@@ -1,0 +1,17 @@
+# Static-analysis baseline of the PRE-CHANGE CI, 2026-10-31 (origin/main 88fad7d)
+
+## actionlint 1.7.12 on old ci.yml
+(exit 0; no findings: actionlint finds nothing wrong with the old workflow — it checks syntax/types, not supply-chain hygiene)
+
+## zizmor 1.31.1 (auditor persona, offline) on old ci.yml — summary
+   5 error[unpinned-uses]: unpinned action reference
+   3 warning[artipacked]: credential persistence through GitHub Actions artifacts
+   3 info[anonymous-definition]: workflow or action definition without a name
+11 findings (3 unsafe fixes): 3 informational, 0 low, 3 medium, 5 high
+
+## shellcheck 0.11.0 over every tracked *.sh + .githooks (before): 223 findings
+error=4 (all in deliberately-bad test fixtures) warning=47 info=156 style=16; shipped (non-fixture) scripts: 0 errors
+
+## Secret scan: tools/simple-secrets-scan.sh <file> false (how the old pre-commit hook called it)
+exits 0 even when a secret pattern is present ('report-only') => the hook's COMMIT BLOCKED branch was unreachable.
+Strict mode (true) over all tracked files flags 2 files, both fake keys under test/ (fixtures/sanitizer test).

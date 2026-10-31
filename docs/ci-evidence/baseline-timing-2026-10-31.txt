@@ -1,0 +1,29 @@
+# Baseline timing of the PRE-CHANGE CI, 2026-10-31
+
+## GitHub run 36266011182 (push to main, 2026-09-26, 88fad7d, ubuntu-latest, Node 20): ONE serial job
+run wall: 167s
+job lint-and-test: 163s
+      1s  Set up job
+      1s  Run actions/checkout@v4
+      4s  Run actions/setup-node@v4
+      5s  Install dependencies
+     11s  Marketplace lint (manifest + frontmatter + dep + drift)
+      4s  Namespacing lint (cross-bundle refs)
+     15s  Marketplace smoke (7-check static validation)
+      1s  Plan-review handler sync check (hermes canonical)
+     63s  Mocha test suite
+     16s  improve-loop shell suite (scripts.test.sh)
+     40s  improve-loop mocha (test:improve-loop)
+
+## Local reproduction, same steps, origin/main 88fad7d, macOS 27 / Node 26.12.1 / hermetic HOME
+01-npm-install                     rc=0    4s
+02-lint-marketplace                rc=0   10s
+03-lint-namespacing                rc=0    5s
+04-smoke                           rc=0   14s
+05-verify-sync                     rc=0    0s
+06-npm-test                        rc=0   81s
+07-improve-shell                   rc=0   34s
+08-improve-mocha                   rc=0   39s
+
+note: npm test (627 tests) already contains the 140 test/plugins/claudecraft tests that
+'npm run test:improve-loop' runs again -> ~40s of the 163s GitHub job was duplicated work.
