@@ -15,7 +15,10 @@ LINTERS:     tools/lint-marketplace.sh (manifest+frontmatter+drift) and tools/li
 GIT:         always git -C "<dir>", never cd + git
 SHELL:       set -o pipefail, shopt -s nullglob, trap cleanup; avoid -e (grep no-match returns 1)
 TEST:        npm test (mocha/chai, fixture-based, no mocks). Tests live in test/, NOT shipped.
-SECURITY:    pre-commit → simple-secrets-scan.sh (fast) | full → security-scan.sh
+CI:          tools/ci.sh is the one definition of "CI passes"; ci.yml, .githooks/pre-push and `npm run ci` all call it.
+             Run `npm run ci` before pushing to main. Design/maintenance: docs/ci.md; evidence: docs/ci-journal.md.
+SECURITY:    pre-commit + CI → tools/scan-secrets.sh (code files block, tests/docs warn; engine simple-secrets-scan.sh,
+             which is report-only unless passed `true`) | full → security-scan.sh
 RESPONSE:    direct answer first, no preamble, no restating the question, no postamble.
              tables only when ≥3 items with ≥2 attributes; bullets only when order-independent.
              code-block paths/commands; prose for everything else.

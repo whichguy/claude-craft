@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# Pre-push hook: run the checks CI will run, scoped to what this push changes.
+#
+# Most red runs on main were regressions that `tools/ci.sh` would have caught in about a minute;
+# this makes pushing to main as safe as pushing a PR. CI still runs everything and is the authority.
+#
+#   SKIP_PREPUSH=1 git push     skip once (or: git push --no-verify)
+#
+# What it tests is the COMMIT being pushed, in a clean temporary checkout, not your working tree:
+# uncommitted edits can't make an unrelated push fail (or pass), and a file you forgot to `git add`
+# is missing here exactly as it will be in CI. It only gates a push of the checked-out commit.
+
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+[ -n "${SKIP_PREPUSH:-}" ] && { echo -e "${YELLOW}pre-push: skipped (SKIP_PREPUSH set)${NC}"; exit 0; }
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+[ -x "$REPO_ROOT/tools/ci.sh" ] || exit 0
+
+ZERO=0000000000000000000000000000000000000000
+HEAD_SHA=$(git rev-parse HEAD)
+BASE=""
+PUSHING_HEAD=false
+
+# stdin: "<local ref> <local sha> <remote ref> <remote sha>" per ref being pushed.
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+    [ "$local_sha" = "$ZERO" ] && continue                      # deleting a ref
+    [ "$local_sha" = "$HEAD_SHA" ] || continue                  # not the checked-out commit
+    PUSHING_HEAD=true
+    if [ "$remote_sha" != "$ZERO" ] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+        BASE="$remote_sha"
+    else
+        BASE=$(git merge-base "$local_sha" origin/main 2>/dev/null)   # new branch: diff from where it forked
+    fi
+done
+
+if [ "$PUSHING_HEAD" != "true" ]; then
+    echo -e "${YELLOW}pre-push: not pushing the checked-out commit — local CI skipped (CI will run it)${NC}"
+    exit 0
+fi
+
+# A clean checkout of exactly HEAD. Dependencies are untracked, so borrow this checkout's.
+SCRATCH=$(mktemp -d)
+cleanup() {
+    git -C "$REPO_ROOT" worktree remove --force "$SCRATCH/wt" >/dev/null 2>&1
+    rm -rf "$SCRATCH"
+}
+trap cleanup EXIT
+RUN_DIR="$SCRATCH/wt"
+if git -C "$REPO_ROOT" worktree add --detach -q "$RUN_DIR" "$HEAD_SHA" >/dev/null 2>&1; then
+    [ -d "$REPO_ROOT/node_modules" ] && ln -s "$REPO_ROOT/node_modules" "$RUN_DIR/node_modules"
+else
+    echo -e "${YELLOW}pre-push: could not create a clean checkout — testing your working tree instead${NC}"
+    RUN_DIR="$REPO_ROOT"
+fi
+
+# git hands hooks its own repository variables, and from a LINKED worktree GIT_DIR points at the
+# shared repo. Tests that `git init`/`git commit` in temp dirs would then write into YOUR repository
+# (reproduced: a pushed branch gained a test-fixture commit). ci.sh strips them too; do it here as well.
+# shellcheck disable=SC2046
+unset $(git rev-parse --local-env-vars)
+
+cd "$RUN_DIR" || exit 1
+echo -e "${BLUE}🚦 pre-push: tools/ci.sh pre-push on $(git rev-parse --short HEAD) (SKIP_PREPUSH=1 to skip)${NC}"
+if [ -n "$BASE" ]; then
+    "$RUN_DIR/tools/ci.sh" pre-push --base "$BASE"
+else
+    "$RUN_DIR/tools/ci.sh" pre-push
+fi
+RC=$?
+
+# The scratch checkout is deleted on exit; keep the logs where a failure can be investigated.
+if [ "$RUN_DIR" != "$REPO_ROOT" ] && [ -d "$RUN_DIR/test-results/ci" ]; then
+    rm -rf "${REPO_ROOT:?}/test-results/prepush"
+    mkdir -p "$REPO_ROOT/test-results" && cp -R "$RUN_DIR/test-results/ci" "$REPO_ROOT/test-results/prepush"
+    [ "$RC" -ne 0 ] && echo -e "${YELLOW}logs: test-results/prepush${NC}"
+fi
+
+if [ "$RC" -ne 0 ]; then
+    echo -e "${RED}🚨 PUSH BLOCKED: local CI failed. Fix it, or SKIP_PREPUSH=1 git push to override.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ local CI passed${NC}"
+exit 0

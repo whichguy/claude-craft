@@ -1,0 +1,6 @@
+# actionlint 1.7.12 predates the ubuntu-26.04 GitHub-hosted image (it is listed in
+# actions/runner-images). Whitelisting it here keeps the lint useful for every other label.
+# Remove this once the pinned actionlint image in ci.yml knows the label.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

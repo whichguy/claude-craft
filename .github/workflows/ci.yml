@@ -1,161 +1,157 @@
 name: CI
 
+# What "CI passes" means is defined in tools/ci.sh — this file only provisions
+# machines and calls it, so the same checks run on a laptop (`npm run ci`), in the
+# pre-push hook and here. See docs/ci.md for the design and its rationale.
+
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      score_run_real:
-        description: 'Run real cross-model score-run.sh (costs $$$). Set to "yes" to confirm.'
-        required: true
-        default: 'no'
 
+# A new push to a PR supersedes that PR's older run. Pushes to main are never
+# cancelled: each commit on main must get its own verdict (the previous group
+# cancelled main runs, so some commits were never judged).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-{0}-{1}', github.ref, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-permissions:
-  contents: read
+# Nothing is writable by default; each job asks for exactly what it needs.
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  lint-and-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - run: npm install --no-audit --no-fund --prefer-offline
-        name: Install dependencies
-
-      - name: Configure git identity (some tests git init temp dirs)
-        run: |
-          git config --global user.email ci@example.com
-          git config --global user.name ci
-          git config --global init.defaultBranch main
-
-      - run: ./tools/lint-marketplace.sh
-        name: Marketplace lint (manifest + frontmatter + dep + drift)
-
-      - run: ./tools/lint-namespacing.sh
-        name: Namespacing lint (cross-bundle refs)
-
-      - run: ./tools/e2e-marketplace-smoke.sh
-        name: Marketplace smoke (7-check static validation)
-
-      - run: bash plugins/planning-suite/handlers/verify-sync.sh
-        name: Plan-review handler sync check (hermes canonical)
-
-      - name: Plan-review handler staleness check (vs hermes canonical)
-        run: |
-          # verify-sync.sh (above) proves our handlers match OUR manifest; this proves OUR
-          # manifest still matches hermes's canonical one — i.e. we haven't gone stale.
-          REF="main"
-          URL="https://raw.githubusercontent.com/whichguy/hermes-skills-marketplace/${REF}/plugins/plan-review/handlers/CANONICAL.sha256"
-          if ! curl -fsS "$URL" -o /tmp/hermes-canonical.sha256; then
-            echo "::warning::Could not fetch hermes canonical manifest ($URL) — skipping staleness check (infra/ref issue, not drift)."
-            exit 0
-          fi
-          if ! diff -u /tmp/hermes-canonical.sha256 plugins/planning-suite/handlers/CANONICAL.sha256; then
-            echo "::error::planning-suite handlers are STALE vs hermes canonical. Re-sync per plugins/planning-suite/handlers/SYNC.md."
-            exit 1
-          fi
-          echo "OK — planning-suite manifest matches hermes canonical."
-
-      - run: npm test
-        name: Mocha test suite
-
-      - name: improve-loop shell suite (scripts.test.sh)
-        run: bash plugins/claudecraft/skills/improve-loop/tests/scripts.test.sh
-
-      - name: improve-loop contract-check (explicit Publish-src, parity self-test)
-        run: |
-          SKILL="plugins/claudecraft/skills/improve-loop"
-          # Pins only against source tree — do not default to Live under $HOME.
-          # Full Live↔Publish peer is optional when Live is absent on the runner.
-          IMPROVE_LOOP_PARITY=0 node "$SKILL/scripts/contract-check.js" \
-            --skill-dir "$PWD/$SKILL" \
-            --mirror "$PWD/$SKILL/SKILL.md"
-          node "$SKILL/scripts/package-parity.js" --self-test
-          # Self-peer must hard-fail (no false green).
-          out=$(node "$SKILL/scripts/package-parity.js" --skill-dir "$PWD/$SKILL" --peer "$PWD/$SKILL" --json 2>/dev/null || true)
-          echo "$out" | grep -q peer_is_self || { echo "expected peer_is_self: $out"; exit 1; }
-          echo "OK peer_is_self hard-fail"
-
-      - name: improve-loop mocha (test:improve-loop)
-        run: npm run test:improve-loop
-
-      - name: claudecraft plugin/marketplace version equality
-        run: |
-          python3 - <<'PY'
-          import json, sys
-          plug = json.load(open("plugins/claudecraft/.claude-plugin/plugin.json"))
-          market = json.load(open(".claude-plugin/marketplace.json"))
-          entry = next(p for p in market["plugins"] if p["name"] == "claudecraft")
-          pv, mv = plug.get("version"), entry.get("version")
-          if not pv or not mv:
-              print("missing version", pv, mv); sys.exit(1)
-          if pv != mv:
-              print(f"version mismatch plugin.json={pv} marketplace={mv}"); sys.exit(1)
-          print(f"ok: claudecraft version {pv}")
-          PY
-
-  # Non-blocking harness smoke — runs only when review-plan or ablate-review-plan
-  # skill files change. Exercises score-run.sh against a canned fixture; no
-  # real sub-agent dispatch (cost-prohibitive in CI). Real cross-model runs go
-  # through the workflow_dispatch trigger below.
-  harness-smoke:
-    runs-on: ubuntu-latest
+  workflows:
+    name: Workflow lint
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # Gate this job to PRs and pushes that touch the targeted skill directories.
-    # dorny/paths-filter detects changed files; the if: condition enforces it.
-    # On workflow_dispatch the filter is skipped so manual triggers always run.
-    if: github.event_name == 'workflow_dispatch' || true
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Detect harness-relevant changes
-        id: filter
-        uses: dorny/paths-filter@v3
-        if: github.event_name != 'workflow_dispatch'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          filters: |
-            harness:
-              - 'plugins/review-suite/skills/review-plan/**'
-              - 'plugins/review-bench/skills/ablate-review-plan/**'
+          persist-credentials: false
 
-      - name: Smoke-validate score-run.sh against canned fixture
-        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.harness == 'true'
-        run: |
-          FIXTURE="plugins/review-bench/skills/ablate-review-plan/fixtures/ci-smoke.md"
-          SCORE_SH="plugins/review-bench/skills/ablate-review-plan/score-run.sh"
-          chmod +x "$SCORE_SH"
-          result=$("$SCORE_SH" --output "$FIXTURE" --verdict-only)
-          verdict=$(echo "$result" | cut -f1)
-          echo "score-run.sh verdict: $verdict"
-          if [ "$verdict" != "PASS" ]; then
-            echo "ERROR: expected PASS from canned fixture, got: $verdict" >&2
-            exit 1
-          fi
-          echo "Harness smoke: PASS"
+      # Syntax, expression types and shellcheck on every `run:` block.
+      - name: actionlint
+        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # 1.7.12
+        with:
+          args: -color
 
-  # Real cross-model runs — triggered manually via workflow_dispatch only.
-  # Set score_run_real=yes to confirm intentional $-burn before running.
-  harness-real:
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.score_run_real == 'yes'
+      # Security: unpinned actions, script injection, excessive permissions, credential persistence.
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          version: 1.31.1
+          advanced-security: false
+
+  static:
+    name: Static (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pinned labels: `*-latest` moves under us (ubuntu-latest is migrating to 26.04
+        # right now). Floating labels are exercised by the scheduled canary instead.
+        os: [ubuntu-24.04, macos-26]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # changed-file checks (secrets, version bump, hermes drift) diff against the base
+          persist-credentials: false
 
-      - name: Run score-run.sh (real cross-model)
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: tools/ci.sh static
+        env:
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          # The macOS runner image ships no shellcheck; the Linux leg enforces it (the result
+          # does not depend on the OS), so skip it visibly rather than install a second copy.
+          CI_SKIP: ${{ runner.os == 'macOS' && 'shellcheck' || '' }}
+        run: bash tools/ci.sh static
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-logs-static-${{ matrix.os }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  test:
+    name: Test (${{ matrix.os }}, node ${{ matrix.node }}, ${{ matrix.shards }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Every OS must run every shard (test/marketplace/ci-workflows.test.js enforces it).
+          - { os: ubuntu-24.04, node: 22, shards: 'core claudecraft shell' } # oldest LTS we support (engines)
+          - { os: ubuntu-24.04, node: 26, shards: 'core claudecraft shell' } # newest LTS, what the maintainer runs
+          # Scripts here are bash/BSD-vs-GNU sensitive and users are on macOS. Hosted macOS VMs have
+          # 3 cores, so three concurrent shards just contend (81-151 s); give the heavy
+          # git-worktree shard its own VM instead.
+          - { os: macos-26, node: 26, shards: 'core shell' }
+          - { os: macos-26, node: 26, shards: 'claudecraft' }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      # The shards of this leg run concurrently inside this one job.
+      - name: tools/ci.sh test
+        env:
+          CI_SHARDS: ${{ matrix.shards }}
+        run: bash tools/ci.sh test
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-logs-test-${{ matrix.os }}-node${{ matrix.node }}-${{ strategy.job-index }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # The one check to require in branch protection: it is green only if every job
+  # above succeeded, so matrix legs can be added or renamed without touching
+  # the protection rule.
+  gate:
+    name: CI gate
+    needs: [workflows, static, test]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Every job must have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          SCORE_SH="plugins/review-bench/skills/ablate-review-plan/score-run.sh"
-          chmod +x "$SCORE_SH"
-          echo "Real cross-model run — see score-run.sh --help for invocation."
-          echo "Invoke manually with your output file: $SCORE_SH --output <run-output.md>"
-          echo "CI scaffolding ready; populate with real run outputs as needed."
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' > /dev/null

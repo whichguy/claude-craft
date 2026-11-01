@@ -18,7 +18,7 @@ declare -a SECURITY_PATTERNS=(
     "sk-proj-[a-zA-Z0-9_-]{40,}"
     "sk-[a-zA-Z0-9]{48}"
     "AKIA[0-9A-Z]{16}"
-    "AIza[0-9A-Za-z\\-_]{35}"
+    "AIza[0-9A-Za-z_-]{35}"
     "gh[pousr]_[a-zA-Z0-9]{36}"
     "github_pat_[a-zA-Z0-9_]{82}"
     

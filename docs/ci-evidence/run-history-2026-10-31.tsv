@@ -1,0 +1,101 @@
+run_id	created_utc	event	branch	conclusion	failed_step	head_sha7	title
+36266011182	2026-09-26 19:25	push	main	success		88fad7d	fix(claudecraft): stop claiming the bare /improve trigger; align plug…
+36262841945	2026-09-26 18:31	push	main	success		c80796b	fix(claudecraft): skip the optional review-converge checks when it is…
+36261914476	2026-09-26 18:15	push	main	failure	improve-loop shell suite (scripts.test.sh)	13a6418	test(marketplace): allowlist /cplan as a c-thru command
+36163745444	2026-09-25 16:54	push	main	failure	Mocha test suite	50eb53e	fix(review-plan): require a filled Review Coverage section (0.2.6)
+36012693969	2026-09-24 14:25	push	main	failure	Mocha test suite	625171f	fix(review-suite): drop stale wiki-suite dependency (0.2.5)
+30751690125	2026-08-02 14:15	push	main	failure	Mocha test suite	494fc7b	feat(planning-suite): Execute routing + schedule-plan-tasks start bre…
+30580956427	2026-07-30 20:51	push	main	failure	Mocha test suite	64d8eb1	chore(c-thru): lockstep marketplace entry to plugin 0.2.4
+30570612188	2026-07-30 18:29	push	main	failure	Mocha test suite	571d5f7	chore(c-thru): lockstep marketplace entry to plugin 0.2.3
+30567671084	2026-07-30 17:49	push	main	failure	Mocha test suite	27d1914	marketplace: point c-thru at whichguy/c-thru 0.2.1 git-subdir
+30285960831	2026-07-27 16:42	push	main	failure	improve-loop shell suite (scripts.test.sh)	d50ed0b	Merge pull request #240 from whichguy/merge/plan-review-consolidation
+30285669212	2026-07-27 16:39	pull_request	merge/plan-review-consolidation	failure	improve-loop shell suite (scripts.test.sh)	c4f3efa	merge: plan-review consolidation + version bumps
+30285511596	2026-07-27 16:37	pull_request	merge/plan-review-consolidation	cancelled		6ec8982	merge: plan-review consolidation + version bumps
+30284782615	2026-07-27 16:27	pull_request	merge/plan-review-consolidation	failure	Plan-review handler staleness check (vs hermes canonical)	668dc55	merge: plan-review consolidation + version bumps
+30284612449	2026-07-27 16:25	push	main	failure	improve-loop shell suite (scripts.test.sh)	5eee048	docs: note skill-craft portable SoT for ported planning skills
+29923755243	2026-07-22 13:24	push	main	failure	improve-loop shell suite (scripts.test.sh)	1429eda	feat(improve-loop): fail-closed ship gate (parity strict, CI, stop-de…
+29866188992	2026-07-21 20:32	push	main	success		d14f24b	fix(improve-loop): dual-home cycle-sim stop-decision resolve + vendor
+29865963189	2026-07-21 20:29	push	main	success		baffed4	fix(improve-loop): stop scenario gitLogBodies host-history walk-up
+29863599537	2026-07-21 19:55	push	main	success		2c0180f	feat(improve-loop): PLAN_BACKCHAIN soft enrich (A law + M package)
+29857717144	2026-07-21 18:33	push	main	success		28c6379	docs(improve-loop): scripts.test.sh comment — cycle-sim is law-sim no…
+29857707942	2026-07-21 18:33	push	main	cancelled		ebf1833	docs(improve-loop): Codex-verified layer docs for cases/cycle-sim/sce…
+29857096701	2026-07-21 18:24	push	main	success		e340066	chore(improve-loop): scenario harness cleanup — drop legacy golden path
+29856926768	2026-07-21 18:22	push	main	success		a84a254	test(improve-loop): more scenarios for sequencing (false-green, dual-…
+29856617598	2026-07-21 18:17	push	main	success		63bef35	test(improve-loop): scenario harness greeter-bug + oracle
+29849127788	2026-07-21 16:33	push	main	success		1db6838	docs(campaign): operator-card pilot retro (habit holds; no law pin)
+29849125943	2026-07-21 16:33	push	main	cancelled		d36d9e5	chore(campaign): archive operator-card pilot ledger off repo root
+29848824958	2026-07-21 16:29	push	main	success		b03c76c	docs: improve-loop testee operator card (campaign habit, not law)
+29844923511	2026-07-21 15:38	push	main	success		1c95b4a	fix(improve-loop): R9 follow-up — Deferred weak enum + continuous res…
+29843022168	2026-07-21 15:14	push	main	success		c118663	test(improve-loop): pin Validate-fix Fable-B+ done-when checklist
+29840627583	2026-07-21 14:45	push	main	success		934bfad	Merge pull request #239 from whichguy/reshape/improve-loop-law-home
+29840615687	2026-07-21 14:45	pull_request	reshape/improve-loop-law-home	success		54ad122	reshape: improve-loop law home + campaign-driver product model
+29751247902	2026-07-20 14:34	push	main	failure	Mocha test suite	1bf551f	test(improve-loop): mirror B soft-check trap + pin inventory (M)
+29750908197	2026-07-20 14:30	push	main	failure	Mocha test suite	e4e76b1	test(improve-loop): mirror B soft-check CLI pin (M allowlist)
+29750238722	2026-07-20 14:20	push	main	failure	Mocha test suite	fe016cd	docs(improve-loop): mirror B R8 spine cite (M allowlist)
+29749212265	2026-07-20 14:07	push	main	failure	Mocha test suite	3d89d50	docs(improve-loop): mirror B Phase 3v / apply / R-coverage edits
+29690671926	2026-07-19 14:21	push	main	failure	Mocha test suite	0d90a53	feat(improve-loop): mirror PLAN_SPEC_SOFT + discovery slim
+29652623123	2026-07-18 16:46	push	main	failure	Mocha test suite	2529d07	improve-loop: untracked clean fail → LAUNCH_CLEAN_FAILED keep worktree
+29652446224	2026-07-18 16:40	push	main	failure	Mocha test suite	65f21d3	improve-loop: pin WIP-carry apply/clean failure enter paths
+29652300108	2026-07-18 16:36	push	main	failure	Mocha test suite	4195472	improve-loop: fix WIP carry renames and clean-fail keep worktree
+29652114414	2026-07-18 16:30	push	main	failure	Mocha test suite	c681638	improve-loop: carry launch WIP into campaign worktree
+29651803083	2026-07-18 16:21	push	main	failure	Mocha test suite	d127522	improve-loop: ship converge-ledger-resolve unit tests for rename fatals
+29651418166	2026-07-18 16:10	push	main	failure	Mocha test suite	e916099	improve-loop: model-agnostic review-converge family cross-refs
+29651005572	2026-07-18 15:57	push	main	failure	Mocha test suite	4eccfc0	improve-loop: close residual post-PASS hygiene material gaps
+29650851028	2026-07-18 15:52	push	main	failure	Mocha test suite	ddfaff1	improve-loop: harden post-PASS hygiene isolation (snapshot hard rule)
+29650745934	2026-07-18 15:49	push	main	failure	Mocha test suite	7f7a216	improve-loop: second quality-fix for post-PASS hygiene isolation
+29650643302	2026-07-18 15:46	push	main	failure	Mocha test suite	c1c4f46	improve-loop: quality-fix post-PASS hygiene gates and re-run FAIL
+29650573014	2026-07-18 15:44	push	main	failure	Mocha test suite	9d00a3b	improve-loop: post-PASS docs + repo-hygiene directive (not a phase)
+29650091985	2026-07-18 15:29	push	main	failure	Mocha test suite	1d13053	improve-loop: cleanup legacy debt and sync claudecraft docs
+29362388295	2026-07-14 19:35	push	main	success		cf655c1	feat(claudecraft): add improve-loop skill plugin (#238)
+29362334046	2026-07-14 19:34	pull_request	add-improve-loop	success		c5fc966	feat(claudecraft): add improve-loop skill plugin
+29200564072	2026-07-12 16:40	push	main	success		a37d976	fix(review-suite): bump 0.2.2 -> 0.2.3 -- version-gated update mechan…
+29200510118	2026-07-12 16:38	push	main	success		4da0af7	fix(review-suite): address adversarial review of cross-model dispatch
+29199792559	2026-07-12 16:15	push	main	success		4977198	feat(review-suite): cross-model second opinion for review-plan (Codex…
+28724917852	2026-07-05 00:53	push	main	success		ad32306	Merge pull request #237 from whichguy/feat/plan-review-worktree-sync
+28724870316	2026-07-05 00:51	pull_request	feat/plan-review-worktree-sync	success		827118c	sync plan-review handlers to hermes canonical + add worktree gate
+28724775504	2026-07-05 00:46	pull_request	feat/plan-review-worktree-sync	success		7ce9e4d	sync plan-review handlers to hermes canonical + add worktree gate
+28722138664	2026-07-04 22:48	pull_request	feat/plan-review-worktree-sync	failure	Marketplace smoke (7-check static validation)	58d10bc	sync plan-review handlers to hermes canonical + add worktree gate
+28715765380	2026-07-04 18:33	pull_request	feat/plan-review-worktree-sync	failure	Marketplace smoke (7-check static validation)	87110d6	sync plan-review handlers to hermes canonical + add worktree gate
+28711443535	2026-07-04 15:50	pull_request	feat/plan-review-worktree-sync	success		7a443f4	sync plan-review handlers to hermes canonical + add worktree gate
+28691268617	2026-07-04 01:49	pull_request	feat/plan-review-pipeline	success		957ac9f	feat(planning-suite): closed-loop investigation stage in the plan-review gate
+28684602710	2026-07-03 21:43	push	main	success		adfa0d9	feat(planning-suite): Codex-powered plan-unknowns gate on ExitPlanMod…
+28684305324	2026-07-03 21:33	pull_request	feat/plan-unknowns-gate	success		53799b0	feat(planning-suite): Codex-powered plan-unknowns gate on ExitPlanMode
+27791082023	2026-06-18 21:41	push	main	success		fa55ad7	feat(planning-suite): replace narrow-plan with c-plan; expand schedul…
+26167843288	2026-05-20 14:05	pull_request	patch/review-plan-severity-and-recommendation	success		e113f92	review-plan: executability-based severity rule + Recommendation line
+25703976180	2026-05-11 23:43	push	main	success		b0712a3	fix(migrate): remove absorbed-plugin symlinks from ~/.claude/plugins/
+25641379750	2026-05-10 22:22	push	main	success		5d9132d	chore(planning-suite): sync marketplace.json version 0.2.7 → 0.2.8, a…
+25638632308	2026-05-10 20:12	push	main	success		65f45a1	chore(planning-suite): bump 0.2.6 → 0.2.7
+25638609373	2026-05-10 20:11	push	main	cancelled		5161e9d	fix(planning-suite): journal section disambiguates forward-ref to L0/L0a
+25634881517	2026-05-10 17:17	push	main	success		91fadf4	fix(planning-suite): remove three stale self-merge references
+25634812189	2026-05-10 17:14	push	main	success		c0d338f	fix(planning-suite): ExitPlanMode gate — one-trip flow and mtime stal…
+25614501638	2026-05-09 23:29	push	main	success		86a41c0	fix(planning-suite): use canonical session slug in ExitPlanMode gate …
+25614291001	2026-05-09 23:16	push	main	success		3467422	feat(planning-suite): add narrow-plan skill — info-gain intent disamb…
+25614270545	2026-05-09 23:15	pull_request	claude/clever-moore-4c5be6	success		c2a2877	feat(planning-suite): add narrow-plan skill — info-gain intent disambiguation
+25614223270	2026-05-09 23:13	pull_request	chore/ci-smoke-trigger	failure	(step data not retained)	39af04d	chore: CI smoke trigger (DO NOT MERGE)
+25614183324	2026-05-09 23:10	pull_request	claude/clever-moore-4c5be6	success		1326066	feat(planning-suite): add narrow-plan skill — info-gain intent disambiguation
+25613955824	2026-05-09 22:57	pull_request	claude/clever-moore-4c5be6	success		fd78900	feat(planning-suite): add narrow-plan skill — info-gain intent disambiguation
+25613860440	2026-05-09 22:52	pull_request	claude/clever-moore-4c5be6	failure	(step data not retained)	de69efd	feat(planning-suite): add narrow-plan skill — info-gain intent disambiguation
+25613654730	2026-05-09 22:41	push	main	failure	(step data not retained)	e931731	refactor(planning-suite): background dispatch + invert cascade ownership
+25613276868	2026-05-09 22:21	pull_request	claude/clever-moore-4c5be6	success		3899c32	feat(planning-suite): add narrow-plan skill — info-gain intent disambiguation
+25610432524	2026-05-09 19:58	push	main	success		1bfe6e8	feat(planning-suite): integration-branch + open-pr finale, structured…
+25610337066	2026-05-09 19:53	push	main	success		a3ae223	research(review-bench): cross-model cell baseline verified 2026-05-09…
+25610311956	2026-05-09 19:52	push	main	cancelled		c4d08bb	fix(review-suite): bump 0.2.0 → 0.2.1 to propagate gate-path fix
+25609342828	2026-05-09 19:03	push	main	success		0c2e70b	feat(review-bench): single-command ablation harness via --pre-reg
+25605234042	2026-05-09 15:52	push	main	failure	(step data not retained)	3007bf7	fix(planning-suite): make ExitPlanMode idempotent after successful exit
+25604768568	2026-05-09 15:29	push	main	failure	(step data not retained)	632e10a	fix(planning-suite): make ERR trap in nudge handler functional
+25604145316	2026-05-09 14:59	push	main	failure	(step data not retained)	f9454e7	fix(planning-suite): test-schedule-plan-tasks runs inline (no sub-age…
+25604028299	2026-05-09 14:53	push	main	failure	(step data not retained)	4c9dd39	docs(planning-suite): tighten schedule-plan-tasks third auto-invoke t…
+25603900184	2026-05-09 14:47	push	main	failure	(step data not retained)	2486d70	docs(planning-suite): tighten schedule-plan-tasks auto-invoke triggers
+25603426806	2026-05-09 14:24	push	main	failure	(step data not retained)	340db18	feat(planning-suite): bump 0.2.2 — plan8 cascade-fan-in fixture, fixt…
+25603202741	2026-05-09 14:13	push	main	failure	(step data not retained)	ac76ed6	chore: stop bundling chrome-devtools MCP in gas-suite/async-suite
+25589793504	2026-05-09 02:57	push	main	failure	(step data not retained)	ffc451a	chore: doc+structure cleanup — handler normalization, version bumps, …
+25589535686	2026-05-09 02:45	pull_request	feat/task-persist-project-scope	failure	(step data not retained)	d07e122	feat(task-persist): scope session restore to current git repo
+25589449246	2026-05-09 02:41	pull_request	feat/task-persist-project-scope	failure	(step data not retained)	38efc7b	feat(task-persist): scope session restore to current git repo
+25589392391	2026-05-09 02:39	pull_request	feat/task-persist-project-scope	failure	(step data not retained)	8da082e	feat(task-persist): scope session restore to current git repo
+25589298014	2026-05-09 02:35	pull_request	feat/task-persist-project-scope	failure	(step data not retained)	c5497e3	feat(task-persist): scope session restore to current git repo
+25589261323	2026-05-09 02:33	pull_request	feat/task-persist-project-scope	failure	(step data not retained)	603e3e1	feat(task-persist): scope session restore to current git repo
+25531491103	2026-05-08 01:29	push	main	failure	(step data not retained)	5e6b78d	fix(code-reviewer): skip manifest write when invoked standalone (#230)
+25531489604	2026-05-08 01:29	pull_request	fix/reviewer-no-standalone-manifest	failure	(step data not retained)	e1a9ca9	fix(code-reviewer): skip manifest write when invoked standalone
+25378980838	2026-05-05 13:22	push	main	success		7b65db7	chore: keep --route branch (audit was wrong); fix terminology (Task #20)
+25378338717	2026-05-05 13:09	push	main	success		2f06243	feat(wiki-suite): schema v3 — access reinforcement + read-time confid…
+25377800778	2026-05-05 12:58	push	main	success		cae8f88	docs: Karpathy LLM-wiki concept research + wiki-suite gap analysis (T…

@@ -1,0 +1,128 @@
+name: Scheduled
+
+# Things that can break without any change in this repo: another repo's manifest,
+# a new runner image, a new dependency release. They run weekly instead of on every
+# PR so an upstream move can never redden an unrelated change. A red run here is the
+# early warning (GitHub emails the person who last edited the cron line).
+
+on:
+  schedule:
+    - cron: '23 5 * * 1' # Mondays 05:23 UTC; off the top of the hour, when scheduled load spikes
+  workflow_dispatch:
+    inputs:
+      repeat:
+        description: 'Flake hunt: run the test phase this many times (0 = skip the hunt)'
+        type: number
+        default: 0
+
+concurrency:
+  group: scheduled
+  cancel-in-progress: false
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  hermes-drift:
+    name: Hermes handler drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # --strict: drift fails here even though ordinary pushes only warn about it.
+      - name: Compare planning-suite manifest with hermes main
+        run: bash tools/check-hermes-drift.sh --strict
+
+  canary:
+    name: Canary (${{ matrix.os }}, node ${{ matrix.node }}, fresh deps)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, node: 26 } # floating label: shows what the runner will be tomorrow
+          - { os: ubuntu-26.04, node: 24 } # next Ubuntu LTS image, before `ubuntu-latest` lands on it
+          - { os: macos-latest, node: 26 } # same image as the gating macos-26 leg today, so this mostly adds fresh deps until the label moves
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      # Ignore the lockfile: resolve the newest versions allowed by package.json, to catch
+      # an incompatible dev-dependency release before the next Dependabot PR does.
+      - name: Install newest in-range dependencies
+        run: npm install --no-package-lock --ignore-scripts --no-audit --no-fund
+
+      - name: tools/ci.sh all
+        env:
+          CI_SKIP: ${{ runner.os == 'macOS' && 'shellcheck' || '' }} # not on the macOS image; Linux legs cover it
+        run: bash tools/ci.sh all
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: canary-logs-${{ matrix.os }}-node${{ matrix.node }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Manual only: Actions → Scheduled → Run workflow → repeat = N. Answers "is this test flaky?"
+  # with data instead of re-running a red build and hoping.
+  flake-hunt:
+    name: Flake hunt (${{ inputs.repeat }} runs)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.repeat > 0 }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Repeat the test phase
+        env:
+          REPEAT: ${{ inputs.repeat }}
+        run: |
+          failed=0
+          for i in $(seq 1 "$REPEAT"); do
+            echo "::group::run $i of $REPEAT"
+            if ! bash tools/ci.sh test > "flake-$i.log" 2>&1; then
+              failed=$((failed + 1))
+              # `|| true`: grep exits 1 when a failure has no mocha-style "N) title" line, and the
+              # default shell here is `bash -eo pipefail`, which would abort the whole hunt.
+              grep -E '^\s+[0-9]+\) ' "flake-$i.log" | sort -u | sed "s/^/run $i: /" >> flaky.txt || true
+            fi
+            tail -n 8 "flake-$i.log"
+            echo "::endgroup::"
+          done
+          {
+            echo "### Flake hunt: $failed of $REPEAT runs failed"
+            if [ -s flaky.txt ]; then echo '```'; sort flaky.txt; echo '```'; fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$failed" -eq 0 ]

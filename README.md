@@ -299,21 +299,26 @@ The `/agent-sync publish` command lists local-only items in `~/.claude/` that co
 # Then manually copy and commit interesting items to ~/claude-craft/
 ```
 
-### Git Security Commands (installed automatically)
+### Git Hooks (install once per clone with `tools/install-hooks.sh`)
 
 | Command | Description |
 |---------|-------------|
-| `git pull` | Automatically scans pulled files for threats |
-| `git commit` | Automatically blocks commits with secrets |
-| `~/claude-craft/tools/install-git-hooks.sh` | Install/reinstall git hooks |
+| `git pull` | Scans pulled executable files for threats |
+| `git commit` | Blocks commits that stage secrets in code files; runs the marketplace lints when `plugins/` is staged |
+| `git push` | Runs `tools/ci.sh pre-push` (the same checks CI runs, scoped to your diff); `SKIP_PREPUSH=1` skips once |
+| `tools/install-hooks.sh` | Point this clone at the tracked `.githooks/` (git does not install hooks on clone) |
+
+CI itself is documented in [docs/ci.md](docs/ci.md); run it locally with `npm run ci`.
 
 ## Folder Structure
 
 ```
 claude-craft/
-├── .githooks/             # Local git hooks (installed automatically)
+├── .githooks/             # Local git hooks (install: tools/install-hooks.sh)
 │   ├── post-merge         # Security scan after git pull
-│   └── pre-commit         # Secret detection before commit
+│   ├── pre-commit         # Secret detection before commit
+│   └── pre-push           # tools/ci.sh pre-push before a push
+├── .github/               # CI: workflows (ci.yml, scheduled.yml), dependabot.yml — see docs/ci.md
 ├── agents/                # Agent definitions (.md) → ~/.claude/agents/
 ├── commands/              # Slash commands (.md) → ~/.claude/commands/
 ├── skills/                # Skill directories → ~/.claude/skills/
@@ -463,7 +468,7 @@ Claude Craft includes a comprehensive uninstaller that safely removes all compon
 
 ### Automatic Git Hook Protection
 
-Claude Craft automatically installs local git hooks during setup that protect you:
+Git does not install hooks on clone: run `tools/install-hooks.sh` once per clone, then these protect you:
 
 - **Post-merge Security Scanning**: After every `git pull`:
   - Analyzes changed executable files for security threats
@@ -472,7 +477,7 @@ Claude Craft automatically installs local git hooks during setup that protect yo
   - Logs security events to `~/.git-security.log`
 
 - **Pre-commit Secret Detection**: Before every `git commit`:
-  - Blocks commits with hardcoded API keys, passwords
+  - Blocks commits that stage hardcoded API keys in code files and in plugin markdown (it scans the staged content, not the working tree, including renamed and type-changed files; test, fixture and doc files only warn). CI repeats the scan on every commit a push or PR adds, so skipping the hook with `--no-verify` shows up as a red run (GitHub push protection is the server-side backstop)
   - Detects Anthropic, OpenAI, AWS, GitHub tokens
   - Provides specific remediation suggestions
   - Allows emergency bypass with `--no-verify`
@@ -485,8 +490,8 @@ Claude Craft automatically installs local git hooks during setup that protect yo
 ### Security Commands
 
 ```bash
-# Install/reinstall git hooks
-~/claude-craft/tools/install-git-hooks.sh
+# Install/reinstall git hooks (sets core.hooksPath to the tracked .githooks/)
+~/claude-craft/tools/install-hooks.sh
 
 # Check for secrets in current directory
 ~/claude-craft/tools/security-scan.sh . secrets true
@@ -562,7 +567,8 @@ const ids = registry.list();
 
 1. Fork this repository
 2. Add your prompts, commands, agents, or workflows
-3. Submit a pull request
+3. Run `npm run ci` (the same checks CI runs; about a minute) and `tools/install-hooks.sh` once per clone
+4. Submit a pull request — bump the plugin's version in `plugin.json` and `marketplace.json` if you changed what it ships
 
 ---
 
