@@ -1554,6 +1554,36 @@ set -e
 assert "contract-check exit 0" test "$CC_EC" -eq 0
 assert "contract-check PASS banner" grep -q '^PASS:' "$TMP/contract-out.txt"
 
+# Default --mirror: a bare `node contract-check.js` (the documented dual-home check) reads the
+# marketplace mirror from $HOME. Every other invocation in this suite passes --mirror, so this
+# hermetic fake-HOME fixture is the only check of that default.
+FAKE_CC_HOME="$TMP/cc-home"
+FAKE_CC_MIRROR_DIR="$FAKE_CC_HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop"
+mkdir -p "$FAKE_CC_MIRROR_DIR"
+cp "$ROOT/SKILL.md" "$FAKE_CC_MIRROR_DIR/SKILL.md"
+# IMPROVE_LOOP_PARITY=0: the fake marketplace holds SKILL.md only (incomplete), which must not trip package-parity.
+set +e
+IMPROVE_LOOP_PARITY=0 HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
+  >"$TMP/cc-default-mirror-out.txt" 2>"$TMP/cc-default-mirror-err.txt"
+CC_DM_EC=$?
+set -e
+assert "contract-check default mirror resolves under HOME" test "$CC_DM_EC" -eq 0
+# The checker prints a path.join()ed path, which collapses a doubled slash; a TMPDIR that ends in "/" (the macOS default)
+# gives "$TMP" one, so compare the normalised form.
+FAKE_CC_MIRROR_EXPECT="$(printf '%s' "$FAKE_CC_MIRROR_DIR/SKILL.md" | sed 's|//*|/|g')"
+assert "contract-check default mirror path is the marketplace layout" \
+  grep -qxF "mirror: $FAKE_CC_MIRROR_EXPECT" "$TMP/cc-default-mirror-out.txt"
+# Negative control: the same call must fail when nothing sits at the default mirror location.
+rm -rf "$FAKE_CC_HOME/.claude/plugins"
+set +e
+IMPROVE_LOOP_PARITY=0 HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
+  >"$TMP/cc-no-mirror-out.txt" 2>"$TMP/cc-no-mirror-err.txt"
+CC_NM_EC=$?
+set -e
+assert "contract-check fails when the default mirror is absent" test "$CC_NM_EC" -ne 0
+assert "contract-check reports the unreadable default mirror" \
+  grep -q 'cannot read .*marketplaces/claude-craft' "$TMP/cc-no-mirror-err.txt"
+
 assert "improve-loop advisors optional native-first" \
   grep -qiE 'Advisors are optional|native-replanner|optional advisor' "$ROOT/SKILL.md"
 
