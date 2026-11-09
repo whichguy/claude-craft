@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-11-08 — claudecraft 0.2.3: improve-loop no longer refers to review-converge
+
+`improve-loop` named `review-converge` as a sibling skill that this marketplace does not ship, and its checks pinned that
+mention. Public users cannot install the sibling, so the card and the checks now describe `improve-loop` alone. The section
+that introduced the family is now titled "Improvement loop contracts", and rule 5 no longer points at the sibling.
+
+### Removed capabilities
+
+- **claudecraft** — the family-table row, the "Sibling skill" paragraph and the ralph note that named `review-converge`
+  (and its legacy alias `grok-review-converge`) in `skills/improve-loop/SKILL.md`; in `scripts/contract-check.js`, the
+  `review-converge` composition checks, the pin that required the sibling to be named, and the `--converge` flag; and
+  `scripts/converge-ledger-resolve.js`, whose only users were those checks. Migration: none for `improve-loop` itself;
+  a script that passes `--converge` to `contract-check.js` can drop it (the flag is now ignored).
+
 ## 2026-09-26 — skills consolidated into skill-craft (planning-suite 0.3.0, review-bench 0.3.0, claudecraft 0.2.2)
 
 skill-craft ([whichguy/skill-craft](https://github.com/whichguy/skill-craft), plugin
