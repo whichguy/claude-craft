@@ -21,7 +21,7 @@
     {
       "name": "review-suite",
       "source": "./plugins/review-suite",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "description": "Plan review, code review (Adversarial Auditor), iterative review-fix loop, security/red-team review, memory audits."
     },
     {
@@ -51,13 +51,13 @@
     {
       "name": "comms",
       "source": "./plugins/comms",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Communication helpers (Slack tagging)."
     },
     {
       "name": "form990",
       "source": "./plugins/form990",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "End-to-end IRS Form 990 preparation orchestrator."
     },
     {

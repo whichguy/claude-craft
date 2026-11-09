@@ -225,7 +225,7 @@ false failures for endowment orgs and investment holders."
 3. [USER:] companion quality: is the user-facing language still clear and actionable?
 4. False negative rate: does the optimized version miss any genuine issues?
 
-**Sample test input:** Use the FY2025 Fortified Strength dataset (artifacts/form990-dataset.json)
+**Sample test input:** Use the FY2025 Example Nonprofit dataset (artifacts/form990-dataset.json)
 as the evaluation subject. Run Q-F2, Q-F3, Q-F4, Q-F19, Q-F20 as the gate sample (mix of
 G1 new/old, covering both pass and needs_update cases).
 
