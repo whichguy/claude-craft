@@ -1542,158 +1542,20 @@ else
   pass=$((pass + 1))
 fi
 
-# --- review-converge / model-agnostic composition (contract pins + path preference) ---
-# These are isolated hermetic checks so rename fatals (migrate order, dual marker, hard
-# grok-cc require, stale template) cannot silently regress without the L3 suite noticing.
+# --- contract-check.js: package contracts pass on the shipped tree ---
 CONTRACT="$SCRIPTS/contract-check.js"
-LEDGER_RESOLVE="$SCRIPTS/converge-ledger-resolve.js"
-CONVERGE_SKILL="${HOME}/.claude/skills/review-converge/SKILL.md"
-LEGACY_SKILL="${HOME}/.claude/skills/grok-review-converge/SKILL.md"
-CONVERGE_TMPL="${HOME}/.claude/skills/review-converge/completion-report.template.html"
-
-# Pure unit tests: ledger resolve decision table (executable, not prose-only)
-assert "converge-ledger-resolve.js exists" test -f "$LEDGER_RESOLVE"
-set +e
-node "$LEDGER_RESOLVE" --self-test >"$TMP/ledger-resolve-out.txt" 2>"$TMP/ledger-resolve-err.txt"
-LR_EC=$?
-set -e
-assert "ledger-resolve self-test exit 0" test "$LR_EC" -eq 0
-assert "ledger-resolve PASS banner" grep -q '^PASS:' "$TMP/ledger-resolve-out.txt"
-
-# Node require unit asserts (same matrix, independent of CLI)
-assert "ledger-resolve migrate when only grok" node -e "
-const r=require('$LEDGER_RESOLVE');
-process.exit(r.resolveLedgerAction({reviewExists:false,grokExists:true})==='migrate'?0:1)
-"
-assert "ledger-resolve create when neither" node -e "
-const r=require('$LEDGER_RESOLVE');
-process.exit(r.resolveLedgerAction({reviewExists:false,grokExists:false})==='create'?0:1)
-"
-assert "ledger-resolve recover-half-migrate" node -e "
-const r=require('$LEDGER_RESOLVE');
-const a=r.resolveLedgerAction({reviewExists:true,grokExists:true,reviewRoundCount:0,grokRoundCount:2});
-process.exit(a==='recover-half-migrate'?0:1)
-"
-assert "ledger-resolve both-conflict" node -e "
-const r=require('$LEDGER_RESOLVE');
-const a=r.resolveLedgerAction({reviewExists:true,grokExists:true,reviewRoundCount:1,grokRoundCount:1});
-process.exit(a==='both-conflict'?0:1)
-"
-assert "ledger-resolve legacy landed" node -e "
-const r=require('$LEDGER_RESOLVE');
-process.exit(r.isLandedForRound(['x grok-review-converge: round 2 — y'],2)?0:1)
-"
-assert "ledger-resolve no round-1/10 prefix" node -e "
-const r=require('$LEDGER_RESOLVE');
-process.exit(r.isLandedForRound(['x review-converge: round 10 — y'],1)?1:0)
-"
-assert "ledger-resolve countRoundHeadings" node -e "
-const r=require('$LEDGER_RESOLVE');
-process.exit(r.countRoundHeadings('### Round 1 — a\n### Round 2 — b')===2?0:1)
-"
-
 assert "contract-check.js exists" test -f "$CONTRACT"
 set +e
 node "$CONTRACT" --skill-dir "$ROOT" \
   --mirror "$ROOT/SKILL.md" \
-  --converge "$CONVERGE_SKILL" \
   >"$TMP/contract-out.txt" 2>"$TMP/contract-err.txt"
 CC_EC=$?
 set -e
 assert "contract-check exit 0" test "$CC_EC" -eq 0
 assert "contract-check PASS banner" grep -q '^PASS:' "$TMP/contract-out.txt"
 
-if [[ -f "$CONVERGE_SKILL" ]]; then
-  assert "converge product name" grep -qE 'name:[[:space:]]*review-converge' "$CONVERGE_SKILL"
-  assert "converge REVIEW_CONVERGE ledger" grep -q 'REVIEW_CONVERGE.md' "$CONVERGE_SKILL"
-  assert "converge commit marker" grep -q 'review-converge: round' "$CONVERGE_SKILL"
-  assert "converge migrate-before-create" grep -qiE 'migrate-before-create|Migrate first' "$CONVERGE_SKILL"
-  assert "converge recover-half-migrate" grep -qi 'recover-half-migrate' "$CONVERGE_SKILL"
-  assert "converge both-conflict" grep -qi 'both-conflict' "$CONVERGE_SKILL"
-  assert "converge dual-marker landed grep" grep -q 'grok-review-converge: round' "$CONVERGE_SKILL"
-  assert "converge native-first" grep -qiE 'Native first|native first' "$CONVERGE_SKILL"
-  assert "converge no hard grok-cc require" bash -c \
-    "! grep -qiE 'grok-cc:grok-rescue\` must be available|must be available \\(the \`grok-cc\` plugin' \"$CONVERGE_SKILL\""
-  # Fatal: create-while-legacy-exists must be forbidden in prose
-  assert "converge forbids create-over-legacy" \
-    grep -qiE 'never create a fresh|parallel empty ledger|while a legacy ledger still exists' \
-    "$CONVERGE_SKILL"
-fi
-
-if [[ -f "$LEGACY_SKILL" ]]; then
-  assert "legacy alias is deprecation stub" grep -qiE 'DEPRECATED alias|Superseded by' "$LEGACY_SKILL"
-  LEGACY_BYTES="$(wc -c <"$LEGACY_SKILL" | tr -d ' ')"
-  assert "legacy alias thin (<2500 bytes)" test "$LEGACY_BYTES" -lt 2500
-fi
-
-if [[ -f "$CONVERGE_TMPL" ]]; then
-  assert "template REVIEW_CONVERGE primary" grep -q 'REVIEW_CONVERGE.md' "$CONVERGE_TMPL"
-  assert "template no old promise name" bash -c \
-    "! grep -q 'GROK_REVIEW_CONVERGE_DONE' \"$CONVERGE_TMPL\""
-fi
-
-# defaultConvergePath: preferred path wins when both exist (isolated HOME fixture)
-FAKE_CC_HOME="$TMP/cc-home"
-mkdir -p "$FAKE_CC_HOME/.claude/skills/review-converge" \
-  "$FAKE_CC_HOME/.claude/skills/grok-review-converge" \
-  "$FAKE_CC_HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop"
-# minimal skill package so contract-check can read layout (reuse real package via skill-dir)
-printf '%s\n' '---' 'name: review-converge' '---' '# Review converge' \
-  'Preferred multi-round outer driver: `/goal`' \
-  'Optional legacy outer driver: `ralph-loop`' \
-  '## Running it multi-round' \
-  '### Preferred: `/goal`' \
-  'Consecutive clean rounds >= 2' \
-  'material vs minor' \
-  'git history aware' \
-  'Improvement loop family with improve-loop' \
-  'P0 P1 tags' \
-  'Post-PASS hygiene' \
-  'HYGIENE_PATHS product land kept' \
-  'CONTAMINATED left unstaged' \
-  'HYGIENE_SNAPSHOTS pre-hygiene content snapshot' \
-  'untracked junk never `git rm` clean tracked' \
-  'Native first preferred default' \
-  'REVIEW_CONVERGE.md' \
-  'review-converge: round' \
-  'GROK_CONVERGE.md migrate rename legacy' \
-  'migrate-before-create Migrate first' \
-  'recover-half-migrate both-conflict' \
-  'landed-commit grep either marker grok-review-converge: round' \
-  >"$FAKE_CC_HOME/.claude/skills/review-converge/SKILL.md"
-printf '%s\n' '---' 'name: grok-review-converge' '---' \
-  'DEPRECATED alias. Superseded by review-converge.' \
-  >"$FAKE_CC_HOME/.claude/skills/grok-review-converge/SKILL.md"
-# stub mirror so missing-mirror does not fail hard beyond the read fail list
-cp "$ROOT/SKILL.md" \
-  "$FAKE_CC_HOME/.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop/SKILL.md"
-# IMPROVE_LOOP_PARITY=0: FAKE marketplace is SKILL-only (incomplete) — must not trip H18 parity
-set +e
-IMPROVE_LOOP_PARITY=0 HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
-  >"$TMP/cc-prefer-out.txt" 2>"$TMP/cc-prefer-err.txt"
-CC_PREF_EC=$?
-set -e
-assert "contract-check prefers review-converge path" test "$CC_PREF_EC" -eq 0
-assert "contract-check converge line is preferred" \
-  grep -q 'converge:.*review-converge' "$TMP/cc-prefer-out.txt"
-
-# When preferred missing, fall back to legacy (still a stub — contract skips product pins)
-rm -rf "$FAKE_CC_HOME/.claude/skills/review-converge"
-set +e
-IMPROVE_LOOP_PARITY=0 HOME="$FAKE_CC_HOME" node "$CONTRACT" --skill-dir "$ROOT" \
-  >"$TMP/cc-legacy-out.txt" 2>"$TMP/cc-legacy-err.txt"
-CC_LEG_EC=$?
-set -e
-assert "contract-check falls back to legacy path" test "$CC_LEG_EC" -eq 0
-assert "contract-check converge line is legacy" \
-  grep -q 'converge:.*grok-review-converge' "$TMP/cc-legacy-out.txt"
-
-# improve-loop family cross-ref still names review-converge
-assert "improve-loop SKILL names review-converge sibling" \
-  grep -q 'review-converge' "$ROOT/SKILL.md"
 assert "improve-loop advisors optional native-first" \
   grep -qiE 'Advisors are optional|native-replanner|optional advisor' "$ROOT/SKILL.md"
-
 
 # --- backlog-blocks.js mini-parser ---
 assert "backlog-blocks.js exists" test -f "$SCRIPTS/backlog-blocks.js"
@@ -1839,13 +1701,6 @@ fi
 
 # --- H15/L4: contract-check must FAIL when inventory or feature-surface is broken ---
 # Hermetic package copies under $TMP; disable live B↔M parity (IMPROVE_LOOP_PARITY=0).
-# Prefer real converge skill when present so prose pins still pass except the intentional hole.
-CONVERGE_FOR_HERM="${HOME}/.claude/skills/review-converge/SKILL.md"
-if [[ ! -f "$CONVERGE_FOR_HERM" ]]; then
-  CONVERGE_FOR_HERM="$TMP/converge-stub.md"
-  printf '%s\n' '---' 'name: review-converge' '---' '# Review converge stub' >"$CONVERGE_FOR_HERM"
-fi
-
 HERM_MISS="$TMP/pkg-missing-spec"
 rm -rf "$HERM_MISS"
 mkdir -p "$HERM_MISS"
@@ -1859,7 +1714,6 @@ rm -f "$HERM_MISS/scripts/spec-validate.js"
 set +e
 IMPROVE_LOOP_PARITY=0 node "$CONTRACT" --skill-dir "$HERM_MISS" \
   --mirror "$HERM_MISS/SKILL.md" \
-  --converge "$CONVERGE_FOR_HERM" \
   >"$TMP/cc-miss-out.txt" 2>"$TMP/cc-miss-err.txt"
 CC_MISS_EC=$?
 set -e
@@ -1887,7 +1741,6 @@ fs.writeFileSync(p,t);
 set +e
 IMPROVE_LOOP_PARITY=0 node "$CONTRACT" --skill-dir "$HERM_PIN" \
   --mirror "$HERM_PIN/SKILL.md" \
-  --converge "$CONVERGE_FOR_HERM" \
   >"$TMP/cc-pin-out.txt" 2>"$TMP/cc-pin-err.txt"
 CC_PIN_EC=$?
 set -e
