@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-08 — real organisation identifiers replaced with placeholders (form990 0.2.1, review-suite 0.2.7, comms 0.1.1)
+
+The `form990` plugin's tests, notes and examples contained a real organisation's identifiers (an EIN, a state charity
+registration number, the names of its officers and directors, an organisation e-mail address, domain, name and street address,
+a Candid profile id and an IRS object id) and the names of a tax preparer and two contractors. They are replaced with obvious
+placeholders in the same formats, so the tests still exercise the same rules (the verification harness passes the same 31 cases
+before and after), and the public audit note about them (`docs/pii-audit.md`) is removed. Two review fixtures, one review-plan
+note and one slack-tag manifest that carried a personal home-folder name now use a neutral one, and two tracked symlinks in
+`.claude/agents/` whose targets named a home folder (a path that exists on no other machine) are deleted.
+
+### Notes
+
+- Git history is not rewritten: earlier commits still contain the original values.
+- The `form990` plugin remains tied to one filer's workflow; only its embedded identifiers changed.
+
 ## 2026-09-26 — skills consolidated into skill-craft (planning-suite 0.3.0, review-bench 0.3.0, claudecraft 0.2.2)
 
 skill-craft ([whichguy/skill-craft](https://github.com/whichguy/skill-craft), plugin

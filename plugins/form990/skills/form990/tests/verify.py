@@ -1243,19 +1243,19 @@ def tc29(args):
             "schema: 1\n"
             "org_slug: test-org\n"
             'legal_name: Test Org\n'
-            'ein: "85-3576252"\n'
+            'ein: "12-3456789"\n'
             "formation_state: CA\n"
             'fiscal_year_end: "12-31"\n'
             "accounting_method: cash\n"
             "people:\n"
             "  officers:\n"
-            '    - { name: "James Wiese", role: "CEO", family: "wiese" }\n'
-            '    - { name: "Kelly Wiese", role: "CFO", family: "wiese" }\n'
+            '    - { name: "Jane Doe", role: "CEO", family: "doe" }\n'
+            '    - { name: "John Doe", role: "CFO", family: "doe" }\n'
             "registrations:\n"
-            '  ca_rct_number: "CT0272348"\n'
+            '  ca_rct_number: "CT0000000"\n'
             '  ca_sos_entity_id: "4567890"\n'
             "portal_credentials:\n"
-            '  candid: { account_hint: "jim@fortifiedstrength.org" }\n'
+            '  candid: { account_hint: "admin@example.org" }\n'
             "---\n"
             "## Notes\n",
             encoding="utf-8",
@@ -1264,7 +1264,7 @@ def tc29(args):
         # --- profile ingestion ---
         profile = load_profile(str(fixture))
 
-        if not assert_equal(tc, profile.get("ein"), "85-3576252", "TC29-ein-loaded"):
+        if not assert_equal(tc, profile.get("ein"), "12-3456789", "TC29-ein-loaded"):
             return
         officers = (profile.get("people") or {}).get("officers", [])
         if not assert_true(tc, len(officers) >= 2, "TC29-officers-loaded: expected ≥2 officers"):
@@ -1275,23 +1275,23 @@ def tc29(args):
         # --- scrub_pii sub-assertions: one per PII category (≥6 required by plan) ---
 
         # 1. EIN redaction
-        got = scrub_pii("EIN is 85-3576252 on the return")
+        got = scrub_pii("EIN is 12-3456789 on the return")
         if not assert_true(tc, "[REDACTED-EIN]" in got, "TC29-scrub-ein: EIN not redacted"):
             return
 
         # 2. Officer name redaction
         officer_names = [o["name"] for o in officers if isinstance(o, dict) and o.get("name")]
-        got = scrub_pii("CEO James Wiese signed the return", officer_names=officer_names)
+        got = scrub_pii("CEO Jane Doe signed the return", officer_names=officer_names)
         if not assert_true(tc, "[REDACTED-OFFICER]" in got, "TC29-scrub-officer: officer name not redacted"):
             return
 
         # 3. Portal account_hint — already covered by email rule (C2)
-        got = scrub_pii("account: jim@fortifiedstrength.org")
+        got = scrub_pii("account: admin@example.org")
         if not assert_true(tc, "[REDACTED-EMAIL]" in got, "TC29-scrub-email: portal account_hint not redacted"):
             return
 
         # 4. CA RCT number redaction
-        got = scrub_pii("CA RCT number CT0272348 is active")
+        got = scrub_pii("CA RCT number CT0000000 is active")
         if not assert_true(tc, "[REDACTED-CA-RCT]" in got, "TC29-scrub-ca-rct: CA RCT not redacted"):
             return
 
@@ -1338,7 +1338,7 @@ def tc30(args):
         # Write fixture profile and record its sha256
         fixture = tmp / "test-org.md"
         original_content = (
-            "---\nschema: 1\norg_slug: test-org\nein: \"85-3576252\"\n---\n"
+            "---\nschema: 1\norg_slug: test-org\nein: \"12-3456789\"\n---\n"
         )
         fixture.write_text(original_content, encoding="utf-8")
         original_sha = hashlib.sha256(original_content.encode("utf-8")).hexdigest()
@@ -1453,7 +1453,7 @@ def tc33(args):
 
     _lib33._urllib_get = _timeout_get
     try:
-        _lib33.fetch_teos("85-3576252")
+        _lib33.fetch_teos("12-3456789")
         fail_(tc, "TC33-timeout: expected TEOSUnavailable, got no exception")
         return
     except TEOSUnavailable:
@@ -1470,7 +1470,7 @@ def tc33(args):
 
     _lib33._urllib_get = _oserr_get
     try:
-        _lib33.fetch_teos("85-3576252")
+        _lib33.fetch_teos("12-3456789")
         fail_(tc, "TC33-oserr: expected TEOSUnavailable, got no exception")
         return
     except TEOSUnavailable:

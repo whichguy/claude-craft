@@ -25,7 +25,7 @@ SCRIPTS = [
     "verify_schedule_a.py",
 ]
 # Note: verify_part_iii.py and verify_schedule_a.py assume org-specific dataset
-# field names (e.g., the Fortified Strength FY2025 dataset structure). If adapting
+# field names (e.g., the Example Nonprofit FY2025 dataset structure). If adapting
 # for a different org, verify that the field paths match the new dataset's JSON schema.
 
 TAG = "verify_all"

@@ -116,7 +116,7 @@ def scrub_pii(
     text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[REDACTED-SSN]', text)
     # 2. EIN (XX-XXXXXXX) — must come before bare-9 (bare-9 would miss hyphen)
     text = re.sub(r'\b\d{2}-\d{7}\b', '[REDACTED-EIN]', text)
-    # 3. CA RCT registration number (CT + 7 digits, e.g. CT0272348)
+    # 3. CA RCT registration number (CT + 7 digits, e.g. CT0000000)
     text = re.sub(r'\bCT\d{7}\b', '[REDACTED-CA-RCT]', text)
     # 4. Bare 9-digit run (EINs already caught above)
     text = re.sub(r'(?<![-\d])\b\d{9}\b(?![-\d])', '[REDACTED-9DIGIT]', text)
