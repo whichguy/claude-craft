@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 /**
- * Contract check for improve-loop package (+ optional review-converge composition).
+ * Contract check for the improve-loop package.
  *
  * Usage:
  *   node contract-check.js
  *   node contract-check.js --skill-dir /path/to/improve-loop \
- *                          --mirror /path/to/mirror/SKILL.md \
- *                          --converge /path/to/review-converge/SKILL.md
+ *                          --mirror /path/to/mirror/SKILL.md
  *
  * Exit 0 = all asserts pass; exit 1 = failures printed to stderr.
  */
@@ -34,16 +33,6 @@ const mirrorSkill = arg(
     '.claude/plugins/marketplaces/claude-craft/plugins/claudecraft/skills/improve-loop/SKILL.md'
   )
 );
-function defaultConvergePath() {
-  const preferred = path.join(home, '.claude/skills/review-converge/SKILL.md');
-  const legacy = path.join(home, '.claude/skills/grok-review-converge/SKILL.md');
-  try {
-    if (fs.existsSync(preferred)) return preferred;
-  } catch (_) {}
-  return legacy;
-}
-const convergeSkill = arg('--converge', defaultConvergePath());
-
 const fails = [];
 function ok(cond, msg) {
   if (!cond) fails.push(msg);
@@ -68,10 +57,6 @@ function exists(p) {
 
 const user = read(userSkill);
 const mirror = read(mirrorSkill);
-// The review-converge composition checks are optional: a runner without the
-// sibling skill installed (CI) skips them instead of failing the package check.
-const converge = exists(convergeSkill) ? read(convergeSkill) : '';
-if (!converge) console.log(`SKIP: review-converge composition (not installed at ${convergeSkill})`);
 
 // --- package layout (L3) ---
 // Every script that tests or SKILL call by path must appear here (H15 atomic ship).
@@ -88,7 +73,6 @@ const requiredFiles = [
   'scripts/lib-paths.js',
   'scripts/carry-launch-wip.js',
   'scripts/contract-check.js',
-  'scripts/converge-ledger-resolve.js',
   'scripts/backlog-blocks.js',
   'scripts/spec-validate.js',
   'scripts/complete-gate.js',
@@ -143,50 +127,6 @@ for (const [rel, pins] of featureSurfacePins) {
   }
 }
 
-// Executable ledger-resolve decision table (fatal rename paths)
-const ledgerResolve = path.join(skillDir, 'scripts/converge-ledger-resolve.js');
-if (exists(ledgerResolve)) {
-  try {
-    const lr = require(ledgerResolve);
-    ok(
-      lr.resolveLedgerAction({ reviewExists: false, grokExists: true }) === 'migrate',
-      'ledger-resolve: absent+legacy must migrate'
-    );
-    ok(
-      lr.resolveLedgerAction({ reviewExists: false, grokExists: false }) === 'create',
-      'ledger-resolve: neither must create'
-    );
-    ok(
-      lr.resolveLedgerAction({
-        reviewExists: true,
-        grokExists: true,
-        reviewRoundCount: 0,
-        grokRoundCount: 2,
-      }) === 'recover-half-migrate',
-      'ledger-resolve: empty REVIEW + rich GROK must recover-half-migrate'
-    );
-    ok(
-      lr.resolveLedgerAction({
-        reviewExists: true,
-        grokExists: true,
-        reviewRoundCount: 1,
-        grokRoundCount: 1,
-      }) === 'both-conflict',
-      'ledger-resolve: dual rich ledgers must both-conflict'
-    );
-    ok(
-      lr.isLandedForRound(['x grok-review-converge: round 2 — y'], 2) === true,
-      'ledger-resolve: legacy commit subject must count as landed'
-    );
-    ok(
-      lr.isLandedForRound(['x review-converge: round 10 — y'], 1) === false,
-      'ledger-resolve: round 1 must not prefix-match round 10'
-    );
-    ok(lr.mustMigrateBeforeCreate(false, true) === true, 'ledger-resolve: mustMigrateBeforeCreate');
-  } catch (e) {
-    ok(false, `ledger-resolve require/run failed: ${e.message}`);
-  }
-}
 ok(
   !exists(path.join(skillDir, 'once-commit.sh')),
   'once-commit.sh must not ship in product skill tree'
@@ -251,9 +191,8 @@ const improveRequired = [
   ['L3 lists resolve-target-repo', /resolve-target-repo/],
   ['no primary ralph', /Do not\*\* wrap improve-loop in ralph|Do not wrap improve-loop in ralph/i],
   ['round 2 skip no resume', /Round 2 skipped \(no resume tool\)|Skip Round 2/i],
-  ['sibling review-converge', /review-converge|grok-review-converge/i],
   ['advisors optional native-first', /Advisors are optional|native-replanner|configurable optional advisor/i],
-  ['improvement loop family', /Improvement loop family/i],
+  ['improvement loop contracts', /Improvement loop contracts/i],
   ['worktrees path', /\.worktrees\//],
   ['status reporting section', /Status reporting \(user-facing/i],
   ['reasoning trail section', /Reasoning trail \(live insight|reasoning trail/i],
@@ -479,151 +418,6 @@ ok(
   'goal template must state host /goal is optional / L1 primary multi-cycle'
 );
 
-// --- review-converge dual-driver + family residual parity (model-agnostic) ---
-if (converge) {
-  // Skip thin deprecation stubs (legacy grok-review-converge alias)
-  const isDeprecationStub =
-    /DEPRECATED alias|Superseded by/i.test(converge.slice(0, 800)) &&
-    converge.length < 2500;
-  if (!isDeprecationStub) {
-    ok(
-      /name:\s*review-converge/i.test(converge) || /# Review converge/i.test(converge),
-      'review-converge missing product name identity'
-    );
-    ok(
-      /Preferred multi-round outer driver:\s*`?\/goal`?/i.test(converge) ||
-        /prefer \/goal for multi-round/i.test(converge),
-      'review-converge missing preferred /goal multi-round'
-    );
-    ok(
-      /Optional legacy outer driver:\s*`?ralph-loop`?/i.test(converge) ||
-        /optional legacy.*ralph/i.test(converge),
-      'review-converge missing optional ralph legacy note'
-    );
-    ok(
-      /## Running it multi-round|### Preferred: `?\/goal`?/i.test(converge),
-      'review-converge missing multi-round /goal section'
-    );
-    ok(
-      /Consecutive clean rounds\s*>=\s*2|two consecutive clean|2 consecutive/i.test(converge),
-      'review-converge missing 2 consecutive clean complete rule'
-    );
-    ok(
-      /material.*minor|minor.*material/i.test(converge),
-      'review-converge missing material vs minor classification'
-    );
-    ok(
-      /git-history|git history|git log --grep/i.test(converge),
-      'review-converge missing git-history-aware planning'
-    );
-    ok(
-      /Improvement loop family|same family as improve-loop|improve-loop/i.test(converge),
-      'review-converge missing improve-loop family cross-reference'
-    );
-    ok(
-      /P0|P1/i.test(converge),
-      'review-converge should map material plan bullets to P0/P1 family tags'
-    );
-    ok(
-      /Post-PASS hygiene|post-PASS hygiene/i.test(converge),
-      'review-converge missing post-PASS hygiene family directive'
-    );
-    ok(
-      /HYGIENE_PATHS|hygiene paths reverted|product land kept/i.test(converge),
-      'review-converge missing hygiene re-run FAIL keep-product rule'
-    );
-    ok(
-      /CONTAMINATED|left unstaged/i.test(converge),
-      'review-converge missing CONTAMINATED / left-unstaged fail-closed isolation'
-    );
-    ok(
-      /HYGIENE_SNAPSHOTS|pre-hygiene content snapshot|skipped product-path edit without snapshot/i.test(
-        converge
-      ),
-      'review-converge missing product-path snapshot hard rule'
-    );
-    ok(
-      /untracked junk|never `git rm` clean tracked/i.test(converge),
-      'review-converge missing untracked-junk-only delete rule'
-    );
-    ok(
-      /Native first|native first|Native\*\* \(orchestrator\)|preferred default/i.test(converge),
-      'review-converge missing native-first role policy'
-    );
-    ok(
-      /REVIEW_CONVERGE\.md/.test(converge),
-      'review-converge missing REVIEW_CONVERGE.md ledger name'
-    );
-    ok(
-      /review-converge: round/.test(converge),
-      'review-converge missing generic commit subject marker'
-    );
-    ok(
-      /GROK_CONVERGE\.md/.test(converge) && /rename|migrate|legacy/i.test(converge),
-      'review-converge missing legacy GROK_CONVERGE.md migrate rule'
-    );
-    ok(
-      /migrate-before-create|Migrate first/i.test(converge),
-      'review-converge missing migrate-before-create order (fatal if create-first orphans legacy ledger)'
-    );
-    ok(
-      /recover-half-migrate|both-conflict/i.test(converge),
-      'review-converge missing both-present half-migrate recovery / conflict stop'
-    );
-    ok(
-      /landed-commit grep|either marker|legacy marker/i.test(converge) &&
-        /grok-review-converge: round/.test(converge),
-      'review-converge missing dual-marker landed/orphan grep (legacy commits must not false-orphan)'
-    );
-    ok(
-      !/grok-cc:grok-rescue` must be available/i.test(converge) &&
-        !/must be available \(the `grok-cc` plugin/i.test(converge),
-      'review-converge still hard-requires grok-cc'
-    );
-    const head = converge.slice(0, 1200);
-    ok(
-      !/combine with ralph-loop when an unattended, hard-capped\s+outer quota is needed\.?$/im.test(
-        head
-      ),
-      'review-converge description still ralph-only for unattended'
-    );
-    ok(
-      !/Grok-driven review\/fix|asks Grok to review/i.test(head),
-      'review-converge description still Grok-product identity'
-    );
-    // Completion template (sibling of SKILL) must not teach the old ledger/promise names as primary
-    const tmplPath = path.join(path.dirname(convergeSkill), 'completion-report.template.html');
-    if (exists(tmplPath)) {
-      const html = read(tmplPath);
-      ok(
-        /REVIEW_CONVERGE\.md/.test(html),
-        'completion template missing REVIEW_CONVERGE.md'
-      );
-      ok(
-        !/GROK_REVIEW_CONVERGE_DONE/.test(html),
-        'completion template still ships GROK_REVIEW_CONVERGE_DONE promise'
-      );
-      ok(
-        /REVIEW_CONVERGE_DONE/.test(html) || /\/goal/.test(html),
-        'completion template missing REVIEW_CONVERGE_DONE or /goal run path'
-      );
-    }
-  }
-}
-
-// defaultConvergePath preference: when preferred exists, --converge default must not force legacy
-ok(
-  defaultConvergePath().includes('review-converge') ||
-    !exists(path.join(home, '.claude/skills/review-converge/SKILL.md')),
-  'defaultConvergePath must prefer review-converge when present'
-);
-
-// improve-loop must declare family table / sibling converge
-ok(
-  /Improvement loop family/i.test(user) && /review-converge/i.test(user),
-  'user improve-loop missing family / review-converge sibling cross-reference'
-);
-
 // --- product / UX seed mode (Track B) ---
 ok(
   /SEED_MODE/.test(user) && /--product/.test(user),
@@ -699,8 +493,7 @@ if (fails.length) {
   for (const f of fails) console.error('FAIL:', f);
   process.exit(1);
 }
-console.log('PASS: improve-loop package contracts + dual-driver composition checks');
+console.log('PASS: improve-loop package contracts');
 console.log('skill-dir:', skillDir);
 console.log('mirror:', mirrorSkill);
-console.log('converge:', convergeSkill);
 process.exit(0);

@@ -1193,14 +1193,12 @@ deterministic local gate.
 `clear ledger`, `clear IMPROVE_LOOP` force **discard** of a launch-root leftover ledger
 instead of migrate (see Phase 0 step 1a.3). Default for Status `active` is **migrate**.
 
-### Improvement loop family (shared contracts)
+### Improvement loop contracts
 
-| Skill | Unit | Material unit | Complete when |
-|---|---|---|---|
-| **improve-loop** (`/improve-loop`) | L2 cycle | Open **P0/P1** backlog items | **2 consecutive** cycles with zero open P0/P1 + green suite |
-| **review-converge** (`/review-converge`; legacy `/grok-review-converge`) | Review round | Reviewer **material** findings (vs minor) | **2 consecutive clean rounds** (zero material findings) |
+**improve-loop** (`/improve-loop`): unit = L2 cycle; material unit = open **P0/P1** backlog items; complete when
+**2 consecutive** cycles show zero open P0/P1 and a green suite.
 
-Shared family rules (both skills):
+Loop rules:
 
 1. **Git history–aware planning** — digest prior loop **commit bodies** (Thesis / Outcome /
    What landed / Notes / open Next backlog — *why* things improved or failed) **and** the
@@ -1210,8 +1208,8 @@ Shared family rules (both skills):
 3. **Two consecutive non-material passes** before `complete` (not one empty residual).
 4. **Pathspec commits** — never `git add -A`; explicit paths only. Deferred needs **no product
    file changes** — ledger / commit-message metadata only.
-5. **Outer multi-unit drive** — improve-loop: L1 autonomous by default; converge: one round per
-   invoke, multi-round under `/goal` (or optional ralph). Ralph never primary for improve-loop.
+5. **Outer multi-unit drive** — L1 autonomous by default; host `/goal` is optional (see Multi-cycle below).
+   Ralph is never primary for improve-loop.
 6. **Destination CWD** — when the target repo ≠ host session cwd, sticky to the **target repo**
    for product commands; never sticky into disposable worktrees.
 7. **Post-PASS hygiene (directive, not a phase)** — after a green suite with **real product
@@ -1224,11 +1222,6 @@ Shared family rules (both skills):
    product); if isolation is impossible, leave contaminated paths **unstaged** and set
    Outcome **`partial`**. Prefer new paths / untracked-junk deletes.
    **Not** a new phase banner or L2 step.
-
-**Sibling skill.** `review-converge` implements the review/fix specialization of this
-family (material/minor + clean-streak ×2; native-first, optional tools). Improve-loop’s
-multi-cycle is L1 autonomous campaign driver, not host re-drive. Legacy invoke name
-`grok-review-converge` is a deprecation alias only.
 
 ## Preconditions
 
@@ -2773,8 +2766,7 @@ for operators who want session-level visibility/caps). Primary multi-cycle does 
 depend on “goal continues next turn.”
 
 **Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver (promise tags,
-`.claude/ralph-loop.local.md` are deprecated for this skill). Sibling `review-converge`
-may still document ralph as optional legacy.
+`.claude/ralph-loop.local.md` are deprecated for this skill).
 
 **Hard caps:**
 - Skill: `IMPROVE_LOOP_MAX_CYCLES` (default 8) + ledger stop counters.
