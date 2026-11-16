@@ -12,20 +12,20 @@ This plan addresses the bug where the submit button doesn't disable during form 
 - Vitest for unit tests
 
 **Files to Modify:**
-- `/Users/jwiese/src/claude-craft/src/components/ContactForm/ContactForm.tsx`
-- `/Users/jwiese/src/claude-craft/src/components/ContactForm/form.module.css`
-- `/Users/jwiese/src/claude-craft/src/components/ContactForm/useFormValidation.ts`
-- `/Users/jwiese/src/claude-craft/src/components/NewsletterForm/NewsletterForm.tsx`
-- `/Users/jwiese/src/claude-craft/src/components/LoginForm/LoginForm.tsx`
-- `/Users/jwiese/src/claude-craft/src/styles/shared-form.css`
+- `/Users/user/src/claude-craft/src/components/ContactForm/ContactForm.tsx`
+- `/Users/user/src/claude-craft/src/components/ContactForm/form.module.css`
+- `/Users/user/src/claude-craft/src/components/ContactForm/useFormValidation.ts`
+- `/Users/user/src/claude-craft/src/components/NewsletterForm/NewsletterForm.tsx`
+- `/Users/user/src/claude-craft/src/components/LoginForm/LoginForm.tsx`
+- `/Users/user/src/claude-craft/src/styles/shared-form.css`
 
 **Files to Create:**
-- `/Users/jwiese/src/claude-craft/src/components/ContactForm/ContactForm.stories.tsx`
-- `/Users/jwiese/src/claude-craft/src/components/ContactForm/validation.schema.ts`
-- `/Users/jwiese/src/claude-craft/tests/e2e/contact-form.spec.ts`
-- `/Users/jwiese/src/claude-craft/.storybook/main.ts`
-- `/Users/jwiese/src/claude-craft/.storybook/preview.ts`
-- `/Users/jwiese/src/claude-craft/playwright.config.ts`
+- `/Users/user/src/claude-craft/src/components/ContactForm/ContactForm.stories.tsx`
+- `/Users/user/src/claude-craft/src/components/ContactForm/validation.schema.ts`
+- `/Users/user/src/claude-craft/tests/e2e/contact-form.spec.ts`
+- `/Users/user/src/claude-craft/.storybook/main.ts`
+- `/Users/user/src/claude-craft/.storybook/preview.ts`
+- `/Users/user/src/claude-craft/playwright.config.ts`
 
 ## Git Setup
 
@@ -45,7 +45,7 @@ npm install -D tailwindcss postcss autoprefixer @storybook/react @storybook/reac
 npx tailwindcss init -p
 ```
 
-Update `/Users/jwiese/src/claude-craft/tailwind.config.js`:
+Update `/Users/user/src/claude-craft/tailwind.config.js`:
 ```js
 export default {
   content: [
@@ -59,7 +59,7 @@ export default {
 }
 ```
 
-Add Tailwind directives to `/Users/jwiese/src/claude-craft/src/index.css`:
+Add Tailwind directives to `/Users/user/src/claude-craft/src/index.css`:
 ```css
 @tailwind base;
 @tailwind components;
@@ -73,7 +73,7 @@ git commit -m "Install React Hook Form, Zod, Tailwind, Playwright, and Storybook
 
 ## Phase 2: Configure Playwright and Storybook
 
-Create Playwright configuration at `/Users/jwiese/src/claude-craft/playwright.config.ts`:
+Create Playwright configuration at `/Users/user/src/claude-craft/playwright.config.ts`:
 ```typescript
 import { defineConfig, devices } from '@playwright/test';
 
@@ -102,7 +102,7 @@ export default defineConfig({
 });
 ```
 
-Create Storybook configuration at `/Users/jwiese/src/claude-craft/.storybook/main.ts`:
+Create Storybook configuration at `/Users/user/src/claude-craft/.storybook/main.ts`:
 ```typescript
 import type { StorybookConfig } from '@storybook/react-vite';
 
@@ -120,7 +120,7 @@ const config: StorybookConfig = {
 export default config;
 ```
 
-Create preview configuration at `/Users/jwiese/src/claude-craft/.storybook/preview.ts`:
+Create preview configuration at `/Users/user/src/claude-craft/.storybook/preview.ts`:
 ```typescript
 import type { Preview } from '@storybook/react';
 import '../src/index.css';
@@ -158,7 +158,7 @@ git commit -m "Configure Playwright for E2E testing and Storybook for component 
 
 ## Phase 3: Create Zod Validation Schema
 
-Create validation schema at `/Users/jwiese/src/claude-craft/src/components/ContactForm/validation.schema.ts`:
+Create validation schema at `/Users/user/src/claude-craft/src/components/ContactForm/validation.schema.ts`:
 ```typescript
 import { z } from 'zod';
 
@@ -179,7 +179,7 @@ git commit -m "Add Zod validation schema for contact form"
 
 ## Phase 4: Refactor ContactForm to React Hook Form with Tailwind
 
-Update `/Users/jwiese/src/claude-craft/src/components/ContactForm/ContactForm.tsx` to use React Hook Form, Zod validation, and Tailwind classes:
+Update `/Users/user/src/claude-craft/src/components/ContactForm/ContactForm.tsx` to use React Hook Form, Zod validation, and Tailwind classes:
 
 ```typescript
 import { useForm } from 'react-hook-form';
@@ -294,8 +294,8 @@ export function ContactForm() {
 
 Delete the old CSS module file:
 ```bash
-rm /Users/jwiese/src/claude-craft/src/components/ContactForm/form.module.css
-rm /Users/jwiese/src/claude-craft/src/components/ContactForm/useFormValidation.ts
+rm /Users/user/src/claude-craft/src/components/ContactForm/form.module.css
+rm /Users/user/src/claude-craft/src/components/ContactForm/useFormValidation.ts
 ```
 
 ```bash
@@ -306,7 +306,7 @@ git commit -m "Refactor ContactForm to use React Hook Form, Zod validation, and 
 
 ## Phase 5: Refactor NewsletterForm and LoginForm
 
-Update `/Users/jwiese/src/claude-craft/src/components/NewsletterForm/NewsletterForm.tsx`:
+Update `/Users/user/src/claude-craft/src/components/NewsletterForm/NewsletterForm.tsx`:
 ```typescript
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -353,7 +353,7 @@ export function NewsletterForm() {
 }
 ```
 
-Update `/Users/jwiese/src/claude-craft/src/components/LoginForm/LoginForm.tsx`:
+Update `/Users/user/src/claude-craft/src/components/LoginForm/LoginForm.tsx`:
 ```typescript
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -405,7 +405,7 @@ export function LoginForm() {
 
 Remove shared CSS file:
 ```bash
-rm /Users/jwiese/src/claude-craft/src/styles/shared-form.css
+rm /Users/user/src/claude-craft/src/styles/shared-form.css
 ```
 
 ```bash
@@ -416,7 +416,7 @@ git commit -m "Migrate NewsletterForm and LoginForm to React Hook Form with Tail
 
 ## Phase 6: Create Storybook Stories
 
-Create story file at `/Users/jwiese/src/claude-craft/src/components/ContactForm/ContactForm.stories.tsx`:
+Create story file at `/Users/user/src/claude-craft/src/components/ContactForm/ContactForm.stories.tsx`:
 ```typescript
 import type { Meta, StoryObj } from '@storybook/react';
 import { ContactForm } from './ContactForm';
@@ -451,7 +451,7 @@ git commit -m "Add Storybook stories for ContactForm component"
 
 ## Phase 7: Implement E2E Tests with Playwright
 
-Create E2E test at `/Users/jwiese/src/claude-craft/tests/e2e/contact-form.spec.ts`:
+Create E2E test at `/Users/user/src/claude-craft/tests/e2e/contact-form.spec.ts`:
 ```typescript
 import { test, expect } from '@playwright/test';
 

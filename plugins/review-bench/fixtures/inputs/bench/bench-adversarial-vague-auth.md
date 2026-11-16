@@ -24,7 +24,7 @@ git pull origin main
 ### Step 1: Configure Passport.js Strategy
 Update the Passport.js configuration to use JWT tokens instead of sessions:
 
-**File: `/Users/jwiese/src/backend/config/passport.js`**
+**File: `/Users/user/src/backend/config/passport.js`**
 ```javascript
 const JwtStrategy = require('passport-jwt').Strategy;
 const ExtractJwt = require('passport-jwt').ExtractJwt;
@@ -49,7 +49,7 @@ passport.use(new JwtStrategy(opts, async (jwt_payload, done) => {
 ```
 
 ### Step 2: Create Authentication Middleware
-**File: `/Users/jwiese/src/backend/middleware/auth.js`**
+**File: `/Users/user/src/backend/middleware/auth.js`**
 ```javascript
 const passport = require('passport');
 
@@ -66,7 +66,7 @@ exports.optionalAuth = (req, res, next) => {
 ### Step 3: Update User Model
 Add fields for password hashing and JWT token management:
 
-**File: `/Users/jwiese/src/backend/models/User.js`**
+**File: `/Users/user/src/backend/models/User.js`**
 ```javascript
 const bcrypt = require('bcryptjs');
 
@@ -99,7 +99,7 @@ git commit -m "feat: update authentication strategy to JWT"
 ## Phase 2: Implement Login and Registration Endpoints
 
 ### Step 1: Create Auth Controller
-**File: `/Users/jwiese/src/backend/controllers/authController.js`**
+**File: `/Users/user/src/backend/controllers/authController.js`**
 ```javascript
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
@@ -136,7 +136,7 @@ exports.login = async (req, res) => {
 ```
 
 ### Step 2: Create Auth Routes
-**File: `/Users/jwiese/src/backend/routes/auth.js`**
+**File: `/Users/user/src/backend/routes/auth.js`**
 ```javascript
 const express = require('express');
 const router = express.Router();
@@ -159,7 +159,7 @@ git commit -m "feat: add login and registration endpoints"
 ## Phase 3: Redesign Login Page UI
 
 ### Step 1: Create New Login Component
-**File: `/Users/jwiese/src/frontend/components/Login/Login.jsx`**
+**File: `/Users/user/src/frontend/components/Login/Login.jsx`**
 ```jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -232,7 +232,7 @@ export default function Login() {
 ```
 
 ### Step 2: Add Login Styles
-**File: `/Users/jwiese/src/frontend/components/Login/Login.css`**
+**File: `/Users/user/src/frontend/components/Login/Login.css`**
 ```css
 .login-container {
   min-height: 100vh;
@@ -337,7 +337,7 @@ git commit -m "feat: redesign login page with modern UI"
 ## Phase 4: Implement Rate Limiting
 
 ### Step 1: Install and Configure Redis Rate Limiter
-**File: `/Users/jwiese/src/backend/middleware/rateLimiter.js`**
+**File: `/Users/user/src/backend/middleware/rateLimiter.js`**
 ```javascript
 const redis = require('redis');
 const { RateLimiterRedis } = require('rate-limiter-flexible');
@@ -382,7 +382,7 @@ exports.rateLimitAuthMiddleware = async (req, res, next) => {
 ```
 
 ### Step 2: Apply Rate Limiting to Routes
-**File: `/Users/jwiese/src/backend/app.js`**
+**File: `/Users/user/src/backend/app.js`**
 ```javascript
 const { rateLimitMiddleware, rateLimitAuthMiddleware } = require('./middleware/rateLimiter');
 
@@ -403,7 +403,7 @@ git commit -m "feat: add Redis-based rate limiting"
 ## Phase 5: Add API Key Support for Partners
 
 ### Step 1: Create API Key Model
-**File: `/Users/jwiese/src/backend/models/ApiKey.js`**
+**File: `/Users/user/src/backend/models/ApiKey.js`**
 ```javascript
 const mongoose = require('mongoose');
 const crypto = require('crypto');
@@ -427,7 +427,7 @@ module.exports = mongoose.model('ApiKey', apiKeySchema);
 ```
 
 ### Step 2: Create API Key Middleware
-**File: `/Users/jwiese/src/backend/middleware/apiKey.js`**
+**File: `/Users/user/src/backend/middleware/apiKey.js`**
 ```javascript
 const ApiKey = require('../models/ApiKey');
 
@@ -468,7 +468,7 @@ exports.requirePermission = (permission) => {
 ```
 
 ### Step 3: Create Partner API Routes
-**File: `/Users/jwiese/src/backend/routes/partner.js`**
+**File: `/Users/user/src/backend/routes/partner.js`**
 ```javascript
 const express = require('express');
 const router = express.Router();
@@ -498,7 +498,7 @@ git commit -m "feat: add API key authentication for partner integrations"
 ## Phase 6: Extend Session Timeout
 
 ### Step 1: Update JWT Expiration
-**File: `/Users/jwiese/src/backend/controllers/authController.js`**
+**File: `/Users/user/src/backend/controllers/authController.js`**
 ```javascript
 // Update token generation to use 30 days instead of 7 days
 const token = jwt.sign(
@@ -515,7 +515,7 @@ const refreshToken = jwt.sign(
 ```
 
 ### Step 2: Update Frontend Token Storage
-**File: `/Users/jwiese/src/frontend/utils/auth.js`**
+**File: `/Users/user/src/frontend/utils/auth.js`**
 ```javascript
 export const TOKEN_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 
@@ -536,7 +536,7 @@ export function isTokenValid() {
 ```
 
 ### Step 3: Add Token Refresh Logic
-**File: `/Users/jwiese/src/frontend/hooks/useAuth.js`**
+**File: `/Users/user/src/frontend/hooks/useAuth.js`**
 ```javascript
 import { useEffect } from 'react';
 import { isTokenValid, setAuthToken } from '../utils/auth';
@@ -579,7 +579,7 @@ git commit -m "feat: extend session timeout to 30 days with refresh token suppor
 ## Phase 7: Update Environment Configuration
 
 ### Step 1: Update .env.example
-**File: `/Users/jwiese/src/.env.example`**
+**File: `/Users/user/src/.env.example`**
 ```
 JWT_SECRET=your-jwt-secret-here
 JWT_REFRESH_SECRET=your-jwt-refresh-secret-here
@@ -589,7 +589,7 @@ MONGODB_URI=mongodb://localhost:27017/myapp
 ```
 
 ### Step 2: Update Documentation
-**File: `/Users/jwiese/src/docs/AUTH.md`**
+**File: `/Users/user/src/docs/AUTH.md`**
 ```markdown
 # Authentication & Security
 
