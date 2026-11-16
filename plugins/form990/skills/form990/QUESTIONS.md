@@ -424,11 +424,11 @@ and the IRS Business Master File (BMF). Mismatches cause IRS processing errors.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F9: NEEDS_UPDATE — Legal name on return "Fortified Strength" ≠ IRS TEOS record
-"Fortified Strength, Inc."; EIN matches.
-[EDIT: Update legal name to match IRS records exactly ("Fortified Strength, Inc.");
+Q-F9: NEEDS_UPDATE — Legal name on return "Example Nonprofit" ≠ IRS TEOS record
+"Example Nonprofit, Inc."; EIN matches.
+[EDIT: Update legal name to match IRS records exactly ("Example Nonprofit, Inc.");
 add Schedule O note if abbreviation was previously used → P5 / Part I header]
-[USER: The organization name on the return ("Fortified Strength") is missing the "Inc."
+[USER: The organization name on the return ("Example Nonprofit") is missing the "Inc."
 that IRS records show. Even small name differences can cause processing issues. I'll fix
 it to match exactly.]
 ```
@@ -476,7 +476,7 @@ prior year's EOY figures. Schedule A requires 4 prior years of public-support da
 - Schedule A Line 16 (prior-year public support percentage) is populated from the *filed*
   prior-year Form 990 or 990-EZ — not estimated or back-computed. If the prior return is
   a 990-EZ, map the 990-EZ public support % directly to Line 16; document the source file
-  in a Decision Log entry (e.g., "Paula Wallin CPA, FY2024 990-EZ, Part III Line 16 = 100%").
+  in a Decision Log entry (e.g., "Example CPA, FY2024 990-EZ, Part III Line 16 = 100%").
   A computed or assumed Line 16 value without a filed-return citation is NEEDS_UPDATE.
 - If this is the first year of filing: BOY = 0 is acceptable with a Schedule O note;
   Schedule A Line 16 may be marked N/A with a transition-year note in Schedule O

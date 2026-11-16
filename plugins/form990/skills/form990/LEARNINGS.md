@@ -49,19 +49,19 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
 
 ---
 
-## 2026-04-14 — FY2025 Fortified Strength P0–P8 live run
+## 2026-04-14 — FY2025 Example Nonprofit P0–P8 live run
 
 - **PST tab is current-year only.** The "Public Support Test" tab in Tiller tracks the
   current fiscal year only — not the 5-year history required by IRS Schedule A. Always
   read each prior-year P&L tab directly (P&L Report 2024, P&L Report 2023, etc.) using
   the section-tracking exec pattern. The PST tab is useful only as a current-year sanity
-  check. (P6 Fortified Strength — confirmed via Logger read 2026-04-13.)
+  check. (P6 Example Nonprofit — confirmed via Logger read 2026-04-13.)
 
 - **Section-tracking required for P&L reads.** Both the INCOME and EXPENSE sections of
   the Tiller P&L have rows labeled "Total Fundraising" and "Total Program Service
   Revenue." A simple label-match loop overwrites the income subtotals with expense
   subtotals. The fix: track whether you're in the INCOME or EXPENSE section and only
-  grab the relevant total from each. (P6 Fortified Strength.)
+  grab the relevant total from each. (P6 Example Nonprofit.)
 
 - **509(a)(2) is FULL EXCLUSION of DQ persons — never a cap.** SCHEDULES.md previously
   documented a 1% per-donor cap on public contributions for 509(a)(2). This is wrong.
@@ -93,7 +93,7 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
   lives in an org Google Drive account invisible to personal-account Drive MCP. The
   correct exec chain: mcp-gas-deploy exec → BudgetTools scriptId (1E8rYsyb...) →
   SpreadsheetApp.openById('1VbiVbBxjQUwMaN4...') [disposable copy]. getActiveSpreadsheet()
-  returns null in programmatic exec context. (P2–P7 Fortified Strength.)
+  returns null in programmatic exec context. (P2–P7 Example Nonprofit.)
 
 - **CA companion filings confirmed required for CA 501(c)(3)s.** CA Form 199 (FTB) +
   RRF-1 + CT-TR-1 (AG Registry) are required when GR > $50,000. All three are due the
@@ -144,10 +144,10 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
   region members without individual selection — should be treated as Schedule I grants (not
   program expense) when the prior year CPA used Schedule I for similar items. Economic
   benefit flows to individuals (reducing their out-of-pocket cost), which supports grants
-  treatment. Changing treatment mid-stream creates audit risk. (FY2025 Fortified Strength:
+  treatment. Changing treatment mid-stream creates audit risk. (FY2025 Example Nonprofit:
   $21,980 to 102 athletes.)
 
-- **Do Family leaves board but remains DQ.** Substantial contributors (IRC §4946) remain
+- **A director's family leaves the board but remains DQ.** Substantial contributors (IRC §4946) remain
   disqualified persons even after leaving the governing board. Their contributions in all
   years must still be excluded from Schedule A Line 7a (DQ person exclusion) for the entire
   5-year window. Also verify: board composition changes trigger Part VI Line 2 updates and
@@ -176,7 +176,7 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
 
 - **LEARNING #1 — Org-account boundary causes cold P1 failure without profile (2026-04-19).**
   When the skill is run without a company profile AND the org stores 990-relevant files in
-  a separate Google Workspace account (e.g., `fortifiedstrength.org`), Drive MCP personal-OAuth
+  a separate Google Workspace account (e.g., `example.org`), Drive MCP personal-OAuth
   cannot see those files at all. P1 then produces zero results for governance docs, payroll
   exports, and prior 990 PDFs — all of which require either the org-account GAS bridge (Tier 2)
   or the profile's `auth_accounts.org_google` field to route searches correctly. Resolution:
@@ -194,7 +194,7 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
   with index CSVs at `index_{YEAR}.csv`. `fetch_irs_xml()` implemented using HTTP Range
   requests on ZIP central directory to avoid downloading full ~100MB archives.
   FY2024 (Form 990 full) confirmed filed 2026-05-14 and accessible via ProPublica XML link
-  (object_id: 202531349349309248). **Spike S1 PASS (confirmed 2026-04-19 by user).**
+  (object_id: 202400000000000000). **Spike S1 PASS (confirmed 2026-04-19 by user).**
   ProPublica `totrevenue` / `totfuncexpns` / `totnetassetend` match filed 990s for
   FY2021–FY2023 within $1. Field mapping confirmed: `totnetassetend` is the direct EOY
   net assets field (no subtraction needed); `totrevenue` is the correct gross-receipts
@@ -210,8 +210,8 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
     with EIN, revenue, assets, seal level; no auth required.
   - Direct profile: `https://app.candid.org/profile/{profile_id}/{slug}` — shows full org
     summary: EIN, tax status, total revenue ($199,667), total assets ($65,267), total giving
-    ($2,815), Silver seal, mission statement, full address (2411 Old Crow Canyon Rd Ste N,
-    San Ramon CA 94583), website (fortifiedstrength.org). No CAPTCHA, no login wall.
+    ($2,815), Silver seal, mission statement, full address (123 Example St Ste 100,
+    Anytown CA 90000), website (example.org). No CAPTCHA, no login wall.
   **Resolution:** Candid reclassified from Tier 3 (auth-gated) to Tier 0 (no-auth public).
   Add chromedevtools-based `fetch_candid_public(legal_name, ein)` step to Tier 0.
   Profile ID found from search result href. Sub-tabs (/financials, /forms-990) require
@@ -371,7 +371,7 @@ Check: Any person who left the board during the current year but was a substanti
 Pass criteria: DQ list includes all current board members with past contributions AND
   all prior board members who were substantial contributors within the 5-year window.
 ```
-Gap exposed: Christine Do and Quoc Do left the board in 2025 but their prior contributions
+Gap exposed: two directors left the board in 2025 but their prior contributions
 (2021–2024, ~$10K/yr) still required full DQ exclusion in the 2025 Schedule A.
 
 ---
@@ -536,7 +536,7 @@ NEEDS_UPDATE pattern: "Part V Line 1a shows [N] but we cannot confirm Form 1096 
   filed by January 31. Advise: contact your payroll processor or accountant to confirm
   filing. If not filed, penalties apply ($60-$630 per form)."
 ```
-Gap exposed: FY2025 Redwood + Socal Coaching identified as 1099-NEC recipients; Part V
+Gap exposed: FY2025 two coaching contractors identified as 1099-NEC recipients; Part V
 Line 2a set to 2 and Line 2b = Yes — but no gate confirmed the 1099s/1096 were actually
 filed. Line 1a = 0 (per Part V in dataset) vs 2 expected is a discrepancy.
 

@@ -116,7 +116,7 @@ Verify TC22 (pre-P6 empty donor_names) still passes after the PHASES.md change.
 
 ### Problem
 
-FY2025 issue: Fortified Strength filed Form 990-EZ for FY2024 and full Form 990 for FY2025.
+FY2025 issue: Example Nonprofit filed Form 990-EZ for FY2024 and full Form 990 for FY2025.
 Part I of the full Form 990 includes a "Prior Year" column. IRS instructions are silent on
 exactly how to map 990-EZ lines to the full Form 990 Part I.
 

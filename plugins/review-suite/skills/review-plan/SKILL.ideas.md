@@ -3,7 +3,7 @@
 *Date: 2026-03-13*
 
 ## Original Prompt
-Path: /Users/jameswiese/claude-craft/skills/review-plan/SKILL.md
+Path: /Users/user/claude-craft/skills/review-plan/SKILL.md
 
 ## Structural Diagnostic (Q1-Q10)
 

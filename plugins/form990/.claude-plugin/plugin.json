@@ -1,6 +1,6 @@
 {
   "name": "form990",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "End-to-end IRS Form 990 preparation orchestrator.",
   "author": {
     "name": "whichguy",

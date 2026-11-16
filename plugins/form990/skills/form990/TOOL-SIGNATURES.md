@@ -276,7 +276,7 @@ For 990-EZ: parent element is IRS990EZ, field names differ (use concordance file
 
 ProPublica XML download-xml endpoint (object_id format):
   https://projects.propublica.org/nonprofits/download-xml?object_id={object_id}
-  (Fortified Strength FY2024 object_id: 202531349349309248 — confirmed accessible via org page)
+  (Example Nonprofit FY2024 object_id: 202400000000000000 — confirmed accessible via org page)
   Note: WebFetch returns 403; use urllib with User-Agent header for direct Python access.
 ```
 
@@ -303,7 +303,7 @@ Key fields extractable from TEOS UI HTML:
 
 ```
 URL template: https://projects.propublica.org/nonprofits/api/v2/organizations/{ein_nodash}.json
-  Note: EIN must be WITHOUT hyphens (e.g., "853576252" not "85-3576252")
+  Note: EIN must be WITHOUT hyphens (e.g., "123456789" not "12-3456789")
 
 Auth: None required.
 Rate limit: Not documented; reasonable rate < 1 req/sec recommended.
@@ -345,7 +345,7 @@ Field mapping (pending S1 confirmation):
 ```
 Web UI: https://oag.ca.gov/charities
   Search form: POST to https://rct.doj.ca.gov/Verification/Web/Search.aspx
-  or: https://oag.ca.gov/charities/search?name=&id=CT0272348&type=charity
+  or: https://oag.ca.gov/charities/search?name=&id=CT0000000&type=charity
 
 JSON API: No official CA AG JSON API.
 Candid API: https://api.candid.org/charitycheck/v1/CA?ag_state_charity_reg_num=CT{number}
@@ -370,10 +370,10 @@ Search URL (no auth):
 
 Direct profile URL (no auth):
   https://app.candid.org/profile/{candid_profile_id}/{org-slug}
-  Example: https://app.candid.org/profile/9918853/fortified-strength-inc-85-3576252
+  Example: https://app.candid.org/profile/0000000/example-nonprofit-inc-12-3456789
   Profile ID found in search result href (second path segment)
 
-Data available on summary page (confirmed for Fortified Strength, 2026-04-19):
+Data available on summary page (confirmed for Example Nonprofit, 2026-04-19):
   - Organization name, EIN, tax status
   - Seal level (Silver/Gold/Platinum)
   - Total revenue, total assets, total giving (most recent year)

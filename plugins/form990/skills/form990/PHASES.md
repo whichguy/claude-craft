@@ -1999,7 +1999,7 @@ import re
 slug = re.sub(r'[^a-z0-9]+', '-', key_facts["legal_name"].lower()).strip('-')
 slug = re.sub(r'-+', '-', slug)[:50]  # max 50 chars
 ```
-Example: `"Fortified Strength"` → `"fortified-strength"`.
+Example: `"Example Nonprofit"` → `"example-nonprofit"`.
 Present the proposed slug for confirmation — the operator can edit it.
 
 ```

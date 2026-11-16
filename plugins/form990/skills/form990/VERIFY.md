@@ -126,13 +126,13 @@ Run with `/form990 verify` or directly via `python3 tests/verify.py`.
 
 ## TC7 — Live fire (gated — human review required)
 
-**Covers:** End-to-end against real Fortified Strength Google Sheet.
+**Covers:** End-to-end against real Example Nonprofit Google Sheet.
 
 **Gate:** Only run after TC1–TC6 all pass. Requires human review of CPA report before any
 filing action.
 
 **Steps:**
-1. Run against a **disposable copy** of Fortified Strength's real sheet.
+1. Run against a **disposable copy** of Example Nonprofit's real sheet.
 2. Complete all phases P0–P8.
 3. Provide CPA review report to user for manual inspection.
 4. Do NOT submit anything to an e-file provider without explicit user approval.
@@ -619,16 +619,16 @@ to record call order.
 **Steps:**
 1. Write a fixture profile `test-org.md` with `schema: 1`, EIN, officers, CA RCT, CA SOS, portal credential hint.
 2. Call `load_profile(str(fixture_path))` — direct path, not slug resolution.
-3. Assert returned dict contains `key_facts.ein == "85-3576252"` and `people.officers` with ≥2 entries.
+3. Assert returned dict contains `key_facts.ein == "12-3456789"` and `people.officers` with ≥2 entries.
 4. For each of the 6 PII categories, call `scrub_pii()` with appropriate inputs and assert the redaction token appears.
 
 **Assertions (≥6, one per category):**
-- `TC29-ein-loaded`: `profile["ein"] == "85-3576252"`
+- `TC29-ein-loaded`: `profile["ein"] == "12-3456789"`
 - `TC29-officers-loaded`: `len(profile["people"]["officers"]) >= 2`
-- `TC29-scrub-ein`: `scrub_pii("EIN is 85-3576252")` → contains `[REDACTED-EIN]`
-- `TC29-scrub-officer`: `scrub_pii("CEO James Wiese", officer_names=[...])` → contains `[REDACTED-OFFICER]`
-- `TC29-scrub-email`: `scrub_pii("jim@fortifiedstrength.org")` → contains `[REDACTED-EMAIL]` (portal account_hint via email rule)
-- `TC29-scrub-ca-rct`: `scrub_pii("CT0272348")` → contains `[REDACTED-CA-RCT]`
+- `TC29-scrub-ein`: `scrub_pii("EIN is 12-3456789")` → contains `[REDACTED-EIN]`
+- `TC29-scrub-officer`: `scrub_pii("CEO Jane Doe", officer_names=[...])` → contains `[REDACTED-OFFICER]`
+- `TC29-scrub-email`: `scrub_pii("admin@example.org")` → contains `[REDACTED-EMAIL]` (portal account_hint via email rule)
+- `TC29-scrub-ca-rct`: `scrub_pii("CT0000000")` → contains `[REDACTED-CA-RCT]`
 - `TC29-scrub-ca-sos`: `scrub_pii("4567890", ca_sos_entity_ids=["4567890"])` → contains `[REDACTED-CA-SOS]`
 - `TC29-scrub-donor`: `scrub_pii("Jane Smith", donor_names=["Jane Smith"])` → contains `[REDACTED-DONOR]` (regression guard)
 - `TC29-allowlist`: `get_portal_creds("$(rm -rf /)")` raises `ValueError` before any shell exec
@@ -708,7 +708,7 @@ to record call order.
 
 **Steps:**
 1. Patch `form990_lib._urllib_get` to sleep 60s then return b"".
-2. Call `fetch_teos("85-3576252")` in a thread; join with 17s timeout.
+2. Call `fetch_teos("12-3456789")` in a thread; join with 17s timeout.
 3. Assert thread completed within 17s AND `TEOSUnavailable` was raised.
 
 **Assertions:**
