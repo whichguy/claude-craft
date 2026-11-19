@@ -14,7 +14,7 @@ description: |
 
   **NOT for:** GAS plans (use /gas-plan), code review (use /review), non-Node plans
 
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 ---
 
@@ -147,7 +147,7 @@ DO:
   --- TypeScript/API Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "claude-sonnet-4-6",
+    model = "claude-sonnet-5-5",
     team_name = <team_name>,
     name = "ts-evaluator-p" + pass_count,
     prompt = """
@@ -209,7 +209,7 @@ DO:
   --- Node Runtime Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "claude-sonnet-4-6",
+    model = "claude-sonnet-5-5",
     team_name = <team_name>,
     name = "node-evaluator-p" + pass_count,
     prompt = """

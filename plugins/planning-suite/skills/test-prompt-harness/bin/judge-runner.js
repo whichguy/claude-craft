@@ -151,7 +151,7 @@ module.exports = { runJudge, extractAssistantText, stripFence, parseVerdict };
 
 if (require.main === module) {
   // CLI for ad-hoc smoke testing: read stdin, pass to runJudge with default model
-  const model = process.argv[2] || 'claude-haiku-4-5-20251001';
+  const model = process.argv[2] || 'claude-haiku-5-5';
   const timeoutMs = Number(process.argv[3] || 60) * 1000;
   let input = '';
   process.stdin.setEncoding('utf8');

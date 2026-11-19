@@ -14,7 +14,7 @@ description: |
   - Report generation
   - Data exports and bulk processing
   - Prompt comparison workflows
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 color: green
 tags: [executor, file-output, utility, prompt-comparator]
 ---

@@ -13,7 +13,7 @@ description: |
   - Reducing token usage
   - Comparing alternative approaches
   - Before finalizing agent/skill prompts
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 color: purple
 tags: [comparison, analysis, prompts, quality, efficiency, testing]
 version: 1.0.0

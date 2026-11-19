@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-11-19 — model pins moved to the 5.5 generation (planning-suite 0.3.1, review-suite 0.2.8, review-bench 0.3.1, gas-suite 0.2.1)
+
+Every Claude 4.x model ID in planning-suite, review-suite and review-bench now names its 5.5 counterpart:
+`claude-sonnet-4-6` → `claude-sonnet-5-5`, `claude-opus-4-6` and `claude-opus-4-7` → `claude-opus-5-5`, and
+`claude-haiku-4-5-20251001` → `claude-haiku-5-5` (50 replacements in 18 files). The old models are still served, so
+nothing was broken; at API list prices they cost 1.25x (Opus), 1.5x (Sonnet) and 10x (Haiku) as much per token as their
+5.5 equivalents.
+
+### Changed defaults
+
+- **review-bench** — the judge agents `question-bench-judge` and `review-plan-ablation-judge` (were `claude-opus-4-7`),
+  the default `judge_model` / `research_model` of `question-bench`, `derive-questions`, `optimize-questions`,
+  `improve-prompt` and `optimize-system-prompt` ideate mode (were `claude-opus-4-6`), and `compare-questions`'
+  `apply_model` / `judge_model` (were `claude-sonnet-4-6`). **Bench scores produced with the new judges are not
+  comparable with earlier results** (the last committed ones are from 2026-05-09). To reproduce an earlier score, pass
+  the old judge explicitly (`--judge-model claude-opus-4-6`).
+- **review-bench** — `prompt-comparator`, `optimize-system-prompt` and the ideate-mode benchmark and ideation models.
+- **planning-suite** — `node-plan` and its evaluator tasks, the `file-output-executor` agent, and `test-prompt-harness`'
+  fixture example, semantic `judge_model` example and `bin/judge-runner.js` CLI default (now `claude-haiku-5-5`).
+- **review-suite, gas-suite** — the `MODEL_ID` example in the shared `skill-authoring-conventions.md` (synced from
+  `tools/shared-templates/`); gas-suite changes only through that shared copy.
+
+### Notes
+
+- `improve-prompt`'s references (`technique-library.md`, `critique-rubric.md`, `anti-patterns.md`) gain 5.x thinking
+  rows: adaptive thinking only, depth set by `output_config.effort`; `budget_tokens` returns a 400 on every 5.x model,
+  and `{type: "disabled"}` returns a 400 on Opus 5.5 and Sonnet 5.5 (Sonnet 5.5 uses `{type: "between_tools"}`).
+- gas-suite, slides-suite and wiki-suite keep their own 4.x pins; only the shared file changed in gas-suite.
+- Test fixtures under `test/plugins/planning-suite/llm-bench/` still name Haiku 4.5: the golden stream and judge files
+  are a recorded Haiku 4.5 run, and the smoke fixture that produced them stays paired with them.
+
 ## 2026-11-08 — claudecraft 0.2.3: improve-loop no longer refers to review-converge
 
 `improve-loop` named `review-converge` as a sibling skill that this marketplace does not ship, and its checks pinned that

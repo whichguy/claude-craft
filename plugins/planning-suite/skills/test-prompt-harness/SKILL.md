@@ -45,7 +45,7 @@ Each `runs:` invocation incurs `runs ×` `claude -p` calls. Each `semantic[]` ro
 ---
 name: my-fixture
 description: One sentence about what this probes.
-model: claude-haiku-4-5-20251001
+model: claude-haiku-5-5
 timeout_seconds: 120
 permission_mode: bypassPermissions     # bypassPermissions | default | acceptEdits | plan
 allowed_tools: "Bash Read Write"        # space-separated string
@@ -90,7 +90,7 @@ pass_conditions:
   semantic:                                             # LLM-as-judge rows; one judge call per row per replica
     - id: produces-valid-status-block
       view: result                                      # must be a STRING view: thinking, assistant_text, tool_inputs, tool_outputs, everything, result
-      judge_model: claude-haiku-4-5-20251001
+      judge_model: claude-haiku-5-5
       rubric: |
         The output must contain a single line "STATUS: OK".
         Output ONLY a JSON object: {"verdict": "PASS"|"FAIL", "reasoning": "<one sentence>"}.

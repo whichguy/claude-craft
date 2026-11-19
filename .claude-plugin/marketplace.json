@@ -9,7 +9,7 @@
     {
       "name": "gas-suite",
       "source": "./plugins/gas-suite",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "description": "Google Apps Script review, debugging, planning, sidebar testing, Gmail Cards."
     },
     {
@@ -21,19 +21,19 @@
     {
       "name": "review-suite",
       "source": "./plugins/review-suite",
-      "version": "0.2.7",
+      "version": "0.2.8",
       "description": "Plan review, code review (Adversarial Auditor), iterative review-fix loop, security/red-team review, memory audits."
     },
     {
       "name": "review-bench",
       "source": "./plugins/review-bench",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Question A/B benchmarking, prompt improvement and ablation tooling. Depends on review-suite. compare-prompts, improve-system-prompt and review-fix-bench live in skill-craft (/skill-craft:<leaf>)."
     },
     {
       "name": "planning-suite",
       "source": "./plugins/planning-suite",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "node-plan, test-prompt-harness, alias/unalias, performance, knowledge, iterative red-team plan review, and ExitPlanMode plan gates with an execute nudge (Execute: schedule routes to /skill-craft:backchain + /skill-craft:plan-dispatcher). Architect, c-plan, plan-test and prompt-align/audit/migrate/refine live in skill-craft (/skill-craft:<leaf>)."
     },
     {

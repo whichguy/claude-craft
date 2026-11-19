@@ -32,9 +32,9 @@ ARGS {
   ideas:            3                          // int ≥ 0 (0 valid when refineHypothesis set) | NL: "try N ideas"
   scenarios:        [0,1,2,3,4,5,6,7]         // int[] ∈ [0..11] | range "0-9", comma "0,2,4", or single | NL: "first N scenarios"
   targeted:         4                          // int ≥ 0 | NL: "no targeted tests" → 0
-  model:            "claude-haiku-4-5-20251001" // benchmark model | NL: "use sonnet for bench" → claude-sonnet-4-6
-  ideaModel:        "claude-sonnet-4-6"        // ideation model
-  judgeModel:       "claude-opus-4-6"          // judge model
+  model:            "claude-haiku-5-5"         // benchmark model | NL: "use sonnet for bench" → claude-sonnet-5-5
+  ideaModel:        "claude-sonnet-5-5"        // ideation model
+  judgeModel:       "claude-opus-5-5"          // judge model
   save:             false                      // presence flag | NL: "save the winner" / "with save"
   refineHypothesis: null                       // string|null | NL: "refine: <text>" / "test this hypothesis: <text>"
   learnings:        null                       // string|null | NL: "--learnings <text>" / "incorporating learnings: <text>" / "with prior findings: <text>"
@@ -537,8 +537,8 @@ For each idea × (standard scenarios + targeted tests):
 Print matrix summary:
 ```
 Idea matrix: 3 ideas × (8 std + 4 targeted) cells + 8 baseline std cells + 3×4 baseline targeted cells = 56 cells
-  Ideation model : claude-sonnet-4-6
-  Benchmark model: claude-haiku-4-5-20251001
+  Ideation model : claude-sonnet-5-5
+  Benchmark model: claude-haiku-5-5
   Ideas: compression-1, missing-cov-1, structure-1
 ```
 
@@ -619,7 +619,7 @@ do NOT attempt to substitute them there.
 | `<JSON_STRINGIFIED_MESSAGE>` | both | `cell.testMessage` | `"Sum column B"` |
 | `<JSON_STRINGIFIED_VALIDATES>` | both | `cell.validates` | `"Uses SUM formula"` |
 | `<JSON_STRINGIFIED_CATEGORY>` | both | `cell.category` | `"Formula"` |
-| `<JSON_STRINGIFIED_MODEL>` | both | `--model` arg | `"claude-haiku-4-5-20251001"` |
+| `<JSON_STRINGIFIED_MODEL>` | both | `--model` arg | `"claude-haiku-5-5"` |
 | `<JSON_STRINGIFIED_IDEA_ID>` | variant only | `cell.ideaId` | `"compression-1"` |
 | `<JSON_STRINGIFIED_TEST_TYPE>` | variant only | `cell.testType` | `"standard"` or `"targeted"` |
 | `<JSON_STRINGIFIED_SCENARIO_ID>` | both | `cell.scenarioId` | `"0"`, `"1"`, `"targeted-0"` |

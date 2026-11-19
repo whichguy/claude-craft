@@ -41,9 +41,9 @@ Arguments after `/derive-questions` are free-form text. Interpret them to extrac
 | `tokens` | — | A number associated with "tokens", "--tokens". Maps to floor(N/12000) iterations |
 | `min_q` | 3 | Number associated with "min-q", "--min-q", "minimum questions" |
 | `max_q` | 10 | Number associated with "max-q", "--max-q", "maximum questions" |
-| `research_model` | claude-opus-4-6 | Model for research agents. Look for "research-model", "--research-model" |
-| `application_model` | claude-sonnet-4-6 | Model for question application agents. Look for "application-model", "--application-model" |
-| `judge_model` | claude-opus-4-6 | Model for judge agent. Look for "judge-model", "--judge-model" |
+| `research_model` | claude-opus-5-5 | Model for research agents. Look for "research-model", "--research-model" |
+| `application_model` | claude-sonnet-5-5 | Model for question application agents. Look for "application-model", "--application-model" |
+| `judge_model` | claude-opus-5-5 | Model for judge agent. Look for "judge-model", "--judge-model" |
 | `reorganize_every` | 5 | Number associated with "reorganize-every", "--reorganize-every" |
 
 **Examples:**
@@ -54,7 +54,7 @@ Arguments after `/derive-questions` are free-form text. Interpret them to extrac
 /derive-questions --tokens 50000
 /derive-questions skills/my-questions/questions.md --iterations 5
 /derive-questions --iterations 2 --min-q 5 --max-q 8
-/derive-questions --duration 1h --research-model claude-sonnet-4-6
+/derive-questions --duration 1h --research-model claude-sonnet-5-5
 ```
 
 ---
@@ -95,9 +95,9 @@ ELSE:
 
 **Startup validation** (abort on first failure with actionable error):
 
-1. `research_model` must match `claude-*`; if absent use default `claude-opus-4-6`
-2. `application_model` must match `claude-*`; if absent use default `claude-sonnet-4-6`
-3. `judge_model` must match `claude-*`; if absent use default `claude-opus-4-6`
+1. `research_model` must match `claude-*`; if absent use default `claude-opus-5-5`
+2. `application_model` must match `claude-*`; if absent use default `claude-sonnet-5-5`
+3. `judge_model` must match `claude-*`; if absent use default `claude-opus-5-5`
 4. `questions_path` parent directory must be writable:
    - If not: `"ERROR: Cannot write to {dir} — check permissions or provide a writable --questions-file path"`
 5. `duration` if set: must be positive and ≥5 minutes; if in the past:

@@ -36,7 +36,7 @@ generate 3 variants in parallel → select best → A/B test via compare-questio
 | `question_ids` | no | Comma-separated Q-IDs (`Q-G1,Q-G10`), range (`Q-G1..Q-G25`), layer (`L1`, `L2`, `L3`, `epilogue`), or `all` | `all` |
 | `max_attempts` | no | `--max-attempts N` or `N attempts` | 2 |
 | `dry_run` | no | `--dry-run`, `dry run`, `preview` | false |
-| `model` | no | `--model MODEL` (must match `claude-*`) | claude-sonnet-4-6 |
+| `model` | no | `--model MODEL` (must match `claude-*`) | claude-sonnet-5-5 |
 
 **Layer expansion:**
 - `L1` → Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25
@@ -51,7 +51,7 @@ generate 3 variants in parallel → select best → A/B test via compare-questio
 /optimize-questions L1
 /optimize-questions Q-G1,Q-G10,Q-C38 --max-attempts 5
 /optimize-questions all --dry-run
-/optimize-questions L2 --model claude-opus-4-6
+/optimize-questions L2 --model claude-opus-5-5
 ```
 
 ---
@@ -312,7 +312,7 @@ WHILE attempt < max_attempts AND NOT improved:
 
         selected_output = Task(
             subagent_type = "general-purpose",
-            model = "claude-opus-4-6",
+            model = "claude-opus-5-5",
             prompt = """
                 You are selecting the best token-optimized variant of an LLM evaluator question.
                 Your job: pick the strongest variant, then optionally incorporate strengths
@@ -467,7 +467,7 @@ WHILE attempt < max_attempts AND NOT improved:
 
     judge_result = Task(
         subagent_type = "compare-questions-judge",
-        model = "claude-opus-4-6",
+        model = "claude-opus-5-5",
         prompt = """
             <ORIGINAL_PLAN>
             {plan_contents}
@@ -622,7 +622,7 @@ existing_content = Read(learnings_file) IF exists ELSE ""
 # 4c: Spawn analysis agent (single Opus call)
 analysis = Task(
     subagent_type = "general-purpose",
-    model = "claude-opus-4-6",
+    model = "claude-opus-5-5",
     prompt = """
         You are analyzing results from an LLM evaluator question optimization run
         to extract reusable compression learnings.

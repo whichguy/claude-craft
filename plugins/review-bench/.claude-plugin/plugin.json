@@ -1,6 +1,6 @@
 {
   "name": "review-bench",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Question A/B benchmarking, prompt improvement and ablation tooling for review-suite. compare-prompts, improve-system-prompt and review-fix-bench live in skill-craft.",
   "author": {
     "name": "whichguy",

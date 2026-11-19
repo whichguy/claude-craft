@@ -123,7 +123,7 @@ Parse the free-form arguments after `/question-bench`:
 | QUESTION_SELECTOR | no | `all` | After `--questions` |
 | EXPERIMENTS | no | `3` | After `--experiments`; number 1-4 or quoted string with `\|` |
 | DRY_RUN | no | false | `--dry-run` flag present |
-| JUDGE_MODEL | no | `claude-opus-4-6` | After `--judge-model` |
+| JUDGE_MODEL | no | `claude-opus-5-5` | After `--judge-model` |
 
 **Plan resolution:**
 ```

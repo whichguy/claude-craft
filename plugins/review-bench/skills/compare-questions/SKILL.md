@@ -41,8 +41,8 @@ to extract the following values:
 | `plans_source` | **yes** | A directory path or file path(s) for plans. Associated with "plans", "plan-dir", "against". Paths ending `.md` that are NOT questions. | — |
 | `label_a` | no | "label-a", "--label-a" | "Q-A" |
 | `label_b` | no | "label-b", "--label-b" | "Q-B" |
-| `apply_model` | no | "apply-model", "--apply-model", model for applying questions | claude-sonnet-4-6 |
-| `judge_model` | no | "judge-model", "--judge-model", model for judging | claude-sonnet-4-6 |
+| `apply_model` | no | "apply-model", "--apply-model", model for applying questions | claude-sonnet-5-5 |
+| `judge_model` | no | "judge-model", "--judge-model", model for judging | claude-sonnet-5-5 |
 
 **Question resolution:** If a question value looks like a file path (contains `/` or ends `.md`)
 and the file exists on disk, read its contents. Otherwise treat as inline text.
@@ -66,8 +66,8 @@ strings, natural language, or any combination.
 **Defaults** (apply when not found in arguments):
 - `label_a` = "Q-A"
 - `label_b` = "Q-B"
-- `apply_model` = claude-sonnet-4-6
-- `judge_model` = claude-sonnet-4-6
+- `apply_model` = claude-sonnet-5-5
+- `judge_model` = claude-sonnet-5-5
 
 **Question resolution:**
 ```
@@ -201,7 +201,7 @@ Record `start_time_ms = Date.now()` per task before spawning.
 **Spawn all 2×N Tasks in a single parallel message** with `run_in_background: true`.
 Each task:
 - `subagent_type`: general-purpose
-- `model`: apply_model (default claude-sonnet-4-6)
+- `model`: apply_model (default claude-sonnet-5-5)
 - `prompt`: constructed application prompt (above)
 - `run_in_background`: true
 
@@ -269,7 +269,7 @@ ELSE:
 ```
 
 Spawn agent `compare-questions-judge` with:
-- `model`: `judge_model` (default claude-sonnet-4-6)
+- `model`: `judge_model` (default claude-sonnet-5-5)
 - `run_in_background`: true
 - `prompt`:
 

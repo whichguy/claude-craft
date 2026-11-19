@@ -19,7 +19,7 @@ description: |
   hypothesis generation + benchmarking (was the standalone `/ideate-system-prompt` skill).
 
 argument-hint: "[--mode ideate [--ideas N] [--scenarios RANGE] [--targeted N] [--base VARIANT] [--save]] [free-form description of the change]"
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 ---
 

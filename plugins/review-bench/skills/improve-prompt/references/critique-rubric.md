@@ -320,6 +320,13 @@ All Claude 4.x models (Opus 4.5/4.6, Sonnet 4.5) have a key behavioral shift:
   - Prefer imperative form: "Change this function to..." over "Can you suggest changes to..."
   - If you ask for a dashboard without specifying details, you may get a minimal frame
 
+### Claude 5.5 Thinking Configuration (Opus 5.5, Sonnet 5.5, Haiku 5.5)
+
+- **Adaptive only, no budget**: Omit `thinking` or send `{type: "adaptive"}`, and set depth with `output_config.effort` (low/medium/high/xhigh/max). `{type: "enabled", budget_tokens: N}` returns a 400 on all three. Flag any prompt, harness or example that still sets `budget_tokens` for these models.
+- **Disabling thinking**: `{type: "disabled"}` returns a 400 on Opus 5.5 (at every effort level) and on Sonnet 5.5; lower `effort` instead. Sonnet 5.5 turns thinking off with `{type: "between_tools"}` (effort high or below). Haiku 5.5 accepts `disabled` only at effort high or below.
+- **Effort defaults differ**: Opus 5.5 and Haiku 5.5 default to `medium`, Sonnet 5.5 to `high`. A prompt that relied on the old `high` default should set effort explicitly.
+- **Forced tool choice**: `tool_choice` `any` / `tool` returns a 400 on Opus 5.5 and Sonnet 5.5. Steer tool use from the prompt with `auto` (plus `strict: true` on the tool), or use structured outputs.
+
 ### Opus 4.6 Specific
 
 - **Adaptive thinking**: Use `thinking: {type: "adaptive"}` with `effort` parameter instead of `budget_tokens`. In internal evaluations, adaptive thinking reliably drives better performance than extended thinking.

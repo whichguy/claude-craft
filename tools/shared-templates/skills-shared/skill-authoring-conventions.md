@@ -26,7 +26,7 @@ var claude = new CC(null, MODEL_ID, { system: promptText });
 return { ideaId: IDEA_ID };
 ```
 *Substitution rules:*
-- `MODEL_ID` → `JSON.stringify(modelId)` — produces a quoted string literal, e.g. `"claude-haiku-4-5-20251001"`
+- `MODEL_ID` → `JSON.stringify(modelId)` — produces a quoted string literal, e.g. `"claude-haiku-5-5"`
 - `IDEA_ID` → `JSON.stringify(idea.ideaId)`
 
 **For string values that get embedded in JS source:** always use `JSON.stringify()` — it handles

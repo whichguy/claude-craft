@@ -752,20 +752,26 @@ Dedicated reasoning features that dramatically outperform basic CoT prompting fo
 
 | Model | Recommended Approach | Configuration |
 |-------|---------------------|---------------|
+| Fable 5.2 | Adaptive thinking (always on) | Omit `thinking` or send `{type: "adaptive"}`; depth via `output_config.effort` (low/medium/high/xhigh/max). Any other `thinking` value returns 400 |
+| Opus 5.5 | Adaptive thinking (always on) | Omit `thinking` or send `{type: "adaptive"}`; `output_config.effort` low/medium/high/xhigh/max, default **medium** (set it explicitly). `budget_tokens` and `{type: "disabled"}` return 400 at every effort level |
+| Sonnet 5.5 | Adaptive thinking | Omit `thinking` or send `{type: "adaptive"}`; `output_config.effort` low–max, default high. `budget_tokens` and `{type: "disabled"}` return 400; to turn thinking off send `{type: "between_tools"}` (effort high or below, no other field) |
+| Haiku 5.5 | Adaptive thinking | Omit `thinking` or send `{type: "adaptive"}`; `output_config.effort` low–max, default **medium**. `budget_tokens` returns 400; `{type: "disabled"}` accepted only at effort high or below |
 | Opus 4.6 | Adaptive thinking | `thinking: {type: "adaptive"}` + `effort` parameter (low/medium/high/max) |
 | Sonnet 4.5 | Extended thinking | `thinking: {type: "enabled", budget_tokens: N}` |
 | Haiku 4.5 | Extended thinking | Same as Sonnet |
 
+On every 5.x model the thinking budget is gone: tune `effort`, not tokens. A prompt or harness that still sends `budget_tokens` (or disables thinking on Opus 5.5 or Sonnet 5.5) fails with a 400 rather than degrading.
+
 **Key practices**:
-- Start with minimum budget (1024 tokens), increase incrementally
+- `budget_tokens` models only (Sonnet 4.5, Haiku 4.5): start with minimum budget (1024 tokens), increase incrementally
 - Use high-level instructions ("think deeply about this problem") over step-by-step prescriptions
 - "The model's creativity in approaching problems may exceed a human's ability to prescribe the optimal thinking process"
 - Ask Claude to verify its work with test cases for improved consistency
-- Above 32K budget: use batch processing
+- Above 32K budget (`budget_tokens` models): use batch processing
 
 **When NOT to use**: Simple lookups, formatting tasks, standard code generation. Extended thinking adds 5-15 seconds of latency. Reserve for: complex STEM, constraint optimization, multi-step reasoning, architecture decisions.
 
-**Opus 4.6 steering**:
+**Opus 4.6 / 5.5 steering**:
 - To reduce thinking: "Extended thinking adds latency and should only be used when it will meaningfully improve answer quality"
 - To increase: Use higher `effort` setting
 

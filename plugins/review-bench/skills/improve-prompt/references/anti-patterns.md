@@ -347,8 +347,9 @@ Let's work through this slowly and methodically.
 **Fix**: Use the actual reasoning mechanisms:
 ```
 # For complex reasoning (API level):
-thinking: {type: "adaptive"}  # Opus 4.6
-thinking: {type: "enabled", budget_tokens: 8192}  # Sonnet 4.5
+thinking: {type: "adaptive"}  # Opus 4.6; also the default on Opus/Sonnet/Haiku 5.5 and Fable 5.2
+output_config: {effort: "high"}  # 5.x: depth is set by effort (Opus 5.5 and Haiku 5.5 default to medium)
+thinking: {type: "enabled", budget_tokens: 8192}  # Sonnet 4.5 / Haiku 4.5 only; returns 400 on every 5.x model
 
 # For in-prompt reasoning structure:
 Before answering, evaluate:

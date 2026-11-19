@@ -55,9 +55,9 @@ to extract the following values:
 | `input_text` | no | Inline text to use as a single test input. Look for quoted strings after the prompt path, or text after "with input", "using text", "test with" | — |
 | `num_inputs` | no | Number of test inputs to auto-generate if user approves | 3 (max: 10) |
 | `label` | no | A short identifier for reports/commits | basename of prompt file, or "inline" |
-| `run_model` | no | A model name (claude-*) | claude-sonnet-4-6 |
-| `judge_model` | no | A model name for judging | claude-opus-4-6 |
-| `research_model` | no | Model for research, write-agents, and reconcile (deep analysis steps) | claude-opus-4-6 |
+| `run_model` | no | A model name (claude-*) | claude-sonnet-5-5 |
+| `judge_model` | no | A model name for judging | claude-opus-5-5 |
+| `research_model` | no | Model for research, write-agents, and reconcile (deep analysis steps) | claude-opus-5-5 |
 | `iterations` | no | A number associated with "iterations" | 1 |
 | `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
 | `max_stalls` | no | Number associated with "max stalls", "stall limit", "--max-stalls" | 2 |
@@ -246,9 +246,9 @@ paths, natural language, or any combination:
 
 **Defaults** (apply when not found in arguments):
 - `label` = basename of prompt_path without extension (or "inline" for inline_text mode)
-- `run_model` = claude-sonnet-4-6
-- `judge_model` = claude-opus-4-6
-- `research_model` = claude-opus-4-6
+- `run_model` = claude-sonnet-5-5
+- `judge_model` = claude-opus-5-5
+- `research_model` = claude-opus-5-5
 - `iterations` = 1
 - `experiments` = 1
 - `max_stalls` = 2
@@ -462,7 +462,7 @@ Capture as `git_history` — passed to research agent for project context.
 
 ## Step 1 — Research & Ideas Generation
 
-**Spawn a general-purpose agent** (model: `research_model` = claude-opus-4-6 — deep analytical reasoning required; no tool restrictions — WebSearch, WebFetch, Read, Write, Bash, etc.):
+**Spawn a general-purpose agent** (model: `research_model` = claude-opus-5-5 — deep analytical reasoning required; no tool restrictions — WebSearch, WebFetch, Read, Write, Bash, etc.):
 
 ```
 You are an expert prompt engineer and researcher. Your task is to analyze a prompt,
@@ -732,7 +732,7 @@ Output only: "PLAN_GATE: PASS" if all 6 pass, or "PLAN_GATE: FAIL\n{numbered lis
 - E=3: Exp-1 = Option A; Exp-2 = Option B; Exp-3 = Options A+B combined
 - E=4: Exp-1 = Option A; Exp-2 = Option B; Exp-3 = Option C; Exp-4 = top 3 combined
 
-**Spawn all E write-agents in a single parallel message** (model: `research_model` = claude-opus-4-6 — careful, precise prompt implementation required; all Agent calls issued simultaneously in one step — do not await each sequentially).
+**Spawn all E write-agents in a single parallel message** (model: `research_model` = claude-opus-5-5 — careful, precise prompt implementation required; all Agent calls issued simultaneously in one step — do not await each sequentially).
 
 Each write-agent task prompt:
 ```
@@ -1183,7 +1183,7 @@ If IMPROVED: `cp $IMPROVE_TMPDIR/exp-{best_k}-iter-{i}.md {prompt_path}` (write 
 
 **Re-read IDEAS_FILE** to get the current contents (written by the research agent in Step 1, which includes Improvement Options and Evaluation Questions) — do not rely on any cached snapshot from earlier in this iteration.
 
-**Spawn reconcile agent** (model: `research_model` = claude-opus-4-6 — deep synthesis required; general-purpose, no tool restrictions):
+**Spawn reconcile agent** (model: `research_model` = claude-opus-5-5 — deep synthesis required; general-purpose, no tool restrictions):
 
 ```
 You are a prompt improvement analyst. Reconcile all experiment results with the
