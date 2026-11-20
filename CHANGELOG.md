@@ -1,6 +1,6 @@
 # Changelog
 
-## 2026-11-19 — test-prompt-harness judge runs without tools and returns a validated verdict (planning-suite 0.3.3)
+## 2026-11-19 — test-prompt-harness judge runs without tools and returns a validated verdict; schedule nudge repointed (planning-suite 0.3.3)
 
 A review of `test-prompt-harness` after the parsing fix below. Measurements are in
 `docs/experiments/test-prompt-harness-judge-parsing-2026-11-19.md` (rounds R4 to R7).
@@ -27,6 +27,12 @@ A review of `test-prompt-harness` after the parsing fix below. Measurements are 
 - **Grading is no longer cut off mid-judge.** `run-bench.js` allowed grading a fixed 60 s; it now allows 60 s plus the
   fixture's `timeout_seconds` per `semantic` row, and reports a killed grader instead of failing on a missing
   `grade.json`.
+
+- **`Execute: schedule` no longer points at a retired skill.** The ExitPlanMode nudge told Claude to run
+  `/skill-craft:backchain` and then `/skill-craft:plan-dispatcher`. Backchain was retired on 2026-11-16 (skill-craft
+  2.43.0), so the first step named a skill that does not exist. The nudge now says to write the approved plan's steps
+  as a dependency graph in the format Plan Dispatcher's protocol describes (a task, a ready contract and a done
+  contract per step), then run `/skill-craft:plan-dispatcher`. `Execute: inline` and `Execute: ask` are unchanged.
 
 ### Notes
 

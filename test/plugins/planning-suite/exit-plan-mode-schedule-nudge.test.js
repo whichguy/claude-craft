@@ -117,7 +117,7 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         fs.rmSync(tmpHome, { recursive: true, force: true });
     });
 
-    it('Execute: schedule routes to /skill-craft:backchain then /skill-craft:plan-dispatcher (src=hash)', function () {
+    it('Execute: schedule writes the graph then routes to /skill-craft:plan-dispatcher (src=hash)', function () {
         const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'sched-nudge-hash-'));
         fs.mkdirSync(path.join(tmpHome, '.claude', 'plans'), { recursive: true });
         const body = [
@@ -141,11 +141,13 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         // macOS may resolve /var → /private/var; match basename + --plan form
         expect(ctx).to.include('hashed.md');
         expect(ctx).to.include('EXECUTE NOW (schedule)');
-        expect(ctx).to.match(/`\/skill-craft:backchain` on the approved plan at `[^`]*hashed\.md`/);
-        expect(ctx.indexOf('/skill-craft:backchain')).to.be.lessThan(
-            ctx.indexOf('/skill-craft:plan-dispatcher')
-        );
-        expect(ctx).to.include('dependency graph');
+        expect(ctx).to.match(/steps of the approved plan at `[^`]*hashed\.md` as a dependency graph/);
+        expect(ctx).to.include('a ready contract and a done contract per step');
+        expect(ctx).to.include('`/skill-craft:plan-dispatcher` to execute that graph');
+        expect(ctx).to.include('so the dispatcher does not re-discover a different plan');
+        expect(ctx).to.not.include('neither skill');
+        expect(ctx).to.not.include('/skill-craft:backchain');
+        expect(ctx).to.not.match(/backchain/i);
         expect(ctx).to.not.include('schedule-plan-tasks');
         const log = fs.readFileSync(
             path.join(tmpHome, '.claude', 'logs', 'planning-suite-hooks.log'),
@@ -247,7 +249,8 @@ describe('plugins/planning-suite/handlers/exit-plan-mode-schedule-nudge', functi
         });
         const ctx = JSON.parse(stdout).hookSpecificOutput.additionalContext;
         expect(ctx).to.not.include('EXECUTE NOW');
-        expect(ctx).to.include('/skill-craft:backchain');
+        expect(ctx).to.not.include('/skill-craft:backchain');
+        expect(ctx).to.include('dependency graph');
         expect(ctx).to.include('/skill-craft:plan-dispatcher');
         fs.rmSync(tmpHome, { recursive: true, force: true });
     });

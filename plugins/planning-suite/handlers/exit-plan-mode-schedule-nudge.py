@@ -6,13 +6,17 @@ Never uses mtime newest-plan guessing for EXECUTE NOW (wrong-plan risk).
 
 Execute routing (plan front-matter `Execute:` within the first 30 lines):
   inline   — implement in-session now (the default when `Execute:` is absent)
-  schedule — run /skill-craft:backchain on the approved plan to produce a
-             dependency graph, then /skill-craft:plan-dispatcher to execute
-             that graph (skill-craft@whichguy plugin)
+  schedule — write the approved plan's steps as a dependency graph in the
+             format /skill-craft:plan-dispatcher's protocol describes (a task,
+             a ready contract and a done contract per step), then run
+             /skill-craft:plan-dispatcher to execute that graph
+             (skill-craft@whichguy plugin)
   ask      — wait for explicit user go-ahead (rare)
 
 The former /schedule-plan-tasks target was removed from planning-suite
 (0.3.0); skill-craft is the single source of truth for plan scheduling.
+/skill-craft:backchain, which used to produce the graph, was retired on
+2026-11-16 (skill-craft 2.43.0); the caller now writes the graph itself.
 """
 from __future__ import annotations
 
@@ -26,7 +30,6 @@ from pathlib import Path
 
 _EXECUTE_RE = re.compile(r"(?im)^\s*Execute:\s*(schedule|inline|ask)\s*$")
 
-BACKCHAIN = "/skill-craft:backchain"
 DISPATCHER = "/skill-craft:plan-dispatcher"
 
 
@@ -107,8 +110,9 @@ def schedule_steps(plan_path: str | None) -> str:
     """The two-step skill-craft route for `Execute: schedule`."""
     target = f"the approved plan at `{plan_path}`" if plan_path else "the plan you just approved"
     return (
-        f"Run `{BACKCHAIN}` on {target} to produce a dependency graph, then run "
-        f"`{DISPATCHER}` to execute that graph. "
+        f"Write the steps of {target} as a dependency graph in the format "
+        f"`{DISPATCHER}`'s protocol describes (a task, a ready contract and a "
+        f"done contract per step), then run `{DISPATCHER}` to execute that graph. "
     )
 
 
@@ -197,15 +201,15 @@ def build_output(
 
     # schedule (explicit `Execute: schedule` only)
     msg = (
-        f"Plan approved — Execute: schedule: run {BACKCHAIN}, then {DISPATCHER} "
-        "(execute now)."
+        f"Plan approved — Execute: schedule: write the dependency graph, then run "
+        f"{DISPATCHER} (execute now)."
     )
     ctx = (
         f"EXECUTE NOW (schedule): The plan {plan_ref}was just approved via ExitPlanMode "
         f"with `Execute: schedule`. User approval of ExitPlanMode is the execute signal — "
         f"not a request to wait. In this same turn: {schedule_steps(plan_path)}"
         + (
-            "Pass that exact plan path so neither skill re-discovers a different plan. "
+            "Pass that exact plan path so the dispatcher does not re-discover a different plan. "
             if plan_path
             else ""
         )
