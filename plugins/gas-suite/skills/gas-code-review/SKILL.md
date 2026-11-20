@@ -14,7 +14,7 @@ description: |
   **ALWAYS PAIR WITH:** gas-ui-review when .html files are also present (or use /gas-review for both)
 
   **NOT for:** General JS/TS (use code-reviewer), HTML patterns (use gas-ui-review)
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 ---
 

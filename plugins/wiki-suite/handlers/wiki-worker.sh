@@ -14,7 +14,7 @@ wiki_check_deps true || exit 0
 # maps the requested model name per ~/.claude/model-map.json. Without c-thru,
 # bare claude honors --model directly.
 # Migration: replaces WIKI_WORKER_ROUTE (--route flag, c-thru-only).
-WIKI_WORKER_MODEL="${WIKI_WORKER_MODEL:-claude-haiku-4-5}"
+WIKI_WORKER_MODEL="${WIKI_WORKER_MODEL:-claude-haiku-5-5}"
 
 HOOK_INPUT=$(cat)
 AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)

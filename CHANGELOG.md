@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-11-19 — remaining model pins moved to the 5.5 generation (gas-suite 0.2.2, slides-suite 0.1.1, wiki-suite 0.3.1)
+
+The three plugins the earlier 5.5 entry below left on Claude 4.x now name the 5.5 models: 19 pins in 17 files.
+`claude-sonnet-4-6` → `claude-sonnet-5-5` (gas-suite 12, slides-suite 2, wiki-suite 2), and `claude-haiku-4-5-20251001`
+or `claude-haiku-4-5` → `claude-haiku-5-5` (gas-suite 1, wiki-suite 2). No plugin in this repository pins a 4.x model
+any more.
+
+### Changed behaviour
+
+- **wiki-suite** — `proactive-research-driver.sh` calls the Messages API directly, so the swap needed more than the ID.
+  Haiku 5.5 thinks by default and thinking counts toward `max_tokens`; a reply can begin with a `thinking` block. The
+  classifier request now sends `max_tokens: 2000` (was 400) and `output_config: {effort: "low"}`, and the handler reads
+  the first `text` block by type instead of `.content[0].text` (which is empty when a thinking block comes first, so
+  the classifier would never have found a prompt worth researching).
+- **wiki-suite** — the `WIKI_WORKER_MODEL` and `WIKI_LINT_MODEL` defaults are `claude-haiku-5-5` and
+  `claude-sonnet-5-5`. With the c-thru proxy, `~/.claude/model-map.json` must have entries for the new names.
+
+### Notes
+
+- The direct API call was not run live (no `ANTHROPIC_API_KEY` on the machine that made the change); the request body
+  and the reply parsing were checked against recorded reply shapes.
+
 ## 2026-11-19 — test-prompt-harness judge runs without tools and returns a validated verdict; schedule nudge repointed (planning-suite 0.3.3)
 
 A review of `test-prompt-harness` after the parsing fix below. Measurements are in

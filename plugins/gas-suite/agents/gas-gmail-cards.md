@@ -1,7 +1,7 @@
 ---
 name: gas-gmail-cards
 description: Gmail add-on and CardService specialist for Google Apps Script. Operates in 2 modes (code review, advisory/Q&A). Plan review is redirected to /review-suite:review-plan.
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 ---
 

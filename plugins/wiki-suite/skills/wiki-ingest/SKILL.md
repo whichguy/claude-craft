@@ -55,7 +55,7 @@ Else: print "📝 Ingesting [SOURCE] in background — keep working"
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "claude-sonnet-5-5",
   run_in_background = NOT INTERACTIVE,
   prompt = """
     Ingest this source into the project wiki.

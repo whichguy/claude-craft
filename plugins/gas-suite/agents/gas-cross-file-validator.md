@@ -13,7 +13,7 @@ description: |
   - __events__ and __global__ exports match usage patterns
   - Circular dependencies in require() chains
 
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 memory:
   gs_exports: {}

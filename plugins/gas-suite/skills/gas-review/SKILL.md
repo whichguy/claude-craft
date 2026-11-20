@@ -32,7 +32,7 @@ description: |
   - /exec vs /dev URLs, ContentService, CORS
 
   **NOT for:** General JS/TS (use code-reviewer), non-GAS HTML (use standard review)
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 ---
 

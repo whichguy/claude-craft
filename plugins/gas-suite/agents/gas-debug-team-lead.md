@@ -14,7 +14,7 @@ description: |
   For simple bugs (single domain, obvious cause), falls back to single-agent mode using /gas-debug.
 
   **Automatically invoked by:** /gas-debug skill when error complexity exceeds threshold
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 memory: |
   # GAS Debug Team Lead Context

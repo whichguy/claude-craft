@@ -17,7 +17,7 @@ description: |
 
   **NOT for:** Static code review (use /gas), server-side debugging (use /gas),
   symptom-based UI debugging without Chrome (use /gas)
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: mcp__gas__*, mcp__chrome-devtools__*
 ---
 

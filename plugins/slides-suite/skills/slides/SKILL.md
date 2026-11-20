@@ -10,7 +10,7 @@ description: |
   NOT for: editing existing PPTX, converting files, exporting Sheets charts
 
   Step 3B includes optional visual verification via Chrome DevTools.
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 ---
 

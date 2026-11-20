@@ -44,7 +44,7 @@ touch "$SESSION_MARKER" 2>/dev/null || true
 # Model selection — c-thru proxy (if installed) maps the name per model-map.json;
 # without c-thru, bare claude honors --model directly.
 # Migration: replaces WIKI_LINT_ROUTE (--route flag, c-thru-only).
-WIKI_LINT_MODEL="${WIKI_LINT_MODEL:-claude-sonnet-4-6}"
+WIKI_LINT_MODEL="${WIKI_LINT_MODEL:-claude-sonnet-5-5}"
 
 # --- Ensure maintenance dir exists ---
 mkdir -p "$REPO_ROOT/.wiki/maintenance" 2>/dev/null || true

@@ -30,7 +30,7 @@ description: |
   **NOT for**: HtmlService UIs (use gas-ui-review), Sheets-only GAS (use gas-code-review),
   Calendar/Drive/Docs add-ons (covered by gas-code-review)
 
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 ---
 

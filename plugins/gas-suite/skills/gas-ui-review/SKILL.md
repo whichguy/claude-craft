@@ -70,7 +70,7 @@ description: |
   - ContentService, JSON response, MIME type
 
   **NOT for:** Runtime debugging (use gas-ui-debug), .gs syntax validation (use gas-code-review)
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: mcp__gas__*, Read, Grep
 ---
 

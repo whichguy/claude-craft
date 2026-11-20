@@ -7,7 +7,7 @@ description: |
 
   INVOKE with: /test-slides
   NOT for: creating real presentations (use /slides)
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: mcp__mcp-gas-deploy__exec, mcp__mcp-gas-deploy__auth, mcp__mcp-gas-deploy__create, mcp__mcp-gas-deploy__deploy, mcp__mcp-gas-deploy__push, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__evaluate_script, AskUserQuestion
 ---
 

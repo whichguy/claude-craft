@@ -67,13 +67,16 @@ SYS_PROMPT=$(cat "$CLASSIFIER_TPL")
 
 USER_MSG=$(printf '=== WIKI CONTEXT ===\n%s\n\n=== USER PROMPT ===\n%s\n' "$CTX" "$SANITIZED")
 
+# Haiku 5.5 thinks by default (adaptive) and thinking counts toward max_tokens,
+# so the cap leaves room for it and effort is low: this is a yes/no triage.
 REQ_BODY=$(jq -n \
   --arg sys "$SYS_PROMPT" \
   --arg user "$USER_MSG" \
   --argjson maxsrc "$MAX_SOURCES" \
   '{
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 400,
+    model: "claude-haiku-5-5",
+    max_tokens: 2000,
+    output_config: {effort: "low"},
     system: $sys,
     messages: [{role:"user", content:$user}]
   }')
@@ -90,8 +93,9 @@ if [ -z "$RESP" ]; then
   exit 0
 fi
 
-# Extract assistant text from messages API response
-TEXT=$(printf '%s' "$RESP" | jq -r '.content[0].text // empty' 2>/dev/null || true)
+# Extract assistant text from messages API response. Read the text block by
+# type: on Haiku 5.5 the first block can be a `thinking` block with no text.
+TEXT=$(printf '%s' "$RESP" | jq -r '[.content[]? | select(.type == "text") | .text] | first // empty' 2>/dev/null || true)
 if [ -z "$TEXT" ]; then
   LOG_PREFIX "step2 no content in response: $(printf '%.200s' "$RESP")"
   exit 0

@@ -14,7 +14,7 @@ description: |
   For projects ≤5 files, falls back to single-agent mode using direct Task calls.
 
   **Automatically invoked by:** /gas-review skill when project size exceeds threshold
-model: claude-sonnet-4-6
+model: claude-sonnet-5-5
 allowed-tools: all
 memory: |
   # GAS Review Team Lead Context
