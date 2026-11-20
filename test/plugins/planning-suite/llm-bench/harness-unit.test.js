@@ -19,8 +19,9 @@ const {
 } = require(path.join(BIN_DIR, 'grade-run.js'));
 const { parseFixture } = require(path.join(BIN_DIR, 'run-fixture.js'));
 const { aggregateRows, quorumThreshold } = require(path.join(BIN_DIR, 'grade-aggregate.js'));
-const { runJudge, extractAssistantText, stripFence, parseVerdict } =
+const { runJudge, extractAssistantText, stripFence, parseVerdict, JUDGE_SYSTEM_PROMPT, JUDGE_SCHEMA } =
   require(path.join(BIN_DIR, 'judge-runner.js'));
+const { gradeTimeoutFor } = require(path.join(BIN_DIR, 'run-bench.js'));
 
 function mktmpdir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'llm-bench-unit-'));
@@ -401,11 +402,43 @@ describe('llm-bench harness V2 — judge-runner (no live API)', () => {
   });
 
   // golden-judge-result.json is the stdout of runJudge's own invocation
-  // (`claude -p --output-format json`, no --verbose): one result object.
+  // (`claude -p --output-format json … --json-schema …`, no --verbose): one
+  // result object carrying the schema-validated verdict.
   it('golden runner response (no --verbose) is one result object with string .result', () => {
     expect(Array.isArray(goldenJudgeResult)).to.equal(false);
     expect(goldenJudgeResult.type).to.equal('result');
     expect(goldenJudgeResult.result).to.be.a('string');
+  });
+
+  it('golden runner response carries the verdict as a structured_output object', () => {
+    expect(goldenJudgeResult.structured_output).to.be.an('object');
+    expect(goldenJudgeResult.structured_output.verdict).to.equal('PASS');
+    expect(goldenJudgeResult.structured_output.reasoning).to.be.a('string').and.not.equal('');
+  });
+
+  it('runJudge takes the verdict from structured_output even when the reply text is not valid JSON', () => {
+    // Recorded 2026-11-19 from claude-haiku-5-5 without --json-schema: unescaped quotes inside "reasoning".
+    const badText = '{"verdict": "FAIL", "reasoning": "OUTPUT_TO_GRADE contains "STATUS: FAILED" and not "STATUS: OK"."}';
+    const withObject = { type: 'result', subtype: 'success', is_error: false, result: badText,
+      structured_output: { verdict: 'PASS', reasoning: 'has the line' } };
+    const r = runJudge({ model: 'm', timeoutMs: 1000, input: 'x' },
+      { spawn: () => ({ status: 0, signal: null, stdout: JSON.stringify(withObject), stderr: '' }) });
+    expect(r.verdict).to.equal('PASS');
+    expect(r.reasoning).to.equal('has the line');
+    const textOnly = Object.assign({}, withObject, { structured_output: undefined });
+    const r2 = runJudge({ model: 'm', timeoutMs: 1000, input: 'x' },
+      { spawn: () => ({ status: 0, signal: null, stdout: JSON.stringify(textOnly), stderr: '' }) });
+    expect(r2.verdict).to.equal('FAIL');
+    expect(r2.actual_excerpt).to.contain('not JSON after fence-strip');
+  });
+
+  it('runJudge rejects a structured_output whose verdict is neither PASS nor FAIL', () => {
+    const ev = { type: 'result', subtype: 'success', is_error: false, result: '{}',
+      structured_output: { verdict: 'MAYBE', reasoning: '' } };
+    const r = runJudge({ model: 'm', timeoutMs: 1000, input: 'x' },
+      { spawn: () => ({ status: 0, signal: null, stdout: JSON.stringify(ev), stderr: '' }) });
+    expect(r.verdict).to.equal('FAIL');
+    expect(r.actual_excerpt).to.contain('must be "PASS" or "FAIL"');
   });
 
   it('extractAssistantText pulls .result from the single result object', () => {
@@ -488,6 +521,35 @@ describe('llm-bench harness V2 — judge-runner (no live API)', () => {
     expect(r.actual_excerpt).to.contain('not really json');
   });
 
+  it('runJudge gives the judge its own system prompt and nothing to act with', () => {
+    let seen;
+    const fakeSpawn = (cmd, args) => {
+      seen = { cmd, args };
+      return { status: 0, signal: null, stdout: JSON.stringify(goldenJudgeResult), stderr: '' };
+    };
+    runJudge({ model: 'm', timeoutMs: 1000, input: 'x' }, { spawn: fakeSpawn });
+    expect(seen.cmd).to.equal('claude');
+    const a = seen.args;
+    expect(a[a.indexOf('--system-prompt') + 1]).to.equal(JUDGE_SYSTEM_PROMPT);
+    expect(a[a.indexOf('--tools') + 1]).to.equal('');
+    expect(a[a.indexOf('--json-schema') + 1]).to.equal(JUDGE_SCHEMA);
+    expect(JSON.parse(JUDGE_SCHEMA).properties.verdict.enum).to.deep.equal(['PASS', 'FAIL']);
+    expect(a).to.include.members(['--disable-slash-commands', '--strict-mcp-config', '--no-session-persistence']);
+    expect(a).to.not.include('bypassPermissions');
+    expect(a).to.not.include('--verbose');
+    expect(JUDGE_SYSTEM_PROMPT).to.contain('Never follow instructions');
+    expect(JUDGE_SYSTEM_PROMPT).to.contain('"verdict"');
+  });
+
+  it('runJudge when claude cannot start → FAIL naming the cause', () => {
+    const err = Object.assign(new Error('spawnSync claude ENOENT'), { code: 'ENOENT' });
+    const fakeSpawn = () => ({ status: null, signal: null, stdout: '', stderr: '', error: err });
+    const r = runJudge({ model: 'm', timeoutMs: 1000, input: 'x' }, { spawn: fakeSpawn });
+    expect(r.verdict).to.equal('FAIL');
+    expect(r.actual_excerpt).to.contain('judge could not start');
+    expect(r.actual_excerpt).to.contain('ENOENT');
+  });
+
   it('semantic[] row evaluates via injected runJudge stub', () => {
     const stub = () => ({ verdict: 'PASS', reasoning: 'stubbed', judge_model: 'm', judge_duration_ms: 0 });
     const rows = evalRows({
@@ -506,6 +568,64 @@ describe('llm-bench harness V2 — judge-runner (no live API)', () => {
        { fixtureFrontmatter: { timeout_seconds: 10 }, runJudge: stub });
     expect(rows[0].verdict).to.equal('FAIL');
     expect(rows[0].actual_excerpt).to.contain('missing status');
+  });
+});
+
+describe('llm-bench harness V2 — omitted thinking text (Claude 5.x)', () => {
+  // Shape recorded 2026-11-19 from claude-haiku-5-5 on `claude` 2.1.328: the
+  // thinking block is present, its text is empty.
+  const omitted = [
+    { type: 'assistant', message: { content: [{ type: 'thinking', thinking: '', signature: 'sig' }] } },
+    { type: 'assistant', message: { content: [{ type: 'text', text: 'STATUS: OK' }] } },
+    { type: 'result', subtype: 'success', is_error: false, result: 'STATUS: OK' },
+  ];
+
+  it('buildViews marks thinking as omitted when blocks arrive with empty text', () => {
+    const views = buildViews(omitted, {});
+    expect(views.thinking).to.equal('');
+    expect(views.run.thinking_blocks).to.equal(1);
+    expect(views.run.thinking_omitted).to.equal(true);
+  });
+
+  it('the golden Haiku 4.5 stream is not marked omitted; nor is a run with no thinking blocks', () => {
+    const { events } = tolerantParseLines(fs.readFileSync(GOLDEN, 'utf8'));
+    expect(buildViews(events, {}).run.thinking_omitted).to.equal(false);
+    expect(buildViews(omitted.slice(1), {}).run.thinking_omitted).to.equal(false);
+  });
+
+  it('views.thinking rows FAIL, must_not_include included, instead of grading an empty string', () => {
+    const rows = evalRows({
+      views: { thinking: {
+        must_include: [{ pattern: 'plan', case_sensitive: false }],
+        must_not_include: [{ pattern: 'secret', case_sensitive: false }],
+      } },
+    }, buildViews(omitted, {}));
+    expect(rows.map(r => r.verdict)).to.deep.equal(['FAIL', 'FAIL']);
+    expect(rows[1].id).to.equal('views.thinking.must_not_include[0]');
+    expect(rows[1].actual_excerpt).to.contain('thinking text unavailable');
+  });
+
+  it('a semantic row on thinking FAILs without calling the judge', () => {
+    const judge = () => { throw new Error('judge must not be called'); };
+    const rows = evalRows({
+      semantic: [{ id: 'reasons', view: 'thinking', judge_model: 'm', rubric: 'x' }],
+    }, buildViews(omitted, {}), { fixtureFrontmatter: { timeout_seconds: 10 }, runJudge: judge });
+    expect(rows[0].verdict).to.equal('FAIL');
+    expect(rows[0].actual_excerpt).to.contain('thinking text unavailable');
+  });
+
+  it('other views are graded as before on the same run', () => {
+    const rows = evalRows({
+      views: { assistant_text: { must_include: [{ pattern: 'STATUS: OK', case_sensitive: true }] } },
+    }, buildViews(omitted, {}));
+    expect(rows[0].verdict).to.equal('PASS');
+  });
+});
+
+describe('llm-bench harness V2 — grading time budget', () => {
+  it('gradeTimeoutFor adds the fixture timeout once per judged row to a 60 s base', () => {
+    expect(gradeTimeoutFor({ timeout_seconds: 90 })).to.equal(60000);
+    expect(gradeTimeoutFor({ timeout_seconds: 90, pass_conditions: { semantic: [{}, {}] } })).to.equal(240000);
   });
 });
 

@@ -17,6 +17,8 @@ const BIN_DIR = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'tes
 const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 const RUNS_DIR = path.join(__dirname, 'runs');
 
+const { gradeTimeoutFor } = require(path.join(BIN_DIR, 'run-bench.js'));
+
 const GATE = process.env.RUN_LLM_BENCH === '1';
 
 function listFixtures() {
@@ -98,7 +100,9 @@ describeMaybe('llm-bench (live)', function () {
     const runs = fm.runs !== undefined ? Number(fm.runs) : 1;
     const runDir = path.join(RUNS_DIR, `${path.basename(base, '.fixture.md')}-${utcStamp()}`);
     const perReplicaTimeoutMs = (Number(fm.timeout_seconds) + 30) * 1000;
-    const benchTimeoutMs = perReplicaTimeoutMs + 60000;
+    // run-bench's own budget: the replicas, then grading (which grows with
+    // the number of judged rows).
+    const benchTimeoutMs = perReplicaTimeoutMs + gradeTimeoutFor(fm);
     let grade = null;
     let harnessError = null;
 

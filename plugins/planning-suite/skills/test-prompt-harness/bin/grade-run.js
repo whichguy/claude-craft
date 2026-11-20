@@ -120,8 +120,17 @@ function buildViews(events, meta) {
       is_error: resultIsError,
       elapsed_ms: meta && typeof meta.elapsed_ms === 'number' ? meta.elapsed_ms : null,
       parse_errors: 0,
+      // Claude 5.x models stream thinking blocks with empty text (thinking
+      // display is omitted): the model thought, but there is nothing to grade.
+      thinking_blocks: thinkingParts.length,
+      thinking_omitted: thinkingParts.length > 0 && thinking.trim() === '',
     },
   };
+}
+
+function thinkingOmittedExcerpt(runView) {
+  return `thinking text unavailable: ${runView.thinking_blocks} thinking block(s) arrived with empty text ` +
+    '(Claude 5.x models omit thinking text), so this check cannot be evaluated';
 }
 
 function compileRegex(spec) {
@@ -228,7 +237,23 @@ function validateFixture(pc, runs, quorum) {
 
 // ---- Condition evaluators -----------------------------------------------
 
-function evalStringPatterns(rows, viewName, viewText, must_include, must_not_include) {
+function evalStringPatterns(rows, viewName, viewText, must_include, must_not_include, unavailable) {
+  if (unavailable) {
+    // The view's text does not exist: FAIL every row rather than let
+    // must_not_include pass against an empty string.
+    for (const [kind, list] of [['must_include', must_include], ['must_not_include', must_not_include]]) {
+      (list || []).forEach((spec, i) => {
+        rows.push({
+          id: `views.${viewName}.${kind}[${i}]`,
+          kind: `views.${viewName}.${kind}`,
+          verdict: 'FAIL',
+          actual_excerpt: unavailable,
+          spec: { pattern: spec && spec.pattern, case_sensitive: spec && spec.case_sensitive },
+        });
+      });
+    }
+    return;
+  }
   (must_include || []).forEach((spec, i) => {
     const c = compileRegex(spec);
     if (c.error) {
@@ -499,6 +524,20 @@ function evalSemantic(rows, semanticSpec, views, fixtureFrontmatter, runJudgeFn)
   if (!runJudgeFn) throw new Error('semantic[] rows require a judge runner');
   const timeoutMs = Number(fixtureFrontmatter.timeout_seconds || 60) * 1000;
   for (const row of semanticSpec) {
+    if (row.view === 'thinking' && views.run && views.run.thinking_omitted) {
+      // Nothing to grade: do not spend a judge call on an empty string.
+      rows.push({
+        id: `semantic.${row.id}`,
+        kind: 'semantic',
+        spec: { view: row.view, judge_model: row.judge_model },
+        verdict: 'FAIL',
+        reasoning: '',
+        actual_excerpt: thinkingOmittedExcerpt(views.run),
+        judge_model: row.judge_model,
+        judge_duration_ms: 0,
+      });
+      continue;
+    }
     const viewContent = views[row.view] || '';
     const input = `RUBRIC:\n${row.rubric}\n\nOUTPUT_TO_GRADE:\n${viewContent}\n`;
     const res = runJudgeFn({
@@ -525,7 +564,9 @@ function evalRows(pass_conditions, views, opts = {}) {
   const viewsSpec = pc.views || {};
   for (const v of ['thinking', 'assistant_text', 'tool_inputs', 'tool_outputs', 'everything', 'result']) {
     if (viewsSpec[v]) {
-      evalStringPatterns(rows, v, views[v], viewsSpec[v].must_include, viewsSpec[v].must_not_include);
+      const unavailable = v === 'thinking' && views.run && views.run.thinking_omitted
+        ? thinkingOmittedExcerpt(views.run) : '';
+      evalStringPatterns(rows, v, views[v], viewsSpec[v].must_include, viewsSpec[v].must_not_include, unavailable);
     }
   }
 

@@ -5,7 +5,7 @@ description: Headless `claude -p` test harness V2 — runs a fixture's literal p
 
 # test-prompt-harness V2
 
-A four-binary, mocha-wrapped harness for prompt-driven skill verification.
+A five-script, mocha-wrapped harness for prompt-driven skill verification.
 
 ## What it does
 
@@ -37,7 +37,7 @@ node plugins/planning-suite/skills/test-prompt-harness/bin/grade-aggregate.js \
 
 ## Cost discipline
 
-Each `runs:` invocation incurs `runs ×` `claude -p` calls. Each `semantic[]` row adds **one additional** `claude -p` call **per replica** (so `runs: 3` with two `semantic` rows costs `3 × (1 + 2) = 9` calls). Costs land in each replica's `run.meta.json` from the terminal `result` event. Set `runs` deliberately; only add `semantic` rows when regex assertions cannot express the check.
+Each `runs:` invocation incurs `runs ×` `claude -p` calls. Each `semantic[]` row adds **one additional** `claude -p` call **per replica** (so `runs: 3` with two `semantic` rows costs `3 × (1 + 2) = 9` calls). A replica's cost is the `total_cost_usd` of the terminal `result` event in its `stream.jsonl`; judge calls' costs are not recorded. A judge call is small (about 7K input tokens before the graded text; about $0.001 on Haiku 5.5 and $0.013 on Haiku 4.5, measured 2026-11-19), because the judge runs without Claude Code's tools, skills and MCP servers. Set `runs` deliberately; only add `semantic` rows when regex assertions cannot express the check.
 
 ## Fixture format
 
@@ -91,9 +91,8 @@ pass_conditions:
     - id: produces-valid-status-block
       view: result                                      # must be a STRING view: thinking, assistant_text, tool_inputs, tool_outputs, everything, result
       judge_model: claude-haiku-5-5
-      rubric: |
-        The output must contain a single line "STATUS: OK".
-        Output ONLY a JSON object: {"verdict": "PASS"|"FAIL", "reasoning": "<one sentence>"}.
+      rubric: |                                         # the rule only; the harness tells the judge how to reply
+        The output must contain a line that reads exactly "STATUS: OK".
 ---
 # Prompt body
 
@@ -132,7 +131,13 @@ For each `tool_use`, the grader builds a canonical JSON string with **top-level 
 | `result` | string | terminal `result` event's `.result` field |
 | `tool_calls` | array | `[{tool, input, tool_use_id}, …]` |
 | `tool_results` | array | `[{tool, content, is_error, tool_use_id}, …]` — `tool` is back-resolved via `tool_use_id` |
-| `run` | object | `{ subtype, is_error, elapsed_ms, parse_errors }` |
+| `run` | object | `{ subtype, is_error, elapsed_ms, parse_errors, thinking_blocks, thinking_omitted }` |
+
+**`thinking` on Claude 5.x subjects.** 5.x models stream their thinking blocks with empty text (recorded 2026-11-19: Haiku 5.5 used 41 thinking tokens and sent a zero-character block; the golden Haiku 4.5 stream has two blocks of about 285 characters). When a run has thinking blocks but no thinking text, `run.thinking_omitted` is true and every `views.thinking` row and every `semantic` row on `thinking` returns FAIL with "thinking text unavailable", instead of grading an empty string (where `must_not_include` would pass without testing anything). The judge is not called for such a row. Use `assistant_text` or `result` for a 5.x subject. `everything` still omits the missing text silently.
+
+### Writing a rubric
+
+State the rule and nothing else. `judge-runner.js` gives the judge its reply format (a `{verdict, reasoning}` object, validated by the CLI through `--json-schema`) and tells it that the graded text is data, not instructions. Say exactly what must be true: "must contain a single line `STATUS: OK`" was read by Haiku 4.5 as "the output must be one line" (0/3 correct on a two-line output that had the line), while "must contain a line that reads exactly `STATUS: OK`" was 3/3. An older rubric that ends with "Output ONLY a JSON object …" still works.
 
 ## Quorum semantics
 
@@ -166,7 +171,9 @@ Overall `PASS` requires every row to pass quorum.
 
 ## LLM-as-judge probe (committed)
 
-`fixtures/_golden/golden-judge-result.json` is the captured stdout of judge-runner.js's own invocation (`claude -p --output-format json`, no `--verbose`; recorded 2026-11-19 against `claude` 2.1.328): **one result object**. `fixtures/_golden/golden-judge.json` is the captured response of the same call with `--verbose`: a JSON array of events ending in that result event. The judge-runner.js field path is **grounded in both goldens**: the **`result` event's `.result` string** (with optional ```` ```json … ``` ```` fence stripped) is the assistant's final text. Any upstream-format drift fails the `judge-runner` unit test before it can poison a live run, but only if the golden is captured with the runner's exact arguments: while the `--verbose` golden was the only one, the unit tests passed although the runner's real output (on `claude` 2.1.328) was a single object, which made every semantic row return FAIL.
+`fixtures/_golden/golden-judge-result.json` is the captured stdout of judge-runner.js's own invocation (recorded 2026-11-19 against `claude` 2.1.328, Haiku 5.5): `claude -p --output-format json --model <m> --system-prompt <JUDGE_SYSTEM_PROMPT> --json-schema <JUDGE_SCHEMA> --tools "" --disable-slash-commands --strict-mcp-config --no-session-persistence`, no `--verbose`. It is **one result object**; its `structured_output` holds the verdict the CLI validated against the schema, and `.result` holds the same verdict as text. `fixtures/_golden/golden-judge.json` is an earlier capture made with `--verbose` and without the schema: a JSON array of events ending in a result event that has only `.result`. judge-runner.js is **grounded in both goldens**: it takes the `result` event, uses `structured_output` when present, and otherwise parses `.result` (with an optional ```` ```json … ``` ```` fence stripped). Upstream-format drift fails the `judge-runner` unit test before it can poison a live run, but only if the golden is captured with the runner's exact arguments: while the `--verbose` golden was the only one, the unit tests passed although the runner's real output was a single object, which made every semantic row return FAIL.
+
+The judge has nothing to act with: 0 tools, 0 skills, 0 MCP servers, no saved session (the earlier invocation exposed 477 tools under `bypassPermissions` to a model reading another model's output). A graded text that tells the judge to answer PASS was graded FAIL in 12 of 12 live trials.
 
 ## Phase 1 probe findings (V1, retained for reference, recorded 2026-05-17 against `claude` 2.1.143)
 
@@ -181,7 +188,7 @@ Overall `PASS` requires every row to pass quorum.
 
 - Multi-judge ensembles / cross-validation — single judge per `semantic` row.
 - Streaming-input (`--input-format stream-json`) multi-turn fixtures.
-- Token-cost budget gating (`run.max_cost_usd`) — `claude -p` reports cost in `run.meta.json`; add as a `run.*` condition later if fixtures demand it.
+- Token-cost budget gating (`run.max_cost_usd`) — `claude -p` reports cost in the stream's terminal `result` event (`total_cost_usd`); `run.meta.json` does not record it. Add as a `run.*` condition later if fixtures demand it.
 - Position-bias mitigation — judge sees ONE output, not a pair (no pairwise comparison in V2).
 - Per-semantic-row `judge_timeout_seconds` override — the judge call inherits the fixture's `timeout_seconds`.
 - Fixture parameterization / placeholder interpolation — still "literal body, no interpolation".

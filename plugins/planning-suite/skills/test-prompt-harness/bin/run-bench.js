@@ -35,6 +35,15 @@ function spawnPromise(cmd, args, opts) {
   });
 }
 
+// grade-run.js calls the judge once per semantic row, one after another, and
+// each call may take up to the fixture's timeout_seconds. Grading gets that
+// much time on top of a 60 s base, so it is never killed mid-judge.
+function gradeTimeoutFor(fm) {
+  const semantic = fm && fm.pass_conditions && Array.isArray(fm.pass_conditions.semantic)
+    ? fm.pass_conditions.semantic.length : 0;
+  return 60000 + semantic * Number(fm.timeout_seconds || 60) * 1000;
+}
+
 async function runBench(fixturePath, runDir) {
   const fm = parseFrontmatter(fixturePath);
   const runs = fm.runs !== undefined ? Number(fm.runs) : 1;
@@ -42,6 +51,7 @@ async function runBench(fixturePath, runDir) {
     throw new Error(`runs must be a positive integer; got ${fm.runs}`);
   }
   const fixtureTimeoutMs = (Number(fm.timeout_seconds) + 30) * 1000;
+  const gradeTimeoutMs = gradeTimeoutFor(fm);
   fs.mkdirSync(runDir, { recursive: true });
 
   // Phase A: run k replicas in parallel.
@@ -69,11 +79,15 @@ async function runBench(fixturePath, runDir) {
   for (const replicaDir of replicaDirs) {
     gradePromises.push(spawnPromise(process.execPath,
       [gradeFixtureBin, fixturePath, replicaDir],
-      { timeout: 60000 }));
+      { timeout: gradeTimeoutMs }));
   }
   const gradeResults = await Promise.all(gradePromises);
   for (let i = 0; i < gradeResults.length; i++) {
-    // grade-run exits 1 on FAIL — that's fine, only >1 is a crash
+    // grade-run exits 1 on FAIL — that's fine, only >1 is a crash. A null
+    // status means it was killed (the timeout above) and wrote no grade.json.
+    if (gradeResults[i].status === null) {
+      throw new Error(`grade-run for r${i + 1} was killed (signal=${gradeResults[i].signal}) after ${Math.round(gradeTimeoutMs / 1000)}s; no grade.json was written`);
+    }
     if (gradeResults[i].status > 1) {
       throw new Error(`grade-run for r${i + 1} crashed: status=${gradeResults[i].status} stderr=${gradeResults[i].stderr}`);
     }
@@ -106,4 +120,4 @@ if (require.main === module) {
     .catch(e => { process.stderr.write(`run-bench.js: ${e.message}\n`); process.exit(2); });
 }
 
-module.exports = { runBench };
+module.exports = { runBench, gradeTimeoutFor };

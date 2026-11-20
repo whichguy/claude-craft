@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-11-19 — test-prompt-harness judge runs without tools and returns a validated verdict (planning-suite 0.3.3)
+
+A review of `test-prompt-harness` after the parsing fix below. Measurements are in
+`docs/experiments/test-prompt-harness-judge-parsing-2026-11-19.md` (rounds R4 to R7).
+
+### Changed behaviour
+
+- **The judge has nothing to act with.** `bin/judge-runner.js` ran the judge as a full Claude Code session: 477 tools
+  with permissions bypassed, 79 MCP servers and 337 skills, reading text another model wrote. It now runs with its own
+  grader system prompt, `--tools ""`, `--disable-slash-commands`, `--strict-mcp-config` and `--no-session-persistence`:
+  0 tools, 0 MCP servers, 0 skills, and no saved session. A graded text that told the judge to answer PASS was graded
+  FAIL in 12 of 12 live trials.
+- **A judge call costs about a ninth.** Input drops from about 70,000 tokens to about 7,000 before the graded text;
+  per call about $0.001 on Haiku 5.5 (was $0.0088) and $0.013 on Haiku 4.5 (was $0.064).
+- **The verdict is validated by the CLI.** The judge replies through `--json-schema`, and the runner reads
+  `structured_output`. Before, 2 of 18 Haiku 5.5 replies were invalid hand-written JSON (unescaped quotes), which the
+  runner reports as FAIL; with the schema 36 of 36 parsed. The reply text is still parsed when no object is present.
+- **Rubrics state the rule only.** The reply format now comes from the harness. Rubrics that end with "Output ONLY a
+  JSON object …" still work. The SKILL.md example is reworded: Haiku 4.5 read "must contain a single line" as "the
+  output must be one line" (0/3 on a passing case) and "must contain a line that reads exactly" correctly (3/3).
+- **Checks on `thinking` fail loudly on Claude 5.x subjects.** 5.x models stream thinking blocks with empty text, so
+  `views.thinking` rows and `semantic` rows on `thinking` graded an empty string (`must_not_include` always passed).
+  Those rows now return FAIL with "thinking text unavailable", and the judge is not called for them. Migration: grade
+  `assistant_text` or `result` for a 5.x subject.
+- **Grading is no longer cut off mid-judge.** `run-bench.js` allowed grading a fixed 60 s; it now allows 60 s plus the
+  fixture's `timeout_seconds` per `semantic` row, and reports a killed grader instead of failing on a missing
+  `grade.json`.
+
+### Notes
+
+- A missing `claude` binary is reported as "judge could not start: ENOENT …" instead of "judge exit=null".
+- SKILL.md no longer says costs are written to `run.meta.json` (they never were; a replica's cost is in its stream's
+  terminal `result` event) and counts five scripts, not four.
+- `golden-judge-result.json` is re-captured with the new invocation.
+
 ## 2026-11-19 — test-prompt-harness judge reads the CLI's single result object (planning-suite 0.3.2)
 
 `test-prompt-harness`' `bin/judge-runner.js` parsed the stdout of `claude -p --output-format json` as an array of events.
