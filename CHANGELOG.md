@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-19 — test-prompt-harness judge reads the CLI's single result object (planning-suite 0.3.2)
+
+`test-prompt-harness`' `bin/judge-runner.js` parsed the stdout of `claude -p --output-format json` as an array of events.
+Without `--verbose` that command prints one result object (`claude --help` describes `json` as "single result"). So
+every `semantic` pass condition returned FAIL with "judge stdout was not a JSON array (top-level type=object)", whatever
+the judge model or the graded output. The runner now reads the single result object, and still reads the event array
+that `--verbose` prints.
+
+### Notes
+
+- The unit tests missed this because the only judge golden, `golden-judge.json`, had been captured with `--verbose`. A
+  second golden, `golden-judge-result.json`, is recorded with the runner's exact arguments (`claude` 2.1.328, Haiku 5.5).
+- The gated live suite (`RUN_LLM_BENCH=1`, fixture `smoke-echo`) now passes 16/16, including its semantic row.
+- Rubric wording matters for the judge. With the SKILL.md example rubric (no explicit PASS/FAIL rules), Haiku 4.5
+  failed all 3 passing cases: it applied the rubric's "Output ONLY a JSON object" line to the graded output. Haiku 5.5
+  got 6/6 right. The `smoke-echo` rubric, which spells out when to PASS and FAIL, passes on Haiku 4.5.
+
 ## 2026-11-19 — model pins moved to the 5.5 generation (planning-suite 0.3.1, review-suite 0.2.8, review-bench 0.3.1, gas-suite 0.2.1)
 
 Every Claude 4.x model ID in planning-suite, review-suite and review-bench now names its 5.5 counterpart:

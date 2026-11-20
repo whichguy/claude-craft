@@ -166,7 +166,7 @@ Overall `PASS` requires every row to pass quorum.
 
 ## LLM-as-judge probe (committed)
 
-`fixtures/_golden/golden-judge.json` is the captured response from a probe of `claude -p --output-format json --verbose`. The judge-runner.js field path is **grounded in this golden**: the response is a JSON array of events; the **terminal `result` event's `.result` string** (with optional ```` ```json … ``` ```` fence stripped) is the assistant's final text. Any upstream-format drift fails the `judge-runner` unit test before it can poison a live run.
+`fixtures/_golden/golden-judge-result.json` is the captured stdout of judge-runner.js's own invocation (`claude -p --output-format json`, no `--verbose`; recorded 2026-11-19 against `claude` 2.1.328): **one result object**. `fixtures/_golden/golden-judge.json` is the captured response of the same call with `--verbose`: a JSON array of events ending in that result event. The judge-runner.js field path is **grounded in both goldens**: the **`result` event's `.result` string** (with optional ```` ```json … ``` ```` fence stripped) is the assistant's final text. Any upstream-format drift fails the `judge-runner` unit test before it can poison a live run, but only if the golden is captured with the runner's exact arguments: while the `--verbose` golden was the only one, the unit tests passed although the runner's real output (on `claude` 2.1.328) was a single object, which made every semantic row return FAIL.
 
 ## Phase 1 probe findings (V1, retained for reference, recorded 2026-05-17 against `claude` 2.1.143)
 

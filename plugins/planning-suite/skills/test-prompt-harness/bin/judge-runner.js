@@ -6,10 +6,14 @@
 // out of the response and returns {verdict, reasoning, judge_model,
 // judge_duration_ms}.
 //
-// Response shape (grounded in fixtures/_golden/golden-judge.json):
-//   `claude -p --output-format json --verbose ...` writes a JSON ARRAY of
-//   events to stdout. The terminal event with `type === "result"` carries
-//   the assistant's final text in its `.result` string. That string MAY be
+// Response shape (grounded in fixtures/_golden/golden-judge-result.json and
+// fixtures/_golden/golden-judge.json):
+//   `claude -p --output-format json ...`, the invocation below, writes ONE
+//   JSON object to stdout: the result event (`claude --help` calls it the
+//   "single result"). With `--verbose` (or the verbose setting on) the same
+//   invocation writes a JSON ARRAY of events instead, ending in that result
+//   event. Either way the event with `type === "result"` carries the
+//   assistant's final text in its `.result` string. That string MAY be
 //   wrapped in a ```json … ``` (or bare ```…```) markdown fence — strip
 //   the fence before JSON.parse.
 //
@@ -26,24 +30,22 @@ const crypto = require('crypto');
 const FENCE_RE = /^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/m;
 
 function extractAssistantText(stdout) {
-  // The response is a JSON array of events; find the terminal `result` event.
-  let arr;
+  // The response is one result object, or (verbose) an array of events
+  // ending in it; find the last `result` event.
+  let parsed;
   try {
-    arr = JSON.parse(stdout);
+    parsed = JSON.parse(stdout);
   } catch (e) {
     throw new Error(`judge stdout was not valid JSON: ${e.message}`);
   }
-  if (!Array.isArray(arr)) {
-    throw new Error(`judge stdout was not a JSON array (top-level type=${typeof arr})`);
-  }
-  // Walk in reverse to find the result event.
-  for (let i = arr.length - 1; i >= 0; i--) {
-    const ev = arr[i];
+  const events = Array.isArray(parsed) ? parsed : [parsed];
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
     if (ev && ev.type === 'result' && typeof ev.result === 'string') {
       return ev.result;
     }
   }
-  throw new Error('judge response had no terminal result event with string .result');
+  throw new Error('judge response had no result event with string .result');
 }
 
 function stripFence(text) {

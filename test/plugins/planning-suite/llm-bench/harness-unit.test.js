@@ -11,6 +11,7 @@ const BIN_DIR = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'tes
 const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 const GOLDEN = path.join(FIXTURES_DIR, '_golden', 'golden-stream.jsonl');
 const GOLDEN_JUDGE = path.join(FIXTURES_DIR, '_golden', 'golden-judge.json');
+const GOLDEN_JUDGE_RESULT = path.join(FIXTURES_DIR, '_golden', 'golden-judge-result.json');
 
 const {
   gradeRun, parseFrontmatter, buildViews, tolerantParseLines, evalRows,
@@ -393,11 +394,39 @@ describe('llm-bench harness V2 — aggregator quorum', () => {
 
 describe('llm-bench harness V2 — judge-runner (no live API)', () => {
   let goldenJudge;
+  let goldenJudgeResult;
   before(() => {
     goldenJudge = JSON.parse(fs.readFileSync(GOLDEN_JUDGE, 'utf8'));
+    goldenJudgeResult = JSON.parse(fs.readFileSync(GOLDEN_JUDGE_RESULT, 'utf8'));
   });
 
-  it('golden judge response has terminal result event with string .result', () => {
+  // golden-judge-result.json is the stdout of runJudge's own invocation
+  // (`claude -p --output-format json`, no --verbose): one result object.
+  it('golden runner response (no --verbose) is one result object with string .result', () => {
+    expect(Array.isArray(goldenJudgeResult)).to.equal(false);
+    expect(goldenJudgeResult.type).to.equal('result');
+    expect(goldenJudgeResult.result).to.be.a('string');
+  });
+
+  it('extractAssistantText pulls .result from the single result object', () => {
+    const text = extractAssistantText(JSON.stringify(goldenJudgeResult));
+    expect(text).to.contain('"verdict"');
+  });
+
+  it('runJudge with fake spawn (canned single-object golden) → PASS row', () => {
+    const fakeSpawn = () => ({ status: 0, signal: null, stdout: JSON.stringify(goldenJudgeResult), stderr: '' });
+    const r = runJudge({ model: 'm', timeoutMs: 1000, input: 'x' }, { spawn: fakeSpawn });
+    expect(r.verdict).to.equal('PASS');
+    expect(r.actual_excerpt).to.equal('');
+  });
+
+  it('extractAssistantText rejects a JSON object that is not a result event', () => {
+    expect(() => extractAssistantText(JSON.stringify({ type: 'system', subtype: 'init' })))
+      .to.throw('no result event');
+  });
+
+  // golden-judge.json is the same call with --verbose: an array of events.
+  it('golden --verbose judge response has terminal result event with string .result', () => {
     expect(Array.isArray(goldenJudge)).to.equal(true);
     const terminal = goldenJudge[goldenJudge.length - 1];
     expect(terminal.type).to.equal('result');
