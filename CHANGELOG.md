@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-22 — plan-review gates: the investigation stage is removed (planning-suite 0.4.0)
+
+The `ExitPlanMode` unknowns gate now does one thing: it denies until the plan has an `## Open Unknowns` section (a Codex audit when the Codex CLI is available, a generic instruction when it is not). The second stage, which denied a plan that tagged a bullet `[investigate]` until `/investigate-plan` had run or the user waived it, is gone: its deny text sent every user to a command that exists only with the Hermes container. The handlers are synced from `hermes-skills-marketplace` `plan-review` 0.2.0 (its pull request #4), their canonical home, so the manifest drift check matches again.
+
+### Removed capabilities
+
+- **planning-suite** — in `handlers/plan-unknowns-gate.py`: the investigation stage, the `needs-investigation` sentinel, the `[investigate]` tag handling and the paragraph of the Codex prompt that taught it, the `CLAUDE_PLAN_INVESTIGATE` advisory, `INV_CONTAINER` with the container probe, and the `/investigate-plan` pointers in the stage-one messages. In `handlers/plan-worktree-gate.py`: its deferral to that stage. In `handlers/plan-review-cleanup.py`: `KINDS` keeps only `worktree-assessed`. Migration: a plan that tags a bullet `[investigate]` is now treated like any other bullet, `CLAUDE_PLAN_INVESTIGATE` is ignored, and investigation sentinels left in `~/.claude/plans` by earlier versions are harmless and are no longer removed.
+
+### Notes
+
+- The two gate suites follow the hub: the `[investigate]` cases now pin that the tag neither defers the gate nor writes a sentinel, and the slug cases that belonged to the removed stage are gone with it. This repository's hermetic `CLAUDE_PLAN_*` unset at the top of both suites is kept.
+- `hooks/hooks.json` describes the one remaining stage. The 900 s hook timeouts are unchanged.
+
 ## 2026-11-19 — remaining model pins moved to the 5.5 generation (gas-suite 0.2.2, slides-suite 0.1.1, wiki-suite 0.3.1)
 
 The three plugins the earlier 5.5 entry below left on Claude 4.x now name the 5.5 models: 19 pins in 17 files.
