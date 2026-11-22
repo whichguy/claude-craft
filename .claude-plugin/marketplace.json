@@ -33,7 +33,7 @@
     {
       "name": "planning-suite",
       "source": "./plugins/planning-suite",
-      "version": "0.3.3",
+      "version": "0.4.0",
       "description": "node-plan, test-prompt-harness, alias/unalias, performance, knowledge, iterative red-team plan review, and ExitPlanMode plan gates with an execute nudge (Execute: schedule routes to /skill-craft:plan-dispatcher). Architect, c-plan, plan-test and prompt-align/audit/migrate/refine live in skill-craft (/skill-craft:<leaf>)."
     },
     {
